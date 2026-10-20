@@ -31,12 +31,11 @@ public partial class GemEquipment
     public bool EnableCommunication()
     {
         Started();
-        bool open = transport.IsOpen();
         lock (gate)
         {
             if (commState != GemCommunicationState.Disabled) return false;
             SetCommunicationLocked(GemCommunicationState.NotCommunicating);
-            StartWaitCraLocked(open);
+            StartWaitCraLocked(linkUp);
             return true;
         }
     }
@@ -98,7 +97,7 @@ public partial class GemEquipment
         EnqueueLocked(new SecsMessage(1, 13, true, SecsItem.L(SecsItem.A(modelName), SecsItem.A(softwareRevision))), S1F13Done);
     }
 
-    // 장비 S1F13의 결과(작업 스레드): COMMACK 0이면 전이 9, 아니면 전이 6(WAIT DELAY)
+    // 장비 S1F13의 결과(송신 완료, 보통 디스패처): COMMACK 0이면 전이 9, 아니면 전이 6(WAIT DELAY)
     void S1F13Done(Outgoing o, Task<SecsMessage?> t)
     {
         string? failure = null;
@@ -157,9 +156,12 @@ public partial class GemEquipment
     {
         lock (gate)
         {
+            linkUp = true;
+            ++linkEpoch;
             // 연결 직후에는 CommDelay를 기다리지 않고 바로 S1F13 (WAIT DELAY를 만료로 봄)
             if (running && commState == GemCommunicationState.NotCommunicating && equipmentConnect == EquipmentConnect.WaitDelay)
                 StartWaitCraLocked(connected: true);
+            worker?.Post(Pump);                        // 링크 없음으로 기다리던 송신을 시작
         }
     }
 
@@ -167,16 +169,17 @@ public partial class GemEquipment
     {
         lock (gate)
         {
+            linkUp = false;
+            ++linkEpoch;
             if (running && commState == GemCommunicationState.Communicating) CommunicationLostLocked(connected: false);
         }
     }
 
     partial void OnCommunicationFailure()
     {
-        bool open = transport.IsOpen();
         lock (gate)
         {
-            if (running && commState == GemCommunicationState.Communicating) CommunicationLostLocked(open);
+            if (running && commState == GemCommunicationState.Communicating) CommunicationLostLocked(linkUp);
         }
     }
 
@@ -192,12 +195,11 @@ public partial class GemEquipment
 
     partial void OnWorkerTick(long now)
     {
-        bool open = transport.IsOpen();
         lock (gate)
         {
             // 전이 7: CommDelay 만료 → S1F13 (연결이 없으면 WAIT DELAY 다시)
             if (running && commState == GemCommunicationState.NotCommunicating && equipmentConnect == EquipmentConnect.WaitDelay && now >= commDelayDeadline)
-                StartWaitCraLocked(open);
+                StartWaitCraLocked(linkUp);
         }
     }
 }

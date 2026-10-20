@@ -128,7 +128,7 @@ public partial class GemEquipment
         else ChangeControlLocked(GemControlState.OnlineRemote, GemStandard.ControlStateRemote);
     }
 
-    // S1F1의 결과(작업 스레드): S1F2면 전이 5(→7), 실패면 전이 4
+    // S1F1의 결과(송신 완료, 보통 디스패처): S1F2면 전이 5(→7), 실패면 전이 4
     void S1F1Done(Outgoing o, Task<SecsMessage?> t)
     {
         if (!t.IsCompletedSuccessfully) ReportFailure(o.Message, t.Exception!.InnerException!);

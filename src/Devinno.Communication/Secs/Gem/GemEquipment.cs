@@ -51,11 +51,12 @@ namespace Devinno.Communication.Secs.Gem;
 public partial class GemEquipment : IDisposable
 {
     #region class : Outgoing / Deferred
-    // GEM이 보내는 1차 메시지 하나와 완료 처리(작업 스레드에서 부름)
+    // GEM이 보내는 1차 메시지 하나와 완료 처리(보통 디스패처에서 와이어 순서로 부름)
     sealed class Outgoing(SecsMessage message, Action<Outgoing, Task<SecsMessage?>> done)
     {
         public SecsMessage Message { get; } = message;
         public Action<Outgoing, Task<SecsMessage?>> Done { get; } = done;
+        public int Epoch;                   // gate: 보낸 연결의 세대(linkEpoch). 지난 연결의 늦은 완료를 가려낸다
     }
 
     // 앱이 정해야 하는 응답(리모트 명령·EC 승인·등록 메시지). 앱 결과와 기한 응답 중 먼저 온 것 하나만 보낸다. Run = 받은 실행의 번호
@@ -91,6 +92,9 @@ public partial class GemEquipment : IDisposable
     int run;                            // gate: 실행 번호(Start마다 1 늘림). 앱 스레드에서 늦게 돌아온 이전 실행의 결과를 가려낸다
     readonly Queue<Outgoing> sendQueue = new();   // gate
     Outgoing? inFlight;                 // gate: 응답을 기다리는 GEM 송신(한 번에 하나)
+    // gate: GEM이 아는 링크 상태와 연결 세대. 디스패처의 DeviceOpened/DeviceClosed(와이어 순서)로만 바뀐다(전송 IsOpen 스냅숏은 읽지 않음)
+    bool linkUp;
+    int linkEpoch;
     readonly List<Deferred> deferreds = [];       // gate
     // 변수 값(앱 SV·DV·EC와 표준 EC·DV). 표준 SV는 값을 저장하지 않고 상태에서 계산한다
     readonly Dictionary<GemId, SecsItem> values = [];    // gate
@@ -103,6 +107,7 @@ public partial class GemEquipment : IDisposable
     string modelName = "", softwareRevision = "";
     SecsFormat vidFormat = SecsFormat.U4, ceidFormat = SecsFormat.U4, rptidFormat = SecsFormat.U4, alidFormat = SecsFormat.U4, dataidFormat = SecsFormat.U4;
     int commandReplyTimeout = 10000, maxPendingSends = 1000, maxPendingEvents = 10000;
+    int dispatcherSendCount;            // 디스패처 스레드에서 Pump가 송신을 시작한 횟수(테스트 확인용, 0이어야 함)
     #endregion
 
     #region Extension points
@@ -126,7 +131,7 @@ public partial class GemEquipment : IDisposable
     partial void OnTransportClosed();
     // 작업 스레드 타이머(약 20ms마다)
     partial void OnWorkerTick(long now);
-    // GEM이 보낸 1차 메시지가 T3로 끝남 = 통신 실패(작업 스레드)
+    // GEM이 보낸 1차 메시지가 T3로 끝남 = 통신 실패(송신 완료, 보통 디스패처)
     partial void OnCommunicationFailure();
     // NOT COMMUNICATING에서 S1F13이 아닌 1차 메시지를 받음(디스패처, 전이 8)
     partial void OnNotCommunicatingPrimary();
@@ -147,7 +152,7 @@ public partial class GemEquipment : IDisposable
     /// <exception cref="InvalidOperationException">The transport has already been started</exception>
     public GemEquipment(SecsSerial transport) : this(GemTransport.Of(Ready(transport))) { }
 
-    GemEquipment(GemTransport transport)
+    internal GemEquipment(GemTransport transport)
     {
         this.transport = transport;
         onPrimary = OnPrimary;
@@ -253,6 +258,12 @@ public partial class GemEquipment : IDisposable
     public GemStandardIds StandardIds { get; } = new();
 
     bool IsRunning { get { lock (gate) return running; } }
+
+    // 디스패처 스레드에서 송신을 시작한 횟수(GEM은 디스패처에서 자기 1차 메시지를 보내지 않으므로 늘 0, 테스트 확인용)
+    internal int DispatcherSendCount => Interlocked.CompareExchange(ref dispatcherSendCount, 0, 0);
+
+    // GEM이 링크를 연결로 아는지(테스트가 DeviceOpened 처리를 기다릴 때)
+    internal bool LinkUp { get { lock (gate) return linkUp; } }
 
     void Setting(Action set)
     {
@@ -374,6 +385,7 @@ public partial class GemEquipment : IDisposable
                 run++;
                 sendQueue.Clear();
                 inFlight = null;
+                linkUp = false;
                 deferreds.Clear();
                 values.Clear();
                 foreach (var v in c.Vars.Values)
@@ -617,42 +629,41 @@ public partial class GemEquipment : IDisposable
 
     static bool IsS1F13(SecsMessage m) => m.Stream == 1 && m.Function == 13;
 
+    // 다음 GEM 송신을 시작한다(작업 스레드). GEM이 링크 없음으로 알면 보내지 않고 DeviceOpened를 기다린다
     void Pump()
     {
         Outgoing o;
+        lock (gate)
+        {
+            if (!running || !linkUp || inFlight != null || sendQueue.Count == 0) return;
+            o = inFlight = sendQueue.Dequeue();
+            o.Epoch = linkEpoch;
+        }
+        if (transport.IsDispatcherThread()) Interlocked.Increment(ref dispatcherSendCount);
+        // 완료는 디스패처에서 와이어 순서로 정확히 한 번(디스패처가 멈춰 있으면 완료시킨 스레드에서). 동기 예외면 완료가 오지 않으므로 여기서 끝낸다
+        try { transport.SendOrdered(o.Message, t => Completed(o, t)); }
+        catch (Exception ex) { Completed(o, Task.FromException<SecsMessage?>(ex)); }   // 연결 안 됨(InvalidOperationException) 등
+    }
+
+    // 송신 완료(보통 디스패처, 와이어 순서). gate만 잡고 전송을 부르지 않는다(전송 lifeLock 안에서 불릴 수 있음). 다음 송신은 작업 스레드로 넘긴다
+    void Completed(Outgoing o, Task<SecsMessage?> t)
+    {
+        bool s1f13 = IsS1F13(o.Message);
         GemLoop? w;
         lock (gate)
         {
-            if (!running || inFlight != null || sendQueue.Count == 0) return;
-            o = inFlight = sendQueue.Dequeue();
-            w = worker;
-        }
-        Task<SecsMessage?> t;
-        try { t = transport.SendAsync(o.Message, CancellationToken.None); }
-        catch (Exception ex) { t = Task.FromException<SecsMessage?>(ex); }   // 연결 안 됨(InvalidOperationException) 등
-        t.ContinueWith(x => w?.Post(() => Completed(o, x)), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-    }
-
-    void Completed(Outgoing o, Task<SecsMessage?> t)
-    {
-        // 연결이 끊겨 끝난 송신(응답 대기 중 끊김·연결 없음)은 전송의 DeviceClosed보다 먼저 올 수 있다(전송은 대기 트랜잭션을 먼저 끝내고 DeviceClosed는 디스패처에서 나중에 냄).
-        // 평범한 송신 실패로 알리면 이 메시지와 대기열이 전이 14의 버림 경로를 비껴가므로(대기열은 끊긴 연결로 보내 실패), 여기서 통신 실패로 처리한다
-        bool linkLost = !IsS1F13(o.Message) && t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex));
-        bool open = linkLost && transport.IsOpen();
-        lock (gate)
-        {
-            if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패)
-            if (linkLost && running && commState == GemCommunicationState.Communicating)
-            {
-                CommunicationLostLocked(open);         // 응답 대기 중인 이 메시지와 대기열을 버림 경로로(NotCommunicating)
-                return;
-            }
+            if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패·Stop/Start)
+            // 장비 S1F13은 지난 연결의 완료라도 받아 WAIT DELAY로 보낸다(끊김 때 응답 대기 중인 S1F13을 놓는 곳이 아직 없음)
+            if (!s1f13 && o.Epoch != linkEpoch) return;   // 지난 연결의 늦은 완료(그 연결의 DeviceClosed가 이미 정리함)
+            // 링크가 끊겨 끝난 송신은 아무 상태도 바꾸지 않는다: 그 연결의 DeviceClosed가 전이 14로 이 메시지와 대기열을 버림 경로로 보낸다
+            if (!s1f13 && t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex))) return;
             inFlight = null;
+            w = worker;
         }
         o.Done(o, t);
         // T3만 통신 실패(장비 S1F13의 T3는 NOT COMMUNICATING 안의 실패라 제외)
-        if (t.Exception?.InnerException is SecsTimeoutException && !IsS1F13(o.Message)) OnCommunicationFailure();
-        Pump();
+        if (t.Exception?.InnerException is SecsTimeoutException && !s1f13) OnCommunicationFailure();
+        w?.Post(Pump);
     }
 
     // 기본 완료 처리(S5F1·S6F11·S10F1): 실패·0이 아닌 ack는 SendFailed
