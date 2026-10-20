@@ -238,6 +238,10 @@ bool ContainsNamedWrite(string name)
 
 - `NamedWrite` only queues a Manual job (same queue, priority, events and retries as `ManualXxx`). The result arrives later as an event with `MessageID` = the `<Write>` Id.
 - `repeatCount`/`timeout` arguments override the XML `RepeatCount`/`Timeout`; if both are absent: no retries and the class `Timeout`.
+- **Do not use `RepeatCount` on a pulse, counter or incremental write.** A retry resends a write the device may already have executed (the response may simply have been lost), so the write can be applied twice. Keep it for idempotent writes (set a value), or read the value back before writing again.
+- A Modbus Manual FC6 / FC16 write with a value outside -32768..65535 throws `ArgumentOutOfRangeException` at the call (negative values are sent as two's complement).
+- S7 and FINS block writes are **not atomic**: if one fails part-way, only the first chunks may have been written. `WrittenBytes` (S7) / `WrittenCount` (FINS) on the failure event tell how much the PLC accepted in that attempt. Do not put a trigger or handshake word inside a block; write it separately after the block succeeded.
+- A write made while not connected is discarded by default (`WriteDiscarded`, see 7.1.1).
 - Values are `long`. Pass a `long[]`, a `List<long>` or a collection expression (`[1, 2, 3]`). An `int[]` or `List<int>` does not convert to `IReadOnlyList<long>` and does not compile.
 
 ---
@@ -325,20 +329,25 @@ plc.NAKReceived += (s, e) => Console.WriteLine($"PLC error, id {e.MessageID}: 0x
 plc.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID}");
 plc.DeviceOpened += (s, e) => Console.WriteLine("connected");
 plc.DeviceClosed += (s, e) => Console.WriteLine("disconnected");
+plc.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
+
+// Write only once connected: a write made while not connected is discarded (WriteDiscarded)
+plc.DeviceOpened += (s, e) =>
+{
+    plc.NamedWrite("RunCommand", 1);
+    plc.NamedWrite("SpeedSet", 1500);
+
+    int targetPos = -20000;                   // 32-bit signed → two raw words, low word first
+    plc.NamedWrite("TargetPos", [targetPos & 0xFFFF, (targetPos >> 16) & 0xFFFF]);
+
+    plc.NamedWrite("Reset", 1);               // bit device → BW
+
+    long[] recipe = new long[20];
+    for (int i = 0; i < recipe.Length; i++) recipe[i] = 100 + i;
+    plc.NamedWrite("Recipe", recipe);         // D300..D319 in one WW request (Id 104)
+};
 
 plc.Start();                                  // connects and starts polling (AutoReconnect="true" by default)
-
-plc.NamedWrite("RunCommand", 1);
-plc.NamedWrite("SpeedSet", 1500);
-
-int targetPos = -20000;                       // 32-bit signed → two raw words, low word first
-plc.NamedWrite("TargetPos", [targetPos & 0xFFFF, (targetPos >> 16) & 0xFFFF]);
-
-plc.NamedWrite("Reset", 1);                   // bit device → BW
-
-long[] recipe = new long[20];
-for (int i = 0; i < recipe.Length; i++) recipe[i] = 100 + i;
-plc.NamedWrite("Recipe", recipe);             // D300..D319 in one WW request (Id 104)
 
 Console.ReadLine();
 plc.Dispose();                                // stops the loop, closes the connection, releases
@@ -398,14 +407,19 @@ plc.DataReceived += (s, e) =>                  // <Read>: e.Values[i] = i-th add
 };
 plc.WriteReceived += (s, e) => Console.WriteLine($"write {e.MessageID} done");
 plc.NAKReceived += (s, e) => Console.WriteLine($"PLC error, id {e.MessageID}: 0x{e.ErrorCode:X2} item {e.ItemIndex}");
-plc.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID}");
+plc.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID} (attempt {e.Attempt}, final {e.IsFinal}, sent {e.RequestSent})");
+plc.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
+
+// Write only once connected (a write while not connected is discarded)
+plc.DeviceOpened += (s, e) =>
+{
+    plc.NamedWrite("SpeedSet", 1500);
+    plc.NamedWrite("SetTemp", BitConverter.SingleToInt32Bits(72.5f));   // REAL → raw 32 bits on a DBD address
+    plc.NamedWrite("StartCmd", 1);
+    plc.NamedWrite("Recipe", [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]); // DB20.DBW10..DBW28, big-endian block write
+};
 
 plc.Start();
-
-plc.NamedWrite("SpeedSet", 1500);
-plc.NamedWrite("SetTemp", BitConverter.SingleToInt32Bits(72.5f));   // REAL → raw 32 bits on a DBD address
-plc.NamedWrite("StartCmd", 1);
-plc.NamedWrite("Recipe", [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]); // DB20.DBW10..DBW28, big-endian block write
 
 Console.ReadLine();
 plc.Dispose();
@@ -464,17 +478,22 @@ mb.BitWriteReceived += (s, e) => Console.WriteLine($"FC5 {e.MessageID} wrote {e.
 mb.WordWriteReceived += (s, e) => Console.WriteLine($"FC6 {e.MessageID} wrote {e.WriteValue}");            // int
 mb.MultiWordWriteReceived += (s, e) => Console.WriteLine($"FC16 {e.MessageID} wrote {e.WriteValues.Length} words");
 mb.ExceptionReceived += (s, e) => Console.WriteLine($"device exception {e.ExceptionCode}, id {e.MessageID}");
-mb.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID}");
+mb.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID} (attempt {e.Attempt}, final {e.IsFinal}, sent {e.RequestSent})");
+mb.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
+
+// Write only once connected (a write while not connected is discarded)
+mb.DeviceOpened += (s, e) =>
+{
+    mb.NamedWrite("RunCmd", 1);                // FC5: 0 or 1
+    mb.NamedWrite("SpeedSet", 1500);           // FC6
+    int targetPos = -20000;
+    mb.NamedWrite("TargetPos", [targetPos & 0xFFFF, (targetPos >> 16) & 0xFFFF]);   // FC16, low word first
+    long[] recipe = new long[20];
+    for (int i = 0; i < recipe.Length; i++) recipe[i] = 10 * i;
+    mb.NamedWrite("Recipe", recipe);           // FC16, 20 registers 40311..40330
+};
 
 mb.Start();
-
-mb.NamedWrite("RunCmd", 1);                    // FC5: 0 or 1
-mb.NamedWrite("SpeedSet", 1500);               // FC6
-int targetPos = -20000;
-mb.NamedWrite("TargetPos", [targetPos & 0xFFFF, (targetPos >> 16) & 0xFFFF]);   // FC16, low word first
-long[] recipe = new long[20];
-for (int i = 0; i < recipe.Length; i++) recipe[i] = 10 * i;
-mb.NamedWrite("Recipe", recipe);               // FC16, 20 registers 40311..40330
 
 Console.ReadLine();
 mb.Dispose();
@@ -498,8 +517,8 @@ construct → LoadXml/FromXml (or ApplyConfig) → subscribe events → Start()
 | Load | `LoadXml(path)` or `FromXml(XElement)`. Only while stopped. Throws `FormatException` (bad XML) or `InvalidOperationException` (running). A relative path is resolved against the **current directory**, not the exe folder: use `Path.Combine(AppContext.BaseDirectory, "plc.xml")` and copy the XML to the output folder (csproj item below) |
 | Subscribe | Before `Start()`, so no event is missed |
 | Start | `Start()` returns immediately; connecting and polling run on the worker thread. Connection results arrive as `DeviceOpened`/`DeviceClosed` (MQTT: `Connected`/`Disconnected`) |
-| Write / one-shot read | `NamedWrite(...)`, `ManualXxx(...)`. Thread-safe; they only validate and queue (see 7.1.1). Manual jobs run before the next Auto job |
-| Stop | `Stop()` waits up to `Timeout + 1000` ms for the loop to end. It may be called from an event handler (then it does not wait). Needed only to `LoadXml` again and `Start()` again |
+| Write / one-shot read | `NamedWrite(...)`, `ManualXxx(...)`. Thread-safe; they only validate and queue (see 7.1.1). Manual jobs run before the next Auto job. **A write made while not connected (including right after `Start()`) is discarded by default: write inside `DeviceOpened`, or when `IsOpen` is true** |
+| Stop | `Stop()` waits up to `Timeout + 1000` ms for the loop to end. It may be called from an event handler (then it does not wait). It discards pending Manual writes (`WriteDiscarded`, `Stopped`). Needed only to `LoadXml` again and `Start()` again |
 | Dispose | `Dispose()` alone is enough at shutdown: it calls `Stop()` and releases. The object cannot be started again |
 
 App csproj item that copies the XML next to the exe:
@@ -512,15 +531,24 @@ App csproj item that copies the XML next to the exe:
 
 #### 7.1.1 Writes and reads while not connected (what the code does)
 
-| Situation | Behaviour |
-|---|---|
-| `NamedWrite`/`ManualXxx` before `Start()`, or while disconnected | The job is validated (bad name/value → exception at the call) and **kept in the Manual queue**. Nothing is sent, no event is raised, it does not time out while waiting |
-| Connection (re)established | `DeviceOpened` is raised, then queued Manual jobs run first (in call order), then Auto polling continues |
-| Connection lost during a request | That one job raises `TimeoutReceived` once and is **dropped** (not retried, even with RepeatCount). `DeviceClosed` is raised. Jobs still in the queue stay queued |
-| Reconnect | With `AutoReconnect="true"` the worker tries again about every second (a TCP connect try waits up to max(`Timeout`, 1000) ms). With `false`, a failed connect or a lost connection ends the loop: `IsStart` becomes false and queued jobs stay until the next `Start()` |
-| `FinsUdp` | Connectionless: `DeviceOpened` means the socket is open; if the PLC is off, each request times out (`TimeoutReceived`) |
+"Write" means the Manual jobs that change the device: Modbus FC5, FC6, FC15, FC16, FC26; LS WSS, WSB; Mitsubishi BW, WW; S7 and FINS Write, WriteBlock; TextComm every `ManualSend` (the library does not know what a command does). `NamedWrite` registers one of these. Manual **reads** and Auto jobs are not affected.
 
-So there is no need to wait for `DeviceOpened` before calling `NamedWrite`, but a write queued while the device is offline is sent later, when it reconnects. If a stale write must not be sent, track `DeviceOpened`/`DeviceClosed` yourself and call `ClearManual()` (or `RemoveManual(id)`) on `DeviceClosed`.
+| Situation | `DiscardWritesWhileDisconnected="true"` (default) | `"false"` |
+|---|---|---|
+| Manual write / `NamedWrite` called while not connected (before `Start()`, connecting, waiting to reconnect, after `Stop()`) | Arguments are validated (bad name/value → exception at the call), then the write is **not queued**; `WriteDiscarded(NotConnected)` is raised synchronously on the calling thread | Kept in the Manual queue; sent after the connection is (re)established |
+| Writes waiting in the queue when the connection is lost | After `DeviceClosed`, `WriteDiscarded(Disconnected)` once per write on the worker thread (`Stopped` if the loop was closed by `Stop()`) | Kept in the queue |
+| Request in progress when the connection is lost | `TimeoutReceived` once with `IsFinal` true, then the job is dropped (not retried, even with RepeatCount); same in both modes | same |
+| `Stop()` | Pending Manual writes are discarded: `WriteDiscarded(Stopped)` inside the `Stop()` call | **Same: `Stop()` always empties pending writes** |
+| Manual read, Auto | Not affected: kept, run after (re)connect | Not affected |
+| Connection (re)established | `DeviceOpened`, then queued Manual jobs run first (in call order), then Auto polling continues | same |
+| Reconnect | With `AutoReconnect="true"` the worker tries again about every second (a TCP connect try waits up to max(`Timeout`, 1000) ms). With `false`, a failed connect or a lost connection ends the loop: `IsStart` becomes false (queued reads stay until the next `Start()`) | same |
+| `FinsUdp` | Connectionless: "connected" means the socket is open, so a write is accepted after `Start()` even if the PLC is off, and then times out (`TimeoutReceived`) | same |
+
+**Contract: every write ends in exactly one of** a success event, a NAK / exception event, a failure event with `IsFinal` true (`TimeoutReceived` or a checksum error event), or `WriteDiscarded`. The exceptions are writes the application removed itself with `ClearManual()` / `RemoveManual(id)` (no event), and a Modbus RTU broadcast (`Slave` 0, the device never replies, no event).
+
+`WriteDiscarded` can be raised on the calling thread (`NotConnected` inside the `NamedWrite`/`ManualXxx` call, `Stopped` inside `Stop()`) as well as on the worker thread. Do not take a lock in the handler that the caller of `NamedWrite`/`Stop` may already hold.
+
+So call `NamedWrite` after `DeviceOpened` (or when `IsOpen` is true). With `DiscardWritesWhileDisconnected="false"` a write queued while offline is sent later when the device reconnects; if a stale write must not be sent, call `ClearManual()` (or `RemoveManual(id)`) on `DeviceClosed`.
 
 ### 7.2 Events (PLC masters)
 
@@ -537,26 +565,33 @@ Every handler has the signature `(object? sender, Class.XxxEventArgs e)`; the ar
 | | `MultiWordWriteReceived` (FC16) | `MultiWordWriteEventArgs` | + `WriteValues` int[] |
 | | `WordBitSetReceived` (FC26) | `WordBitSetEventArgs` | + `BitIndex` int, `WriteValue` bool |
 | | `ExceptionReceived` | `ExceptionEventArgs` | + `ExceptionCode` int (Modbus exception: 1 function, 2 address, 3 value, …) |
-| | `TimeoutReceived`; RTU only: `CRCErrorReceived` | `ResultEventArgs` | (common only) |
+| | `TimeoutReceived`; RTU only: `CRCErrorReceived` | `AttemptFailedEventArgs` | + `Attempt` int, `IsFinal` bool, `RequestSent` bool |
+| | `WriteDiscarded` | `WriteDiscardedEventArgs` (`Devinno.Communication`, not nested) | `MessageID` int, `Reason` `WriteDiscardReason` (`NotConnected`, `Disconnected`, `Stopped`) |
 | LsCNet | all events below | (common) | `MessageID` int, `Slave` int, `Command` LsCommand (`RSS`, `RSB`, `WSS`, `WSB`) |
 | LsFEnet | all events below | (common) | `MessageID` int, `Command` LsCommand (no `Slave`) |
 | | `DataReceived` | `DataEventArgs` | + `Devices` string[] (RSS: the listed devices; RSB: only the start device), `Values` long[] (unsigned raw of the size; X 0/1) |
-| | `WriteReceived`, `TimeoutReceived`; CNet only: `BCCErrorReceived` | `ResultEventArgs` | (common only) |
+| | `WriteReceived` | `ResultEventArgs` | (common only) |
+| | `TimeoutReceived`; CNet only: `BCCErrorReceived` | `AttemptFailedEventArgs` | + `Attempt` int, `IsFinal` bool, `RequestSent` bool |
 | | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (PLC error code, e.g. CNet 0x1132, FEnet 0x0004) |
 | McSerial | all events below | (common) | `MessageID` int, `Slave` int, `Command` McCommand (`BR`, `WR`, `BW`, `WW`) |
 | McEthernet | all events below | (common) | `MessageID` int, `Command` McCommand (no `Slave`) |
 | | `DataReceived` | `DataEventArgs` | + `Device` string (start device, uppercase), `Values` long[] (BR 0/1 per point; WR raw 0–65535 per word) |
-| | `WriteReceived`, `TimeoutReceived`; McSerial only: `SumCheckErrorReceived` | `ResultEventArgs` | (common only) |
+| | `WriteReceived` | `ResultEventArgs` | (common only) |
+| | `TimeoutReceived`; McSerial only: `SumCheckErrorReceived` | `AttemptFailedEventArgs` | + `Attempt` int, `IsFinal` bool, `RequestSent` bool |
 | | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (3E end code e.g. 0xC051; 1E end code; 1C NAK code) |
 | S7Ethernet | all events below | (common) | `MessageID` int, `Command` S7Command (`Read`, `ReadBlock`, `Write`, `WriteBlock`) |
 | | `DataReceived` (`<Read>`, `ManualRead`) | `DataEventArgs` | + `Addresses` string[], `Values` long[] (unsigned raw per address: bit 0/1, B 0–255, W 0–65535, D 0–4294967295) |
 | | `BlockReceived` (`<ReadBlock>`, `ManualReadBlock`) | `BlockEventArgs` | + `Address` string (start byte address), `Data` byte[] (big-endian PLC bytes) |
-| | `WriteReceived` (random and block write, incl. `NamedWrite`), `TimeoutReceived` | `ResultEventArgs` | (common only) |
-| | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (header error class×256+code, or item return code e.g. 0x05, 0x0A), `ItemIndex` int (0-based failed item; −1 header error) |
+| | `WriteReceived` (random and block write, incl. `NamedWrite`) | `ResultEventArgs` | (common only) |
+| | `TimeoutReceived` | `AttemptFailedEventArgs` | + `Attempt` int, `IsFinal` bool, `RequestSent` bool, `WrittenBytes` int (block write: bytes the PLC accepted in this attempt; otherwise 0) |
+| | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (header error class×256+code, or item return code e.g. 0x05, 0x0A), `ItemIndex` int (0-based failed item; −1 header error), `WrittenBytes` int (as above) |
 | FinsUdp, FinsTcp, FinsSerial | all events below | (common) | `MessageID` int, `Command` FinsCommand (`Read`, `ReadBlock`, `Write`, `WriteBlock`) |
 | | `DataReceived` | `DataEventArgs` | + `Addresses` string[] (Read: the listed addresses; ReadBlock: only the start), `Values` long[] (word raw 0–65535, bit 0/1) |
-| | `WriteReceived`, `TimeoutReceived`; FinsSerial only: `FcsErrorReceived` | `ResultEventArgs` | (common only) |
-| | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (FINS end code e.g. 0x1103 address range, 0x2102 write-protected) |
+| | `WriteReceived` | `ResultEventArgs` | (common only) |
+| | `TimeoutReceived`; FinsSerial only: `FcsErrorReceived` | `AttemptFailedEventArgs` | + `Attempt` int, `IsFinal` bool, `RequestSent` bool, `WrittenCount` int (block write: elements the PLC accepted in this attempt; otherwise 0) |
+| | `NAKReceived` | `NAKEventArgs` | + `ErrorCode` int (FINS end code e.g. 0x1103 address range, 0x2102 write-protected), `WrittenCount` int (as above) |
+
+Every PLC master (and TextComm) also has `WriteDiscarded` (the row is shown for Modbus; the args are the same everywhere). The failure events use the nested `AttemptFailedEventArgs`, which derives from the class's `ResultEventArgs`, so a handler written for `ResultEventArgs` still compiles.
 
 Enum namespaces: `ModbusFunction` (`Devinno.Communication.Modbus`), `LsCommand` (`…LS.Data`), `McCommand` (`…Mitsubishi.Data`), `S7Command` (`…Siemens`), `FinsCommand` (`…Omron.Data`). Other classes (slaves, TextComm, MQClient, SECS/GEM): see IntelliSense (`lib/net8.0/Devinno.Communication.xml`).
 
@@ -564,6 +599,8 @@ Enum namespaces: `ModbusFunction` (`Devinno.Communication.Modbus`), `LsCommand` 
 - Random reads (`<RSS>`, S7/FINS `<Read>`): `Values[i]` belongs to the i-th address in the XML list.
 - A device error (`NAKReceived`/`ExceptionReceived`) is not retried.
 - `TimeoutReceived` has two cases: (1) no response / bad response while connected → raised on **every** attempt (first try and each retry up to `RepeatCount`), then the job is finished; (2) the connection is lost during the request → raised **once**, the job is dropped (no retry), followed by `DeviceClosed`.
+- `AttemptFailedEventArgs` (`TimeoutReceived` and the checksum error events `CRCErrorReceived`, `BCCErrorReceived`, `SumCheckErrorReceived`, `FcsErrorReceived`): `Attempt` is 1-based (1 = first try, 2 = first retry, ...); `IsFinal` is true when the job will not be tried again (retries used up, or the connection was lost) — when the last attempt ends in a checksum error, that event is the final one and no `TimeoutReceived` follows; `RequestSent` tells whether this attempt's request was handed to the socket/port. **If `RequestSent` is true on a write, the device may have executed it: read the value back before writing again.** If false, the device did not receive this attempt.
+- `WriteDiscarded` ends a write that was never sent (see 7.1.1); it is the only event such a write gets.
 - All events, including `DeviceOpened`/`DeviceClosed`, are raised on the worker thread.
 
 ### 7.3 Threading
@@ -650,13 +687,13 @@ Word order of 32-bit values in Modbus devices varies by vendor; check the device
 
 | Protocol | Pitfall |
 |---|---|
-| Modbus | `Start` is 0-based (40001 → 0). FC3 = holding registers (read/write), FC4 = input registers (read-only), FC1 = coils, FC2 = discrete inputs. `<Auto>` accepts only FC1–FC4; `<Write>` only FC5, FC6, FC15, FC16. RTU `<Auto>` Slave is 1–247, RTU `<Write>` Slave 0–247 (0 = broadcast, no reply), TCP 0–255 |
+| Modbus | `Start` is 0-based (40001 → 0). FC3 = holding registers (read/write), FC4 = input registers (read-only), FC1 = coils, FC2 = discrete inputs. `<Auto>` accepts only FC1–FC4; `<Write>` only FC5, FC6, FC15, FC16. RTU `<Auto>` Slave is 1–247, RTU `<Write>` Slave 0–247 (0 = broadcast, no reply), TCP 0–255. Manual FC6 / FC16 values outside -32768..65535 throw `ArgumentOutOfRangeException` |
 | LS | Device names need `%` and the size letter (`%MW100`, not `M100` or `MW100`). One `<RSS>` mixes only devices with the same size letter. `<RSB>`/block write: no bit (`X`) devices; FEnet block: numeric address only (no dots). CNet `Slave` = station number 0–255 is required on `<RSS>`, `<RSB>` and `<Write>`; FEnet has no `Slave` |
 | Mitsubishi | X/Y radix: Q/L (E3) = hex, FX3 (E1) and 1C = octal; **FX5 over 3E is octal → set `XYNotation="Octal"`**. B, W, ZR numbers are hex (`B1F`, `W1A`). `WR`/`WW` on a bit device: 16 points per word, bit 0 = start point. FX3 Ethernet does not support 3E; use `Frame="E1"`. `Frame`/`XYNotation` are applied when a job is registered: Auto jobs when the XML is loaded (with the XML's settings), Manual jobs and `NamedWrite` at the call (`NamedWrite` registers a Manual job, so its device is parsed with the object's current settings). Both statements in IntelliSense are true; just do not change `Frame`/`XYNotation` in code after loading. McSerial `Slave` (station number) 0–31 is required on every `<BR>`, `<WR>`, `<Write>` |
 | Siemens S7 | S7-1200/1500: enable "Permit access with PUT/GET communication" in TIA Portal and turn off "Optimized block access" for every DB you read/write. Slot: 1200/1500 = 1 (default), 300 = 2, 400 = 3. Block start must be a byte address (`DB1.DBB0`, not `DB1.DBW0`). `<Read>` max 19 addresses. No T/C/Z, no symbolic names |
 | Omron FINS | UDP: `DestinationNode` defaults to the last number of `RemoteIP`, `SourceNode` to the last number of this PC's IP; if the PLC uses static IP conversion, set `LocalPort="9600"`. TCP: `ClientNode` omitted = assigned by the PLC. EM bank is hex 0–18 (`E10_0` = bank 0x10). Bits are `.00`–`.15`. Large blocks are split by `MaxWordsPerRequest` (default 499 = the CP1L-E limit; CJ2 and NJ accept up to 997). NJ/NX: variables must be AT-assigned to CJ memory |
 | TextComm | No addresses; `<Auto>` sends a fixed text (`Message` is required, may be `""`). No `<Write>` |
-| MQTT | The password is never in the XML; pass it to `Start(clientID, userName, password)`. `AliveTopic=""` turns off the alive check |
+| MQTT | The password is never in the XML; pass it to `Start(clientID, userName, password)`. `AliveTopic=""` turns off the alive check. `Publish` while not connected is not sent: `PublishDiscarded` (`MQPublishDiscardedEventArgs`: `Topic`, `Qos`) is raised on the calling thread. A failure after sending (broker refusal, no acknowledgement) is not reported. A retained command topic is replayed to new subscribers |
 | SECS/GEM | The transport's `Role` inside `<GemEquipment>` must be omitted or `Equipment`, inside `<GemHost>` omitted or `Host`. The transport element type must match the constructor argument (`new GemHost(new SecsHsms())` → `<SecsHsms>` child). For messaging, use IntelliSense |
 
 ---
@@ -707,6 +744,8 @@ Loading does not connect to the device, so this check runs without a PLC.
 | LS `Device="MW100"` | `FormatException` | `%MW100` |
 | S7 `<ReadBlock Address="DB1.DBW0">` | `FormatException` | `DB1.DBB0` |
 | FX5 over 3E with default `XYNotation` | X/Y addresses read the wrong points | `XYNotation="Octal"` |
+| Writing right after `Start()` | The connection is not up yet, so the write is discarded (`WriteDiscarded`, `NotConnected`) | Write inside `DeviceOpened`, or when `IsOpen` is true |
+| `RepeatCount` on a pulse, counter or incremental write | A retry can apply the write twice | `RepeatCount` 0 (the default); read back before resending |
 | Same Id on two Auto elements | Cannot tell the events apart (not an error) | Unique Ids (4.1) |
 | `NamedWrite("Recipe", new int[] { … })` | Compile error | `long[]` or `[ … ]` |
 | Updating a WinForms control inside `DataReceived` | Cross-thread exception (swallowed, nothing shows) | `BeginInvoke` |

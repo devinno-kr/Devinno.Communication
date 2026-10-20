@@ -17,7 +17,7 @@ dotnet add package Devinno.Communication
 ```
 
 ## 시작하기
-<!-- en-hash: 93cd32c2898401a7 -->
+<!-- en-hash: b3a95985a54289d0 -->
 
 Modbus TCP 장비에서 홀딩 레지스터 0~9를 계속 읽고, 100번지에 한 번 값을 씁니다.
 
@@ -37,10 +37,11 @@ master.TimeoutReceived += (s, e) => Console.WriteLine($"Timeout: {e.MessageID}")
 // Auto: registered once, polled repeatedly (message ID 1, slave 1, 10 words from address 0)
 master.AutoWordRead_FC3(id: 1, slave: 1, startAddr: 0, length: 10);
 
-master.Start();
+// Manual: runs once, and is processed before the Auto list.
+// Write once connected: a write made while not connected is discarded (WriteDiscarded).
+master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
 
-// Manual: runs once, and is processed before the Auto list
-master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
+master.Start();
 
 Console.ReadLine();
 master.Dispose();
@@ -89,6 +90,20 @@ master.Dispose();
   * **스레드** : 이벤트는 통신 스레드에서 발생하므로 핸들러는 짧게 유지하고 UI 갱신은 사용하는 쪽에서 마샬링 (WinForms `BeginInvoke`, WPF `Dispatcher.BeginInvoke` 등)
   * **연결 이벤트** : Master 클래스는 `DeviceOpened` / `DeviceClosed`를 발생시킴 (`MQClient`는 `Connected` / `Disconnected`). 재접속은 끄지 않는 한 자동
   * **XML 설정** : 클래스마다 `SaveXml`/`LoadXml`과 설정 객체(`…Config`, 예: `ModbusTCPMasterConfig`)가 있음. `ConfigSchema.Get<T>()`로 XSD 생성. 인스턴스 하나 = XML 파일 하나, 루트 요소 이름은 클래스 이름. 엄격 모드라 모르는 속성·요소는 `FormatException`. 불러오기는 정지 상태에서만 가능
+
+### 쓰기 안전
+<!-- en-hash: 58ba0fb25c8ce444 -->
+
+  * 기본으로 연결이 없을 때 한 쓰기는 보내지 않고 `WriteDiscarded` 이벤트로 알립니다(`NotConnected`). 연결이 끊길 때 대기 중이던 쓰기도 버립니다(`Disconnected`).
+  * `Stop()`은 대기 중인 Manual 쓰기를 항상 비웁니다(`WriteDiscarded`, `Stopped`).
+  * `DiscardWritesWhileDisconnected="false"`(속성 또는 XML 속성)로 예전 동작(연결될 때까지 쓰기를 대기열에 유지)으로 되돌릴 수 있습니다.
+  * 실패 이벤트(`TimeoutReceived`와 체크섬 오류 이벤트)에는 `Attempt`, `IsFinal`, `RequestSent`가 있습니다. `RequestSent`가 true이면 장비가 요청을 이미 실행했을 수 있으니 다시 쓰기 전에 읽어서 확인하세요.
+  * 쓰기 하나는 성공 이벤트, NAK 또는 예외 이벤트, `IsFinal`이 true인 실패 이벤트, `WriteDiscarded` 중 정확히 하나로 끝납니다.
+  * 펄스, 카운터, 증가형 쓰기에는 `RepeatCount`를 쓰지 마세요. 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다.
+  * Modbus FC6 / FC16 Manual 쓰기는 -32768..65535 밖의 값이면 `ArgumentOutOfRangeException`을 던집니다.
+  * S7과 FINS의 블록 쓰기는 원자적이지 않습니다. 중간에 실패하면 `WrittenBytes`(S7) / `WrittenCount`(FINS)로 이미 쓴 양을 알 수 있습니다.
+  * FX5를 3E로 쓸 때 X/Y 번호는 8진수입니다: `XYNotation="Octal"`로 지정하세요. `Auto`에서는 16진수로 읽어 엉뚱한 점을 가리킵니다.
+  * 쓰기는 `Start()` 직후가 아니라 연결된 뒤(`DeviceOpened` 안)에 하세요.
 
 ### XML 설정과 이름 있는 쓰기
 <!-- en-hash: 19e0bbc3628a234f -->
@@ -163,8 +178,14 @@ Devinno library docs: read .devinno/*/llms.txt first.
   * `.devinno/`를 `.gitignore`에 추가하는 것을 권장합니다.
   * 대체 위치: `%UserProfile%\.nuget\packages\devinno.communication\<버전>\docs\`.
 
+## 면책
+<!-- en-hash: 57e1190dd748aafb -->
+
+Devinno.Communication은 "있는 그대로" 제공되며 어떠한 보증도 하지 않습니다(LICENSE 참고). 이 라이브러리는 통신 라이브러리이며, 안전 기능용으로 설계되거나 인증되지 않았습니다. 비상 정지, 인터록 같은 안전 기능은 이 라이브러리가 아니라 안전 등급 장비에서 구현해야 합니다. PLC나 장비에 쓰기를 하면 실제 기계의 동작이 바뀝니다. 실제 장비에 연결하기 전에 시뮬레이터나 시험 장비로 주소, 값, 타이밍을 검증하세요. 이 라이브러리로 만든 시스템의 시험과 검증은 사용자의 책임입니다.
+
 ## 라이선스
 <!-- en-hash: b46496942cf1e813 -->
 
 MIT. 저장소 루트의 `LICENSE` 파일 참고.
+
 

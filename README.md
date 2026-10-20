@@ -31,10 +31,11 @@ master.TimeoutReceived += (s, e) => Console.WriteLine($"Timeout: {e.MessageID}")
 // Auto: registered once, polled repeatedly (message ID 1, slave 1, 10 words from address 0)
 master.AutoWordRead_FC3(id: 1, slave: 1, startAddr: 0, length: 10);
 
-master.Start();
+// Manual: runs once, and is processed before the Auto list.
+// Write once connected: a write made while not connected is discarded (WriteDiscarded).
+master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
 
-// Manual: runs once, and is processed before the Auto list
-master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
+master.Start();
 
 Console.ReadLine();
 master.Dispose();
@@ -81,6 +82,19 @@ The other Master classes follow the same flow: create, attach events, register `
   * **Threading**: events are raised on the library's worker thread. Keep handlers short, and marshal UI updates yourself (WinForms `BeginInvoke`, WPF `Dispatcher.BeginInvoke`, and so on).
   * **Connection events**: the Master classes raise `DeviceOpened` / `DeviceClosed` (`MQClient`: `Connected` / `Disconnected`); reconnect is automatic unless turned off.
   * **XML configuration**: every class has `SaveXml` / `LoadXml` and a configuration object (`...Config`, for example `ModbusTCPMasterConfig`). `ConfigSchema.Get<T>()` returns the XSD. One instance is one XML file, and the root element name is the class name. Loading is strict mode: an unknown attribute or element throws `FormatException`. Load only while stopped.
+
+### Write safety
+
+  * By default, a write made while there is no connection is not sent: it is reported through the `WriteDiscarded` event instead (`NotConnected`). Writes still pending when the connection is lost are discarded too (`Disconnected`).
+  * `Stop()` always empties the pending Manual writes (`WriteDiscarded`, `Stopped`).
+  * Set `DiscardWritesWhileDisconnected="false"` (property or XML attribute) to restore the old behaviour of keeping writes queued until a connection exists.
+  * Failure events (`TimeoutReceived` and the checksum error events) carry `Attempt`, `IsFinal` and `RequestSent`. If `RequestSent` is true, the device may already have executed the request: read it back before writing again.
+  * Every write ends in exactly one of: a success event, a NAK or exception event, a failure event with `IsFinal` true, or `WriteDiscarded`.
+  * Do not use `RepeatCount` for pulse, counter or incremental writes: a retry resends a write the device may already have executed.
+  * Modbus FC6 / FC16 Manual writes throw `ArgumentOutOfRangeException` for a value outside -32768..65535.
+  * S7 and FINS block writes are not atomic: when one fails part-way, `WrittenBytes` (S7) / `WrittenCount` (FINS) tell how much was already written.
+  * An FX5 over 3E uses octal X/Y numbers: set `XYNotation="Octal"`; with `Auto` they are read as hexadecimal and address the wrong points.
+  * Write right after the connection is up (inside `DeviceOpened`), not right after `Start()`.
 
 ### XML configuration and named write
 
@@ -145,6 +159,10 @@ Devinno library docs: read .devinno/*/llms.txt first.
   * To opt out of the copy, set `<DevinnoCopyDocs>false</DevinnoCopyDocs>` in the project file.
   * Add `.devinno/` to your `.gitignore`.
   * Fallback location: `%UserProfile%\.nuget\packages\devinno.communication\<version>\docs\`.
+
+## Disclaimer
+
+Devinno.Communication is provided "as is", without warranty of any kind (see LICENSE). It is a communication library and is not designed or certified for safety functions. Emergency stops, interlocks and other safety functions must be implemented in safety-rated equipment, not through this library. Writing to a PLC or equipment changes the physical behaviour of a machine: validate addresses, values and timing on a simulator or test equipment before connecting to a live machine. You are responsible for testing and validating any system you build with it.
 
 ## License
 

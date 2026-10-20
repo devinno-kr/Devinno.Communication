@@ -64,6 +64,7 @@ Class `Devinno.Communication.Modbus.RTU.ModbusRTUMaster`, config `ModbusRTUMaste
 | `Timeout` | int | no | `100` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms (wait between jobs) |
 | `AutoReconnect` | bool | no | `false` | reopen the port when it is lost |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Auto>`
 
@@ -128,6 +129,7 @@ Class `Devinno.Communication.Modbus.TCP.ModbusTCPMaster`, config `ModbusTCPMaste
 | `Timeout` | int | no | `100` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect when the connection is lost |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Auto>`
 
@@ -221,6 +223,7 @@ Devices are direct variables: `%` + area + size (`X`,`B`,`W`,`D`,`L`) + address,
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `false` | reopen the port after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<RSS>` (random read)
 
@@ -276,6 +279,7 @@ Class `Devinno.Communication.LS.FEnet.LsFEnet`, config `LsFEnetConfig`. Children
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<RSS>` (random read)
 
@@ -335,6 +339,7 @@ Class `Devinno.Communication.Mitsubishi.Serial.McSerial` (MC protocol 1C frame, 
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `false` | reopen the port after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<BR>` (bit batch read)
 
@@ -393,6 +398,7 @@ Class `Devinno.Communication.Mitsubishi.Ethernet.McEthernet` (MC protocol binary
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<BR>` (bit batch read)
 
@@ -455,6 +461,7 @@ Addresses (case-insensitive): `DB1.DBX0.1`, `DB1.DBB0`, `DB1.DBW0`, `DB1.DBD0`, 
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Read>` (random read)
 
@@ -516,6 +523,7 @@ Addresses: `CIO100` (or `100`), `W10`, `H20`, `A100`, `D100` (`DM100`), `E0_100`
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reopen the socket on a socket error |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Read>` (random read, 0104)
 
@@ -570,6 +578,7 @@ Class `Devinno.Communication.Omron.Ethernet.FinsTcp`, config `FinsTcpConfig`. Ch
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect when the connection is lost |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Read>` (random read, 0104)
 
@@ -627,6 +636,7 @@ Class `Devinno.Communication.Omron.Serial.FinsSerial` (Host Link FINS), config `
 | `Timeout` | int | no | `1000` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `false` | reopen the port after a disconnection |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 
 ### `<Read>` (random read, 0104)
 
@@ -681,6 +691,7 @@ Class `Devinno.Communication.TextComm.RTU.TextCommRTUMaster`, config `TextCommRT
 | `Timeout` | int | no | `100` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `false` | reopen the port when it is lost |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 | `BufferSize` | int | no | `1024` | 16 – 65536 bytes (max response frame) |
 | `MessageEncoding` | string | no | `us-ascii` | encoding web name (`us-ascii`, `utf-8`; code pages such as `euc-kr` need `CodePagesEncodingProvider` registered by the app) |
 
@@ -716,6 +727,7 @@ Class `Devinno.Communication.TextComm.TCP.TextCommTCPMaster`, config `TextCommTC
 | `Timeout` | int | no | `100` | 1 – 60000 ms |
 | `Interval` | int | no | `10` | 0 – 60000 ms |
 | `AutoReconnect` | bool | no | `true` | reconnect when the connection is lost |
+| `DiscardWritesWhileDisconnected` | bool | no | `true` | discard writes while not connected (and pending writes when the connection is lost); `WriteDiscarded` reports each |
 | `BufferSize` | int | no | `1024` | 16 – 65536 bytes |
 | `MessageEncoding` | string | no | `us-ascii` | encoding web name |
 

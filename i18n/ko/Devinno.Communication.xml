@@ -577,7 +577,7 @@
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
             <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
-            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
             <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
         </member>
         <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.#ctor(System.Int32,Devinno.Communication.LS.Data.LsCommand,System.Int32,System.Boolean,System.Boolean)" en-hash="dd8ed061bd681cee">
@@ -585,14 +585,14 @@
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
             <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
-            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
             <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
             <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.IsFinal" en-hash="2e097ae73a6a1406">
-            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</summary>
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</summary>
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
             <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
@@ -888,7 +888,7 @@
             같은 "X10"이라도 8진수면 8번째, 16진수면 16번째 점이므로 PLC에 맞게 정해야 합니다.
             </remarks>
         </member>
-        <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Auto" en-hash="27d9633d1b92f462">
+        <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Auto" en-hash="98edff41724f39ec">
             <summary>자동: McSerial(1C)과 McEthernet 1E(FX3)는 8진수, McEthernet 3E(Q/L)는 16진수. FX5를 3E로 쓰면 X/Y가 8진수이므로 Octal로 지정하세요. Auto로 두면 X/Y 번호를 16진수로 읽어 엉뚱한 점을 가리킵니다.</summary>
         </member>
         <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Hex" en-hash="65dd2d43f079e9ea">
@@ -9130,16 +9130,16 @@
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">요청 종류</param>
             <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
-            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
             <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param></member>
         <member name="M:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.#ctor(System.Int32,Devinno.Communication.Siemens.S7Command,System.Int32,System.Boolean,System.Boolean)" en-hash="f1f0c8acf08f5ce4"><summary>시도 실패(<see cref="E:Devinno.Communication.Siemens.S7Ethernet.TimeoutReceived" />)의 이벤트 인자입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">요청 종류</param>
             <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
-            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
             <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param></member>
         <member name="P:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c"><summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary></member>
-        <member name="P:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.IsFinal" en-hash="2e097ae73a6a1406"><summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</summary></member>
+        <member name="P:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.IsFinal" en-hash="2e097ae73a6a1406"><summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</summary></member>
         <member name="P:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002"><summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비가 이번 시도를 받지 못한 것이고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary></member>
         <member name="P:Devinno.Communication.Siemens.S7Ethernet.AttemptFailedEventArgs.WrittenBytes" en-hash="a8e6e85be6d4e345"><summary>연속 쓰기(WriteBlock)를 나눠 보낸 경우, 실패하기 전에 이번 시도에서 PLC가 Ack한 조각의 바이트 수 합. 다른 요청이거나 첫 조각이 실패했으면 0. 재시도는 첫 조각부터 다시 합니다.</summary></member>
         <member name="P:Devinno.Communication.Siemens.S7Ethernet.RemoteIP" en-hash="c882831f50c3ce93">

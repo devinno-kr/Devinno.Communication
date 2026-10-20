@@ -7,7 +7,7 @@ namespace Devinno.Communication.Mitsubishi.Data;
 /// </remarks>
 public enum McXYNotation
 {
-    /// <summary>Automatic: octal for McSerial (1C) and McEthernet 1E (FX3), hexadecimal for McEthernet 3E (Q/L). When using an FX5 over 3E, specify Octal explicitly. FX5 over 3E uses octal X/Y: set Octal. With Auto, X/Y numbers are read as hexadecimal and address the wrong points.</summary>
+    /// <summary>Automatic: octal for McSerial (1C) and McEthernet 1E (FX3), hexadecimal for McEthernet 3E (Q/L). FX5 over 3E uses octal X/Y: set Octal. With Auto, X/Y numbers are read as hexadecimal and address the wrong points.</summary>
     Auto,
     /// <summary>Hexadecimal (Q/L series, A series).</summary>
     Hex,
