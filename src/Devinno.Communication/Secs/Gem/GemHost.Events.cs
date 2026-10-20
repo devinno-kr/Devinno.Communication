@@ -396,7 +396,7 @@ public partial class GemHost
 
     #region S2F41
     /// <summary>Sends a remote command (S2F41 &lt;L RCMD &lt;L &lt;L CPNAME CPVAL&gt;…&gt;&gt;). RCMD and CPNAME are sent as A.</summary>
-    /// <remarks>If the equipment is not ON-LINE REMOTE, the result is usually HCACK 2 (LOCAL) or S2F0 (OFF-LINE). For a long-running command, the equipment accepts it with HCACK 4 and reports the completion through an event.</remarks>
+    /// <remarks>If the equipment is not ON-LINE REMOTE, the result is usually HCACK 2 (LOCAL) or S2F0 (OFF-LINE). For a long-running command, the equipment accepts it with HCACK 4 and reports the completion through an event. SecsTimeoutException, SecsDisconnectedException, cancellation, and even HCACK 2 do not prove the command was not executed. Check the equipment state (for example S1F3) before sending it again.</remarks>
     /// <param name="command">The command name RCMD (ASCII).</param>
     /// <param name="parameters">The parameters (CPNAME, CPVAL).</param>
     /// <returns>The result (HCACK and the CPACK list).</returns>
@@ -411,6 +411,7 @@ public partial class GemHost
     public GemCommandResult RemoteCommand(string command, params (string Name, SecsItem Value)[] parameters) => CommandReply(Ask(CommandRequest(command, parameters)));
 
     /// <summary>Sends a remote command (S2F41). The rules and exceptions are the same as for <see cref="RemoteCommand"/>.</summary>
+    /// <remarks>SecsTimeoutException, SecsDisconnectedException, cancellation, and even HCACK 2 do not prove the command was not executed. Check the equipment state (for example S1F3) before sending it again.</remarks>
     /// <param name="command">The command name RCMD.</param>
     /// <param name="parameters">The parameters (CPNAME, CPVAL); null means none.</param>
     /// <param name="cancellationToken">Cancels waiting for the reply.</param>

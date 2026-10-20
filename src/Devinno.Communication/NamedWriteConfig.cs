@@ -18,7 +18,7 @@ public abstract class NamedWriteConfig
     [XmlAttribute] public int Timeout { get => timeout; set { timeout = value; TimeoutSpecified = true; } }
     /// <summary>Whether <see cref="Timeout"/> was specified.</summary>
     [XmlIgnore, EditorBrowsable(EditorBrowsableState.Never)] public bool TimeoutSpecified { get; set; }
-    /// <summary>Retry count of this item, 0 to 100. If not specified, the device's default write retry count is used.</summary>
+    /// <summary>Retry count of this item, 0 to 100. If not specified, no retries (unless the NamedWrite call gives repeatCount). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</summary>
     [XmlAttribute] public int RepeatCount { get => repeatCount; set { repeatCount = value; RepeatCountSpecified = true; } }
     /// <summary>Whether <see cref="RepeatCount"/> was specified.</summary>
     [XmlIgnore, EditorBrowsable(EditorBrowsableState.Never)] public bool RepeatCountSpecified { get; set; }

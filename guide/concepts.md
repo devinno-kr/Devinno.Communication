@@ -24,7 +24,7 @@
 ## 이름 있는 쓰기
   * PLC Master 10종(Modbus RTU/TCP, LsCNet·LsFEnet, McSerial·McEthernet, S7Ethernet, FinsUdp·FinsTcp·FinsSerial)은 XML `<Write>`로 쓰기 영역에 이름을 붙이고 `NamedWrite("이름", 값)`으로 쓸 수 있음. 메모리맵이 바뀌면 XML만 고치면 됨
   * `<Write>`는 Auto 요소 뒤에 작성하며 `Name`(1~64자, 중복 불가)·`Id`·주소(`Device`/`Address`, Modbus는 `Func`·`Slave`(`Start`는 선택, 기본 0), LsCNet·McSerial은 `Slave`도)는 필수, `Timeout`·`RepeatCount`는 선택. 값은 XML에 넣지 않음
-  * `NamedWrite(name, 값)` / `NamedWrite(name, 값 목록)`은 이름에 해당하는 Manual 쓰기를 등록할 뿐이라 큐·우선순위·이벤트·재시도는 Manual과 같음. 응답 이벤트의 MessageID는 XML의 `Id`. 인자로 준 `repeatCount`/`timeout`이 XML 값보다 우선
+  * `NamedWrite(name, 값)` / `NamedWrite(name, 값 목록)`은 이름에 해당하는 Manual 쓰기를 등록할 뿐이라 큐·우선순위·이벤트·재시도는 Manual과 같음. 응답 이벤트의 MessageID는 XML의 `Id`. 인자로 준 `repeatCount`/`timeout`이 XML 값보다 우선. `RepeatCount`를 안 쓰면 재시도는 없음. 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.
   * 없는 이름은 `ArgumentException`, `ContainsNamedWrite(name)`으로 등록 여부 확인
   * 클래스별 값 한 개/여러 개 동작은 [Modbus](protocols/modbus.md#이름-있는-쓰기), [S7](protocols/siemens-s7.md#이름-있는-쓰기), [FINS](protocols/omron-fins.md#이름-있는-쓰기) 참고. LS는 한 개 WSS·여러 개 WSB, 미쓰비시는 비트 디바이스 BW·워드 디바이스 WW
 

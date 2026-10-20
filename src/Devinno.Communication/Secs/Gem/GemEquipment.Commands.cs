@@ -95,7 +95,7 @@ public partial class GemEquipment
     /// <summary>Raised on the application event thread when the Host's remote command (S2F41) passed the checks. When the handler returns, the reply uses <see cref="GemRemoteCommandEventArgs.Hcack"/>.</summary>
     /// <remarks>
     /// <para>Cases where GEM replies first (the application is not called): a command not in the definitions HCACK 1, ON-LINE LOCAL HCACK 2, unknown parameter (CPACK 1) or format mismatch (CPACK 3) HCACK 3, no subscriber HCACK 2.</para>
-    /// <para>If the handler does not return within <see cref="CommandReplyTimeout"/>, GEM replies with HCACK 2 on its behalf (<see cref="ProtocolError"/>) and discards the result that returns later. If the handler throws, GEM replies with HCACK 2 (cannot be executed) regardless of the Hcack and CPACK set so far, and reports it through <see cref="ProtocolError"/>.</para>
+    /// <para>If the handler does not return within <see cref="CommandReplyTimeout"/>, GEM replies with HCACK 2 on its behalf (<see cref="ProtocolError"/>) and discards the result that returns later. The handler keeps running, so the action may still be performed while the host believes it was not. Keep handlers short; for long actions reply HCACK 4 and report completion with an event. If the handler throws, GEM replies with HCACK 2 (cannot be executed) regardless of the Hcack and CPACK set so far, and reports it through <see cref="ProtocolError"/>.</para>
     /// </remarks>
     public event EventHandler<GemRemoteCommandEventArgs>? RemoteCommandReceived;
 

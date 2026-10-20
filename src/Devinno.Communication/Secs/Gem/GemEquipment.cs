@@ -238,7 +238,7 @@ public partial class GemEquipment : IDisposable
     public SecsFormat DataidFormat { get => dataidFormat; set => Setting(() => dataidFormat = GemItems.CheckIdFormat(value, nameof(DataidFormat))); }
 
     /// <summary>Deadline in ms for replies the application must decide (remote command, EC change approval, registered messages) (default: 10000). XML accepts only 1000 to 110000.</summary>
-    /// <remarks>If the handler does not return within this time, GEM replies on its behalf (S2F41 HCACK 2, S2F15 EAC 2, SxF0 for registered messages). Keep it well below the Host's T3 (usually 45 seconds).</remarks>
+    /// <remarks>If the handler does not return within this time, GEM replies on its behalf (S2F41 HCACK 2, S2F15 EAC 2, SxF0 for registered messages). Keep it well below the Host's T3 (usually 45 seconds). When the deadline passes GEM replies HCACK 2, but the handler keeps running and the action may still be performed while the host believes it was not. Keep handlers short; for long actions reply HCACK 4 and report completion with an event.</remarks>
     /// <exception cref="ArgumentOutOfRangeException">Less than 1</exception>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public int CommandReplyTimeout { get => commandReplyTimeout; set => Setting(() => commandReplyTimeout = Check(value, 1, int.MaxValue, nameof(CommandReplyTimeout))); }

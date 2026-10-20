@@ -3788,8 +3788,8 @@
         <member name="P:Devinno.Communication.NamedWriteConfig.TimeoutSpecified" en-hash="49cefc63a0faea1d">
             <summary><see cref="P:Devinno.Communication.NamedWriteConfig.Timeout" />을 지정했는지 여부</summary>
         </member>
-        <member name="P:Devinno.Communication.NamedWriteConfig.RepeatCount" en-hash="559e05ed140baaaf">
-            <summary>이 항목의 재시도 횟수 0~100. 지정하지 않으면 장치 쓰기 기본값을 씁니다.</summary>
+        <member name="P:Devinno.Communication.NamedWriteConfig.RepeatCount" en-hash="45b7dda27dde1e04">
+            <summary>이 항목의 재시도 횟수 0~100. 지정하지 않으면 재시도하지 않습니다(NamedWrite 호출이 repeatCount를 주면 그 값). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</summary>
         </member>
         <member name="P:Devinno.Communication.NamedWriteConfig.RepeatCountSpecified" en-hash="f1fb590c380ec220">
             <summary><see cref="P:Devinno.Communication.NamedWriteConfig.RepeatCount" />를 지정했는지 여부</summary>
@@ -6027,11 +6027,11 @@
             <returns>CE를 송신 대기열에 넣었으면 true (보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같음)</returns>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="8f0dc53ffcd0590a">
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="3c62f7eb59d7798c">
             <summary>Host의 리모트 명령(S2F41)이 검사를 통과했을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />로 응답합니다.</summary>
             <remarks>
             <para>GEM이 먼저 답하는 경우(앱을 부르지 않음): 정의에 없는 명령 HCACK 1, ON-LINE LOCAL HCACK 2, 모르는 파라미터(CPACK 1)·포맷 불일치(CPACK 3) HCACK 3, 구독자 없음 HCACK 2.</para>
-            <para>핸들러가 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" /> 안에 돌아오지 않으면 HCACK 2로 대신 응답하고(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />) 나중에 돌아온 결과는 버립니다. 핸들러가 예외를 던지면 그때까지 정한 Hcack·CPACK과 상관없이 HCACK 2(실행할 수 없음)로 응답하고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알립니다.</para>
+            <para>핸들러가 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" /> 안에 돌아오지 않으면 HCACK 2로 대신 응답하고(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />) 나중에 돌아온 결과는 버립니다. 핸들러는 계속 실행되므로 Host는 실행되지 않았다고 믿는데 동작은 실행될 수 있습니다. 핸들러는 짧게 유지하고, 오래 걸리는 동작은 HCACK 4로 응답한 뒤 이벤트로 완료를 알리세요. 핸들러가 예외를 던지면 그때까지 정한 Hcack·CPACK과 상관없이 HCACK 2(실행할 수 없음)로 응답하고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알립니다.</para>
             </remarks>
         </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.MessageReceived" en-hash="a940ac6b92f17503">
@@ -6212,9 +6212,9 @@
             <exception cref="T:System.ArgumentException">ID 포맷이 아닌 경우</exception>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" en-hash="eededf2ca25e1bed">
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" en-hash="cb337be51c04137d">
             <summary>앱이 정해야 하는 응답(리모트 명령, EC 변경 승인, 등록 메시지)의 기한 ms (기본값: 10000). XML은 1000~110000만 받습니다.</summary>
-            <remarks>핸들러가 이 시간 안에 돌아오지 않으면 GEM이 대신 응답합니다(S2F41 HCACK 2, S2F15 EAC 2, 등록 메시지 SxF0). Host의 T3(보통 45초)보다 충분히 짧게 두세요.</remarks>
+            <remarks>핸들러가 이 시간 안에 돌아오지 않으면 GEM이 대신 응답합니다(S2F41 HCACK 2, S2F15 EAC 2, 등록 메시지 SxF0). Host의 T3(보통 45초)보다 충분히 짧게 두세요. 기한이 지나면 GEM이 HCACK 2로 응답하지만 핸들러는 계속 실행되므로, Host는 실행되지 않았다고 믿는데 동작은 실행될 수 있습니다. 핸들러는 짧게 유지하고, 오래 걸리는 동작은 HCACK 4로 응답한 뒤 이벤트로 완료를 알리세요.</remarks>
             <exception cref="T:System.ArgumentOutOfRangeException">1보다 작은 경우</exception>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
@@ -7536,9 +7536,9 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>ACKC10</returns>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" en-hash="16c0529205238418">
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" en-hash="a91ec8c7f050451c">
             <summary>리모트 명령을 보냅니다(S2F41 &lt;L RCMD &lt;L &lt;L CPNAME CPVAL&gt;…&gt;&gt;). RCMD·CPNAME은 A로 보냅니다.</summary>
-            <remarks>장비가 ON-LINE REMOTE가 아니면 보통 HCACK 2(LOCAL) 또는 S2F0(OFF-LINE)입니다. 오래 걸리는 명령은 HCACK 4로 받고 끝나면 장비가 이벤트로 알립니다.</remarks>
+            <remarks>장비가 ON-LINE REMOTE가 아니면 보통 HCACK 2(LOCAL) 또는 S2F0(OFF-LINE)입니다. 오래 걸리는 명령은 HCACK 4로 받고 끝나면 장비가 이벤트로 알립니다. SecsTimeoutException, SecsDisconnectedException, 취소, 심지어 HCACK 2도 명령이 실행되지 않았다는 증거가 아닙니다. 다시 보내기 전에 장비 상태(예: S1F3)를 확인하세요.</remarks>
             <param name="command">명령 이름 RCMD (ASCII)</param>
             <param name="parameters">파라미터 (CPNAME, CPVAL)</param>
             <returns>결과 (HCACK, CPACK 목록)</returns>
@@ -7551,8 +7551,9 @@
             <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 중 연결이 끊긴 경우</exception>
             <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다른 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommandAsync(System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},System.Threading.CancellationToken)" en-hash="d59bc9ec2591e670">
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommandAsync(System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},System.Threading.CancellationToken)" en-hash="da3b82130605f0c6">
             <summary>리모트 명령을 보냅니다(S2F41). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />와 같습니다.</summary>
+            <remarks>SecsTimeoutException, SecsDisconnectedException, 취소, 심지어 HCACK 2도 명령이 실행되지 않았다는 증거가 아닙니다. 다시 보내기 전에 장비 상태(예: S1F3)를 확인하세요.</remarks>
             <param name="command">명령 이름 RCMD</param>
             <param name="parameters">파라미터 (CPNAME, CPVAL), null이면 없음</param>
             <param name="cancellationToken">응답 기다리기 취소</param>
