@@ -1,4 +1,4 @@
-# Manual runs only (Actions tab or `gh workflow run ci.yml`) — not on every push (private repo: Windows runner minutes count 2x).
+# Manual runs only (Actions tab or `gh workflow run ci.yml`) — not on every push (agreed with Devinno.UI; run it a few times before tagging a release).
 # 수동 실행(workflow_dispatch) 버튼은 이 파일이 기본 브랜치(main)에 있어야 Actions 탭에 나타난다.
 # 태그 없이 도는 검사 — build → test → pack(게시 없음) → nupkg 를 artifact 로. 태그(publish-nuget.yml) 전에 이것을 여러 번 초록으로 만든다.
 # CI 에서만 흔들리는 테스트를 찾으려면 Actions 탭에서 수동 실행(workflow_dispatch)을 몇 번 돌린다.
