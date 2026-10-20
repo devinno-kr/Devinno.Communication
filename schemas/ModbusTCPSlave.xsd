@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="ModbusTCPSlave" nillable="true" type="ModbusTCPSlaveConfig" />
+  <xs:complexType name="ModbusTCPSlaveConfig">
+    <xs:attribute default="502" name="LocalPort" type="xs:int" use="optional" />
+    <xs:attribute default="1" name="Slave" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="MaxClients" type="xs:int" use="optional" />
+  </xs:complexType>
+</xs:schema>

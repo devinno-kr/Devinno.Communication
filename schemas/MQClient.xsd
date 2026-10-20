@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="MQClient" nillable="true" type="MQClientConfig" />
+  <xs:complexType name="MQClientConfig">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Subscribe" type="MQSubscribeConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="BrokerHostName" type="xs:string" use="optional" />
+    <xs:attribute default="1883" name="BrokerPort" type="xs:int" use="optional" />
+    <xs:attribute name="ClientID" type="xs:string" use="optional" />
+    <xs:attribute name="UserName" type="xs:string" use="optional" />
+    <xs:attribute default="/test-alive" name="AliveTopic" type="xs:string" use="optional" />
+    <xs:attribute default="1000" name="AliveInterval" type="xs:int" use="optional" />
+    <xs:attribute default="3000" name="AliveTimeout" type="xs:int" use="optional" />
+    <xs:attribute default="100000" name="MaxPendingMessages" type="xs:int" use="optional" />
+    <xs:attribute default="DropOldest" name="OverflowPolicy" type="MQOverflowPolicy" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="MQSubscribeConfig">
+    <xs:attribute name="Topic" type="xs:string" use="required" />
+    <xs:attribute default="MostOnce" name="Qos" type="MQQos" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="MQQos">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="LeastOnce" />
+      <xs:enumeration value="MostOnce" />
+      <xs:enumeration value="ExactlyOnce" />
+      <xs:enumeration value="GrantedFailure" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="MQOverflowPolicy">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="DropOldest" />
+      <xs:enumeration value="DropNewest" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

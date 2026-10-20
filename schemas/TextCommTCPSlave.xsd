@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="TextCommTCPSlave" nillable="true" type="TextCommTCPSlaveConfig" />
+  <xs:complexType name="TextCommTCPSlaveConfig">
+    <xs:attribute default="7897" name="LocalPort" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="MaxClients" type="xs:int" use="optional" />
+    <xs:attribute default="us-ascii" name="MessageEncoding" type="xs:string" use="optional" />
+  </xs:complexType>
+</xs:schema>

@@ -1,0 +1,39 @@
+{
+  "map": "modbus-tcp",
+  "root": "ModbusTCPMaster",
+  "connection": { "RemoteIP": "192.168.5.100", "RemotePort": "1502" },
+  "connectionDefaults": { "RemoteIP": "127.0.0.1", "RemotePort": "502" },
+  "slave": 3,
+  "limits": { "FC1": 2000, "FC2": 2000, "FC3": 125, "FC4": 125 },
+  "reads": [
+    { "name": "DriveStatus", "area": "FC3", "start": 0, "count": 1 },
+    { "name": "OutputFreq", "area": "FC3", "start": 1, "count": 1 },
+    { "name": "MotorCurrent", "area": "FC3", "start": 2, "count": 1 },
+    { "name": "FaultCode", "area": "FC3", "start": 3, "count": 1 },
+    { "name": "EnergyTotal", "area": "FC3", "start": 4, "count": 2 },
+    { "name": "ParameterTable", "area": "FC3", "start": 100, "count": 300 },
+    { "name": "HeatsinkTemp", "area": "FC3", "start": 499, "count": 1 },
+    { "name": "RunHours", "area": "FC3", "start": 749, "count": 2 },
+    { "name": "InputVoltage", "area": "FC4", "start": 0, "count": 1 },
+    { "name": "DcBusVoltage", "area": "FC4", "start": 1, "count": 1 },
+    { "name": "MotorTorque", "area": "FC4", "start": 9, "count": 1 },
+    { "name": "DiStart", "area": "FC2", "start": 0, "count": 1 },
+    { "name": "DiStop", "area": "FC2", "start": 1, "count": 1 },
+    { "name": "DiFault", "area": "FC2", "start": 2, "count": 1 },
+    { "name": "DiReady", "area": "FC2", "start": 3, "count": 1 },
+    { "name": "RunActive", "area": "FC1", "start": 0, "count": 1 },
+    { "name": "DirectionFwd", "area": "FC1", "start": 1, "count": 1 },
+    { "name": "FaultActive", "area": "FC1", "start": 2, "count": 1 },
+    { "name": "FanOn", "area": "FC1", "start": 49, "count": 1 }
+  ],
+  "writes": [
+    { "name": "SpeedRef", "start": 200, "funcs": ["FC6", "FC16"] },
+    { "name": "AccelTime", "start": 201, "funcs": ["FC6", "FC16"] },
+    { "name": "TorqueLimit", "start": 202, "funcs": ["FC6", "FC16"] },
+    { "name": "PositionTarget", "start": 209, "funcs": ["FC16"] },
+    { "name": "Recipe", "start": 599, "funcs": ["FC16"] },
+    { "name": "RunCmd", "start": 100, "funcs": ["FC5", "FC15"] },
+    { "name": "ResetFault", "start": 101, "funcs": ["FC5", "FC15"] },
+    { "name": "JogEnable", "start": 102, "funcs": ["FC5", "FC15"] }
+  ]
+}

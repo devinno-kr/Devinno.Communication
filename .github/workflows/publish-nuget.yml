@@ -1,0 +1,49 @@
+# 태그(v1.2.3 형식)를 push하면 테스트 → pack(태그 버전) → nuget.org 게시
+# 인증: nuget.org Trusted Publishing(OIDC). API 키 Secret은 쓰지 않는다.
+# 필수: 저장소 Secret NUGET_USER = nuget.org 프로필 이름(이메일 아님). Settings > Secrets and variables > Actions 에 등록
+# nuget.org 정책: 소유자 devinno, 저장소 devinno-kr/Devinno.Communication, 워크플로 publish-nuget.yml(이 파일 이름을 바꾸면 정책도 바꿔야 함)
+name: Publish NuGet
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  publish:
+    runs-on: windows-latest   # 개발 환경과 같은 Windows (시리얼·소켓 테스트 동작 차이 방지)
+    permissions:
+      contents: read
+      id-token: write         # GitHub OIDC 토큰 발급 (Trusted Publishing)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 태그에서 버전 읽기
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'.Substring(1)
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "태그 형식이 v1.2.3(또는 v1.2.3-beta.1)이 아닙니다: ${{ github.ref_name }}" }
+          "VERSION=$v" >> $env:GITHUB_ENV
+
+      # 태그 버전을 DLL(FileVersion/AssemblyVersion)에도 넣으려면 빌드 때 -p:Version을 줘야 한다
+      - name: 빌드 (태그 버전)
+        run: dotnet build -c Release -p:Version=${{ env.VERSION }}
+
+      - name: 테스트
+        run: dotnet test tests/Devinno.Communication.Tests -c Release --no-build
+
+      - name: 패키지 만들기
+        run: dotnet pack src/Devinno.Communication -c Release --no-build -p:Version=${{ env.VERSION }} -o out
+
+      # 임시 API 키(1시간)는 push 바로 앞에서 받는다
+      - name: NuGet 로그인 (OIDC → 임시 API 키)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}   # nuget.org 프로필 이름(이메일 아님)
+
+      - name: nuget.org 게시
+        run: dotnet nuget push out/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

@@ -1,0 +1,27 @@
+<Project>
+  <!--
+    빌드할 때마다 이 패키지의 docs/ 전체와 영문 IntelliSense XML(lib/<tfm>/<Id>.xml, ko/ 제외)을
+    $(MSBuildProjectDirectory)\.devinno\<Id>\ 로 복사한다. 바뀐 파일만 복사하고, 복사 대상에 없는 옛 파일은 지운다
+    (다른 .devinno\ 하위 폴더는 건드리지 않음). 끄기: <DevinnoCopyDocs>false</DevinnoCopyDocs>.
+    여러 Devinno 패키지를 함께 참조해도 겹치지 않도록 대상·항목 이름에 패키지 id 를 붙인다.
+    디자인 타임 빌드(IDE)에서는 돌지 않는다.
+  -->
+  <Target Name="_DevinnoCopyDocs_Devinno_Communication" AfterTargets="Build"
+          Condition="'$(DevinnoCopyDocs)' != 'false' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_DevinnoDocsDest_Devinno_Communication>$(MSBuildProjectDirectory)\.devinno\Devinno.Communication\</_DevinnoDocsDest_Devinno_Communication>
+    </PropertyGroup>
+    <ItemGroup>
+      <_DevinnoDocsSrc_Devinno_Communication Include="$(MSBuildThisFileDirectory)..\docs\**\*" />
+      <_DevinnoDocsDst_Devinno_Communication Include="@(_DevinnoDocsSrc_Devinno_Communication->'$(_DevinnoDocsDest_Devinno_Communication)%(RecursiveDir)%(Filename)%(Extension)')" />
+      <_DevinnoDocsXml_Devinno_Communication Include="$(MSBuildThisFileDirectory)..\lib\*\Devinno.Communication.xml" />
+      <_DevinnoDocsSrc_Devinno_Communication Include="@(_DevinnoDocsXml_Devinno_Communication)" />
+      <_DevinnoDocsDst_Devinno_Communication Include="@(_DevinnoDocsXml_Devinno_Communication->'$(_DevinnoDocsDest_Devinno_Communication)%(Filename)%(Extension)')" />
+      <_DevinnoDocsOld_Devinno_Communication Include="$(_DevinnoDocsDest_Devinno_Communication)**\*" />
+      <_DevinnoDocsOld_Devinno_Communication Remove="@(_DevinnoDocsDst_Devinno_Communication)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_DevinnoDocsSrc_Devinno_Communication)" DestinationFiles="@(_DevinnoDocsDst_Devinno_Communication)"
+          SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
+    <Delete Files="@(_DevinnoDocsOld_Devinno_Communication)" ContinueOnError="WarnAndContinue" />
+  </Target>
+</Project>

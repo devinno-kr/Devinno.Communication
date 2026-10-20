@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="GemHost" nillable="true" type="GemHostConfig" />
+  <xs:complexType name="GemHostConfig">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="1" name="SecsHsms" type="SecsHsmsConfig" />
+      <xs:element minOccurs="0" maxOccurs="1" name="SecsSerial" type="SecsSerialConfig" />
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Subscribe" type="GemSubscribeConfig" />
+    </xs:sequence>
+    <xs:attribute default="U4" name="VidFormat" type="xs:string" use="optional" />
+    <xs:attribute default="U4" name="CeidFormat" type="xs:string" use="optional" />
+    <xs:attribute default="U4" name="RptidFormat" type="xs:string" use="optional" />
+    <xs:attribute default="U4" name="AlidFormat" type="xs:string" use="optional" />
+    <xs:attribute default="U4" name="DataidFormat" type="xs:string" use="optional" />
+    <xs:attribute default="1" name="TimeFormat" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoConnectSequence" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="RequestOnline" type="xs:boolean" use="optional" />
+    <xs:attribute default="false" name="SetEquipmentClock" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="ConfigureReports" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="EnableAlarms" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="DeleteReportsFirst" type="xs:boolean" use="optional" />
+    <xs:attribute default="1000" name="ReportIdStart" type="xs:long" use="optional" />
+    <xs:attribute default="10" name="EstablishCommunicationRetry" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="CommandReplyTimeout" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="MaxPendingEvents" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="SecsHsmsConfig">
+    <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />
+    <xs:attribute default="0" name="DeviceID" type="xs:int" use="optional" />
+    <xs:attribute default="45000" name="T3" type="xs:int" use="optional" />
+    <xs:attribute default="Active" name="Mode" type="HsmsMode" use="optional" />
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="5000" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="0.0.0.0" name="LocalIP" type="xs:string" use="optional" />
+    <xs:attribute default="5000" name="LocalPort" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="T5" type="xs:int" use="optional" />
+    <xs:attribute default="5000" name="T6" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="T7" type="xs:int" use="optional" />
+    <xs:attribute default="5000" name="T8" type="xs:int" use="optional" />
+    <xs:attribute default="60000" name="LinktestInterval" type="xs:int" use="optional" />
+    <xs:attribute default="16777216" name="MaxMessageSize" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="SecsRole">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Host" />
+      <xs:enumeration value="Equipment" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="HsmsMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Active" />
+      <xs:enumeration value="Passive" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="SecsSerialConfig">
+    <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />
+    <xs:attribute default="0" name="DeviceID" type="xs:int" use="optional" />
+    <xs:attribute default="45000" name="T3" type="xs:int" use="optional" />
+    <xs:attribute default="COM1" name="Port" type="xs:string" use="optional" />
+    <xs:attribute default="9600" name="Baudrate" type="xs:int" use="optional" />
+    <xs:attribute default="None" name="Parity" type="Parity" use="optional" />
+    <xs:attribute default="8" name="DataBits" type="xs:int" use="optional" />
+    <xs:attribute default="One" name="StopBits" type="StopBits" use="optional" />
+    <xs:attribute default="500" name="T1" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="T2" type="xs:int" use="optional" />
+    <xs:attribute default="45000" name="T4" type="xs:int" use="optional" />
+    <xs:attribute default="3" name="RetryLimit" type="xs:int" use="optional" />
+    <xs:attribute name="IsMaster" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="DuplicateDetection" type="xs:boolean" use="optional" />
+    <xs:attribute default="false" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="Parity">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="Odd" />
+      <xs:enumeration value="Even" />
+      <xs:enumeration value="Mark" />
+      <xs:enumeration value="Space" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="StopBits">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="One" />
+      <xs:enumeration value="Two" />
+      <xs:enumeration value="OnePointFive" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="GemSubscribeConfig">
+    <xs:attribute name="Ceid" type="xs:string" use="required" />
+    <xs:attribute name="Vids" type="xs:string" use="optional" />
+  </xs:complexType>
+</xs:schema>

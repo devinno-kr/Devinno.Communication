@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Devinno.Communication</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591;CS1573</WarningsAsErrors>
+
+    <PackageId>Devinno.Communication</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Devinno</Authors>
+    <Company>Devinno</Company>
+    <Description>Industrial device communication library for .NET 8 — Modbus RTU/TCP, LS CNet/FEnet, Mitsubishi MC, Siemens S7, Omron FINS, TextComm, MQTT, SECS/GEM (HSMS, SECS-I, GEM equipment and host, E30). XML configuration with XSD schemas.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Devinno</Copyright>
+    <PackageProjectUrl>https://github.com/devinno-kr/Devinno.Communication</PackageProjectUrl>
+    <PackageTags>modbus;rtu;tcp;plc;ls;cnet;fenet;mitsubishi;mc;siemens;s7;omron;fins;mqtt;secs;gem;hsms;semi;e30;serial</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <RepositoryUrl>https://github.com/devinno-kr/Devinno.Communication</RepositoryUrl>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+    <PackageReference Include="MQTTnet" Version="5.2.0.1603" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+    <None Include="..\..\i18n\ko\Devinno.Communication.xml" Pack="true" PackagePath="lib\net8.0\ko\" />
+    <None Include="..\..\llm-rules.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\comm-xml-reference.md" Pack="true" PackagePath="docs\" />
+    <None Include="..\..\schemas\*.xsd" Pack="true" PackagePath="docs\schemas\" />
+    <InternalsVisibleTo Include="Devinno.Communication.Tests" />
+  </ItemGroup>
+
+  <!-- 참조한 프로젝트가 빌드할 때 docs/·영문 XML 을 .devinno/Devinno.Communication/ 으로 복사(build/·buildTransitive/) -->
+  <ItemGroup>
+    <None Include="build\Devinno.Communication.targets" Pack="true" PackagePath="build\" />
+    <None Include="buildTransitive\Devinno.Communication.targets" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+  <!-- docs/llms.txt: 저장소 llms.txt 첫 줄의 {{VERSION}} 을 pack 버전으로 바꾼 사본을 obj/ 에 써서 넣는다(일반 pack 과 no-build pack 모두). -->
+  <Target Name="_DevinnoVersionedLlms" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_DevinnoLlmsOut>$(IntermediateOutputPath)llms.txt</_DevinnoLlmsOut>
+      <_DevinnoLlmsText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\llms.txt').Replace('{{VERSION}}', '$(PackageVersion)').TrimEnd())</_DevinnoLlmsText>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_DevinnoLlmsOut)" Lines="$([MSBuild]::Escape($(_DevinnoLlmsText)))" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <None Include="$(_DevinnoLlmsOut)" Pack="true" PackagePath="docs\" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="FinsTcp" nillable="true" type="FinsTcpConfig" />
+  <xs:complexType name="FinsTcpConfig">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element minOccurs="0" maxOccurs="1" name="Read" type="FinsReadConfig" />
+        <xs:element minOccurs="0" maxOccurs="1" name="ReadBlock" type="FinsReadBlockConfig" />
+      </xs:choice>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="FinsWriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="9600" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute name="ClientNode" type="xs:int" use="optional" />
+    <xs:attribute default="499" name="MaxWordsPerRequest" type="xs:int" use="optional" />
+    <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="FinsReadConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="FinsAutoConfig">
+        <xs:attribute name="Addresses" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="FinsAutoConfig" abstract="true">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="FinsReadBlockConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="FinsAutoConfig">
+        <xs:attribute name="Address" type="xs:string" use="required" />
+        <xs:attribute name="Count" type="xs:int" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="FinsWriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Address" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+</xs:schema>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<McEthernet RemoteIP="192.168.1.50" RemotePort="5002" Frame="E3">
+  <!-- reads: Id 1-99 -->
+  <WR Id="1" Device="D100" Count="16" />
+  <WR Id="2" Device="D2000" Count="960" />
+  <WR Id="3" Device="D2960" Count="240" />
+  <WR Id="4" Device="D5000" Count="121" />
+  <WR Id="5" Device="D7500" Count="2" />
+  <WR Id="6" Device="D8100" Count="2" />
+  <BR Id="7" Device="M0" Count="513" />
+  <BR Id="8" Device="X10" Count="16" />
+  <!-- writes: Id 100-199 -->
+  <Write Name="RunCommand" Id="100" Device="D200" />
+  <Write Name="SpeedSet" Id="101" Device="D201" />
+  <Write Name="TempSetpoint" Id="102" Device="D202" />
+  <Write Name="ProductSelect" Id="103" Device="D204" />
+  <Write Name="BatchTarget" Id="104" Device="D400" />
+  <Write Name="Recipe" Id="105" Device="D300" Timeout="2000" RepeatCount="1" />
+  <Write Name="StartPb" Id="106" Device="M100" />
+  <Write Name="ResetAlarm" Id="107" Device="M101" />
+  <Write Name="JogForward" Id="108" Device="M110" />
+</McEthernet>

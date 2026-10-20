@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="McEthernet" nillable="true" type="McEthernetConfig" />
+  <xs:complexType name="McEthernetConfig">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element minOccurs="0" maxOccurs="1" name="BR" type="McEthernetBrConfig" />
+        <xs:element minOccurs="0" maxOccurs="1" name="WR" type="McEthernetWrConfig" />
+      </xs:choice>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="McEthernetWriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="5000" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="E3" name="Frame" type="McFrame" use="optional" />
+    <xs:attribute default="Auto" name="XYNotation" type="McXYNotation" use="optional" />
+    <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="McEthernetBrConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="McEthernetAutoConfig" />
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="McEthernetAutoConfig" abstract="true">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Device" type="xs:string" use="required" />
+    <xs:attribute name="Count" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="McEthernetWrConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="McEthernetAutoConfig" />
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="McEthernetWriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Device" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="McFrame">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="E3" />
+      <xs:enumeration value="E1" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="McXYNotation">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Auto" />
+      <xs:enumeration value="Hex" />
+      <xs:enumeration value="Octal" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

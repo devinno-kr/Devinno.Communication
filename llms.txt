@@ -1,0 +1,18 @@
+# Devinno.Communication {{VERSION}}
+
+> .NET 8 library for industrial device communication: Modbus RTU/TCP, LS XGT (CNet/FEnet), Mitsubishi MC (1C/3E/1E), Siemens S7, Omron FINS, TextComm, MQTT, SECS/GEM. Each communication object is configured by one XML file (one instance = one XML) and driven from C# through Auto (polling) and Manual (one-shot) job queues and events.
+
+Where these files are after `dotnet add package Devinno.Communication`:
+
+- After the first `dotnet build` of the referencing project: `.devinno/Devinno.Communication/` next to that project's .csproj holds all of these files (this file, llm-rules.md, comm-xml-reference.md, `schemas/*.xsd` and the English `Devinno.Communication.xml`), refreshed on every build for the referenced version. Read them there first. (Turned off when the project sets `<DevinnoCopyDocs>false</DevinnoCopyDocs>`.)
+- Fallback, the NuGet package folder: docs in `%UserProfile%\.nuget\packages\devinno.communication\<version>\docs\` (or `$NUGET_PACKAGES/devinno.communication/<version>/docs/` when NUGET_PACKAGES is set; on Linux/macOS the default is `~/.nuget/packages/devinno.communication/<version>/docs/`).
+- C# API reference (IntelliSense XML): `lib/net8.0/Devinno.Communication.xml` in the same package folder (Korean: `lib/net8.0/ko/Devinno.Communication.xml`).
+
+Read in this order:
+
+1. [llm-rules.md](llm-rules.md): rules. **Read first.** Which class to use, XML rules, the memory map to XML procedure, per-request limits for every protocol, the C# lifecycle and threading rules, protocol pitfalls, how to verify.
+2. [comm-xml-reference.md](comm-xml-reference.md): XML reference for all 21 root elements (attributes, required flags, defaults, ranges, child elements, one minimal example each).
+3. `schemas/<Root>.xsd`: the exact XML schema of each root element (output of `ConfigSchema.Get<T>()`). If a document and an XSD disagree, the XSD is right.
+4. `Devinno.Communication.xml` (IntelliSense; directly in `.devinno/Devinno.Communication/`, or `lib/net8.0/` in the package folder): **part of this package and meant to be read** (plain XML, `<member name="T:…">`/`M:`/`P:`/`E:` entries with `<summary>`, `<param>`, `<remarks>`, `<example>`). It is the full API reference: every public class, method, overload, event and event argument member. Search it for anything the documents above do not cover (SECS/GEM messaging, slaves' memory arrays, MQTT publish, Manual… method parameters).
+
+Nothing that is not in these files exists. Do not invent elements, attributes, methods or enum values.

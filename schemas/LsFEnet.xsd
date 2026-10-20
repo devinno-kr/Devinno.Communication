@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="LsFEnet" nillable="true" type="LsFEnetConfig" />
+  <xs:complexType name="LsFEnetConfig">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element minOccurs="0" maxOccurs="1" name="RSS" type="LsFEnetRssConfig" />
+        <xs:element minOccurs="0" maxOccurs="1" name="RSB" type="LsFEnetRsbConfig" />
+      </xs:choice>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="LsFEnetWriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="2004" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="LsFEnetRssConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="LsFEnetAutoConfig">
+        <xs:attribute name="Devices" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LsFEnetAutoConfig" abstract="true">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="LsFEnetRsbConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="LsFEnetAutoConfig">
+        <xs:attribute name="Device" type="xs:string" use="required" />
+        <xs:attribute name="Count" type="xs:int" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LsFEnetWriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Device" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+</xs:schema>

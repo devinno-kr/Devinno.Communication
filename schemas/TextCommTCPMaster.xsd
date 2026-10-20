@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="TextCommTCPMaster" nillable="true" type="TextCommTCPMasterConfig" />
+  <xs:complexType name="TextCommTCPMasterConfig">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Auto" type="TextCommAutoConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="7897" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="100" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+    <xs:attribute default="1024" name="BufferSize" type="xs:int" use="optional" />
+    <xs:attribute default="us-ascii" name="MessageEncoding" type="xs:string" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="TextCommAutoConfig">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Slave" type="xs:int" use="required" />
+    <xs:attribute name="Command" type="xs:int" use="required" />
+    <xs:attribute name="Message" type="xs:string" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+</xs:schema>

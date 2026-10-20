@@ -1,0 +1,4 @@
+<Project>
+  <!-- 이 패키지를 간접 참조(다른 프로젝트·패키지 경유)해도 같은 동작이 적용되도록 build/ 의 것을 그대로 가져온다. -->
+  <Import Project="..\build\Devinno.Communication.targets" />
+</Project>

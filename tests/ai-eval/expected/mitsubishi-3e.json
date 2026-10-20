@@ -1,0 +1,43 @@
+{
+  "map": "mitsubishi-3e",
+  "root": "McEthernet",
+  "connection": { "RemoteIP": "192.168.1.50", "RemotePort": "5002", "Frame": "E3" },
+  "connectionDefaults": { "RemoteIP": "127.0.0.1", "RemotePort": "5000", "Frame": "E3" },
+  "limits": { "WR": 960, "BR": 3584 },
+  "reads": [
+    { "name": "LineStatus", "area": "D", "start": 100, "count": 1 },
+    { "name": "AlarmCode", "area": "D", "start": 101, "count": 1 },
+    { "name": "ActualSpeed", "area": "D", "start": 102, "count": 2 },
+    { "name": "ActualTemp", "area": "D", "start": 104, "count": 2 },
+    { "name": "Pressure", "area": "D", "start": 106, "count": 1 },
+    { "name": "BatchCount", "area": "D", "start": 108, "count": 1 },
+    { "name": "ProductCount", "area": "D", "start": 110, "count": 2 },
+    { "name": "RejectCount", "area": "D", "start": 112, "count": 1 },
+    { "name": "OperatorId", "area": "D", "start": 114, "count": 1 },
+    { "name": "TrendLog", "area": "D", "start": 2000, "count": 1200 },
+    { "name": "SpindleLoad", "area": "D", "start": 5000, "count": 1 },
+    { "name": "ToolWear", "area": "D", "start": 5120, "count": 1 },
+    { "name": "CycleTime", "area": "D", "start": 7500, "count": 2 },
+    { "name": "EnergyKwh", "area": "D", "start": 8100, "count": 2 },
+    { "name": "MotorRun", "area": "M", "start": 0, "count": 1 },
+    { "name": "AlarmActive", "area": "M", "start": 1, "count": 1 },
+    { "name": "DoorOpen", "area": "M", "start": 2, "count": 1 },
+    { "name": "EStopActive", "area": "M", "start": 3, "count": 1 },
+    { "name": "AutoMode", "area": "M", "start": 10, "count": 1 },
+    { "name": "ServoReady", "area": "M", "start": 200, "count": 1 },
+    { "name": "CoolantLow", "area": "M", "start": 512, "count": 1 },
+    { "name": "PartPresent", "area": "X", "start": 16, "count": 1 },
+    { "name": "SafetyRelayOk", "area": "X", "start": 31, "count": 1 }
+  ],
+  "writes": [
+    { "name": "RunCommand", "address": "D200" },
+    { "name": "SpeedSet", "address": "D201" },
+    { "name": "TempSetpoint", "address": "D202" },
+    { "name": "ProductSelect", "address": "D204" },
+    { "name": "BatchTarget", "address": "D400" },
+    { "name": "Recipe", "address": "D300" },
+    { "name": "StartPb", "address": "M100" },
+    { "name": "ResetAlarm", "address": "M101" },
+    { "name": "JogForward", "address": "M110" }
+  ]
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModbusTCPMaster RemoteIP="192.168.5.100" RemotePort="1502">
+  <!-- reads: Id 1-99 -->
+  <Auto Id="1" Func="FC3" Slave="3" Start="0" Length="6" />
+  <Auto Id="2" Func="FC3" Slave="3" Start="100" Length="300" />
+  <Auto Id="5" Func="FC3" Slave="3" Start="499" Length="1" />
+  <Auto Id="6" Func="FC3" Slave="3" Start="749" Length="2" />
+  <Auto Id="7" Func="FC4" Slave="3" Start="0" Length="2" />
+  <Auto Id="8" Func="FC4" Slave="3" Start="9" Length="1" />
+  <Auto Id="9" Func="FC2" Slave="3" Start="0" Length="4" />
+  <Auto Id="10" Func="FC1" Slave="3" Start="0" Length="3" />
+  <Auto Id="11" Func="FC1" Slave="3" Start="49" Length="1" />
+  <!-- writes: Id 100-199 -->
+  <Write Name="SpeedRef" Id="100" Func="FC6" Slave="3" Start="200" />
+  <Write Name="AccelTime" Id="101" Func="FC6" Slave="3" Start="201" />
+  <Write Name="TorqueLimit" Id="102" Func="FC6" Slave="3" Start="202" />
+  <Write Name="PositionTarget" Id="103" Func="FC16" Slave="3" Start="209" />
+  <Write Name="Recipe" Id="104" Func="FC16" Slave="3" Start="599" />
+  <Write Name="RunCmd" Id="105" Func="FC5" Slave="3" Start="100" />
+  <Write Name="ResetFault" Id="106" Func="FC5" Slave="3" Start="101" />
+  <Write Name="JogEnable" Id="107" Func="FC5" Slave="3" Start="102" />
+</ModbusTCPMaster>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="LsCNet" nillable="true" type="LsCNetConfig" />
+  <xs:complexType name="LsCNetConfig">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element minOccurs="0" maxOccurs="1" name="RSS" type="LsCNetRssConfig" />
+        <xs:element minOccurs="0" maxOccurs="1" name="RSB" type="LsCNetRsbConfig" />
+      </xs:choice>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="LsCNetWriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="COM1" name="Port" type="xs:string" use="optional" />
+    <xs:attribute default="9600" name="Baudrate" type="xs:int" use="optional" />
+    <xs:attribute default="None" name="Parity" type="Parity" use="optional" />
+    <xs:attribute default="8" name="DataBits" type="xs:int" use="optional" />
+    <xs:attribute default="One" name="StopBits" type="StopBits" use="optional" />
+    <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="false" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="LsCNetRssConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="LsCNetAutoConfig">
+        <xs:attribute name="Devices" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LsCNetAutoConfig" abstract="true">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Slave" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="LsCNetRsbConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="LsCNetAutoConfig">
+        <xs:attribute name="Device" type="xs:string" use="required" />
+        <xs:attribute name="Count" type="xs:int" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LsCNetWriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Slave" type="xs:int" use="required" />
+        <xs:attribute name="Device" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="Parity">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="Odd" />
+      <xs:enumeration value="Even" />
+      <xs:enumeration value="Mark" />
+      <xs:enumeration value="Space" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="StopBits">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="One" />
+      <xs:enumeration value="Two" />
+      <xs:enumeration value="OnePointFive" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

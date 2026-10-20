@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="ModbusRTUMaster" nillable="true" type="ModbusRTUMasterConfig" />
+  <xs:complexType name="ModbusRTUMasterConfig">
+    <xs:sequence>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Auto" type="ModbusAutoConfig" />
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="ModbusWriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="COM1" name="Port" type="xs:string" use="optional" />
+    <xs:attribute default="115200" name="Baudrate" type="xs:int" use="optional" />
+    <xs:attribute default="None" name="Parity" type="Parity" use="optional" />
+    <xs:attribute default="8" name="DataBits" type="xs:int" use="optional" />
+    <xs:attribute default="One" name="StopBits" type="StopBits" use="optional" />
+    <xs:attribute default="100" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="false" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="ModbusAutoConfig">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Func" type="ModbusFunction" use="required" />
+    <xs:attribute name="Slave" type="xs:int" use="required" />
+    <xs:attribute default="0" name="Start" type="xs:int" use="optional" />
+    <xs:attribute name="Length" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="ModbusFunction">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="FC1" />
+      <xs:enumeration value="FC2" />
+      <xs:enumeration value="FC3" />
+      <xs:enumeration value="FC4" />
+      <xs:enumeration value="FC5" />
+      <xs:enumeration value="FC6" />
+      <xs:enumeration value="FC15" />
+      <xs:enumeration value="FC16" />
+      <xs:enumeration value="FC26" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ModbusWriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Func" type="ModbusFunction" use="required" />
+        <xs:attribute name="Slave" type="xs:int" use="required" />
+        <xs:attribute default="0" name="Start" type="xs:int" use="optional" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="Parity">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="Odd" />
+      <xs:enumeration value="Even" />
+      <xs:enumeration value="Mark" />
+      <xs:enumeration value="Space" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="StopBits">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="None" />
+      <xs:enumeration value="One" />
+      <xs:enumeration value="Two" />
+      <xs:enumeration value="OnePointFive" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

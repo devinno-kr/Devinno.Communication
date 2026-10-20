@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="S7Ethernet" nillable="true" type="S7EthernetConfig" />
+  <xs:complexType name="S7EthernetConfig">
+    <xs:sequence>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element minOccurs="0" maxOccurs="1" name="Read" type="S7ReadConfig" />
+        <xs:element minOccurs="0" maxOccurs="1" name="ReadBlock" type="S7ReadBlockConfig" />
+      </xs:choice>
+      <xs:element minOccurs="0" maxOccurs="unbounded" name="Write" type="S7WriteConfig" />
+    </xs:sequence>
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="102" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="0" name="Rack" type="xs:int" use="optional" />
+    <xs:attribute default="1" name="Slot" type="xs:int" use="optional" />
+    <xs:attribute default="PG" name="ConnectionType" type="S7ConnectionType" use="optional" />
+    <xs:attribute name="RemoteTsap" type="xs:int" use="optional" />
+    <xs:attribute default="256" name="LocalTsap" type="xs:int" use="optional" />
+    <xs:attribute default="960" name="PduSize" type="xs:int" use="optional" />
+    <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="S7ReadConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="S7EthernetAutoConfig">
+        <xs:attribute name="Addresses" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="S7EthernetAutoConfig" abstract="true">
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:complexType name="S7ReadBlockConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="S7EthernetAutoConfig">
+        <xs:attribute name="Address" type="xs:string" use="required" />
+        <xs:attribute name="Count" type="xs:int" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="S7WriteConfig">
+    <xs:complexContent mixed="false">
+      <xs:extension base="NamedWriteConfig">
+        <xs:attribute name="Address" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NamedWriteConfig" abstract="true">
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="Id" type="xs:int" use="required" />
+    <xs:attribute name="Timeout" type="xs:int" use="optional" />
+    <xs:attribute name="RepeatCount" type="xs:int" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="S7ConnectionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="PG" />
+      <xs:enumeration value="OP" />
+      <xs:enumeration value="Basic" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

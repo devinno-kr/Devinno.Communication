@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<S7Ethernet RemoteIP="10.20.30.40" Slot="2">
+  <!-- reads: Id 1-99 -->
+  <ReadBlock Id="1" Address="DB10.DBB0" Count="1220" />
+  <Read Id="2" Addresses="DB102.DBD0,DB103.DBD0,DB104.DBD0,DB105.DBD0,DB106.DBD0,DB107.DBD0,DB108.DBD0,DB109.DBD0,DB110.DBD0,DB111.DBD0,DB112.DBD0,DB113.DBD0,DB114.DBD0,DB115.DBD0,DB116.DBD0,IB0,IB1" />
+  <Read Id="3" Addresses="MW20,MW22,DB101.DBW0,DB101.DBW2" />
+  <!-- writes: Id 100-199 -->
+  <Write Name="SpeedSet" Id="100" Address="DB20.DBW0" />
+  <Write Name="SetTemp" Id="101" Address="DB20.DBD2" />
+  <Write Name="StartCmd" Id="102" Address="DB20.DBX6.0" />
+  <Write Name="StopCmd" Id="103" Address="DB20.DBX6.1" />
+  <Write Name="ModeSelect" Id="104" Address="DB20.DBW8" />
+  <Write Name="Recipe" Id="105" Address="DB20.DBW10" />
+  <Write Name="BatchTarget" Id="106" Address="DB20.DBD50" />
+  <Write Name="ResetAlarm" Id="107" Address="M30.0" />
+</S7Ethernet>

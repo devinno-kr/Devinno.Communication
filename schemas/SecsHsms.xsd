@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="SecsHsms" nillable="true" type="SecsHsmsConfig" />
+  <xs:complexType name="SecsHsmsConfig">
+    <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />
+    <xs:attribute default="0" name="DeviceID" type="xs:int" use="optional" />
+    <xs:attribute default="45000" name="T3" type="xs:int" use="optional" />
+    <xs:attribute default="Active" name="Mode" type="HsmsMode" use="optional" />
+    <xs:attribute default="127.0.0.1" name="RemoteIP" type="xs:string" use="optional" />
+    <xs:attribute default="5000" name="RemotePort" type="xs:int" use="optional" />
+    <xs:attribute default="0.0.0.0" name="LocalIP" type="xs:string" use="optional" />
+    <xs:attribute default="5000" name="LocalPort" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="T5" type="xs:int" use="optional" />
+    <xs:attribute default="5000" name="T6" type="xs:int" use="optional" />
+    <xs:attribute default="10000" name="T7" type="xs:int" use="optional" />
+    <xs:attribute default="5000" name="T8" type="xs:int" use="optional" />
+    <xs:attribute default="60000" name="LinktestInterval" type="xs:int" use="optional" />
+    <xs:attribute default="16777216" name="MaxMessageSize" type="xs:int" use="optional" />
+    <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+  </xs:complexType>
+  <xs:simpleType name="SecsRole">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Host" />
+      <xs:enumeration value="Equipment" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="HsmsMode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Active" />
+      <xs:enumeration value="Passive" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>
