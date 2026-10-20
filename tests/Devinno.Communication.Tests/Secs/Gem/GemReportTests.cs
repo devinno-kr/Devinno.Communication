@@ -1,5 +1,6 @@
 using Devinno.Communication.Secs.Data;
 using Devinno.Communication.Secs.Gem;
+using Devinno.Communication.Secs.Hsms;
 using Devinno.Communication.Tests.Fakes;
 
 namespace Devinno.Communication.Tests.Secs.Gem;
@@ -332,6 +333,32 @@ public class GemReportTests
         Assert.True(host.Held.TryTake(out _, 3000));
         host.Dispose();                                                                  // 통신 실패(전이 14)
         await TestUtil.Until(() => log.Count(l => l == "SendFailed S6F11 NotCommunicating") == 2, 5000);
+    }
+
+    [Fact]
+    public async Task LinkLoss_SendFailsBeforeDeviceClosed_StillDiscardPath()
+    {
+        // 끊기면 전송은 응답 대기 트랜잭션을 먼저 SecsDisconnectedException으로 끝내고 DeviceClosed는 디스패처에서 나중에 낸다.
+        // 끊김 알림(전송 ProtocolError, DeviceClosed 바로 앞)에서 디스패처를 붙잡아 송신 실패가 DeviceClosed보다 먼저 처리되는 순서를 만든다
+        using var eq = Eq(e => e.EventsEnabledByDefault = true);
+        var log = GemKit.Log(eq);
+        bool arm = false, blocked = false;
+        ((SecsHsms)eq.Transport).ProtocolError += (s, e) =>
+        {
+            if (!Volatile.Read(ref arm)) return;
+            blocked = true;
+            SpinWait.SpinUntil(() => eq.CommunicationState != GemCommunicationState.Communicating, 1000);
+        };
+        var host = await GemKit.Communicating(eq, h => h.Hold(6, 11));
+        eq.TriggerEvent(5001);
+        eq.TriggerEvent(5002);
+        Assert.True(host.Held.TryTake(out _, 3000));
+        Volatile.Write(ref arm, true);
+        host.Dispose();
+        await TestUtil.Until(() => log.Count(l => l == "SendFailed S6F11 NotCommunicating") == 2);   // 응답 대기 1 + 대기열 1, 모두 버림 경로
+        Assert.True(blocked);
+        await Task.Delay(300);
+        Assert.DoesNotContain(log, l => l.StartsWith("SendFailed S6F11 Disconnected", StringComparison.Ordinal));
     }
 
     [Theory]

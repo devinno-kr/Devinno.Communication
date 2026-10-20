@@ -635,9 +635,18 @@ public partial class GemEquipment : IDisposable
 
     void Completed(Outgoing o, Task<SecsMessage?> t)
     {
+        // 연결이 끊겨 끝난 송신(응답 대기 중 끊김·연결 없음)은 전송의 DeviceClosed보다 먼저 올 수 있다(전송은 대기 트랜잭션을 먼저 끝내고 DeviceClosed는 디스패처에서 나중에 냄).
+        // 평범한 송신 실패로 알리면 이 메시지와 대기열이 전이 14의 버림 경로를 비껴가므로(대기열은 끊긴 연결로 보내 실패), 여기서 통신 실패로 처리한다
+        bool linkLost = !IsS1F13(o.Message) && t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex));
+        bool open = linkLost && transport.IsOpen();
         lock (gate)
         {
             if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패)
+            if (linkLost && running && commState == GemCommunicationState.Communicating)
+            {
+                CommunicationLostLocked(open);         // 응답 대기 중인 이 메시지와 대기열을 버림 경로로(NotCommunicating)
+                return;
+            }
             inFlight = null;
         }
         o.Done(o, t);
