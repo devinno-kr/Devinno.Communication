@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using Devinno.Communication.Secs.Data;
+using Devinno.Communication.Tests.Fakes;
+using Devinno.Communication.Tests.Secs.Gem;
 
 namespace Devinno.Communication.Tests.Secs;
 
@@ -561,4 +563,304 @@ public class SecsSessionTests
         Assert.Single(got.Select(g => g.Item2).Distinct());
         Assert.NotEqual(Environment.CurrentManagedThreadId, got[0].Item2);
     }
+
+    #region Ordered
+    /// SendOrdered 완료 한 건의 기록: 횟수·결과·스레드
+    sealed class Completion
+    {
+        int count;
+        readonly ManualResetEventSlim done = new();
+        public Task<SecsMessage?>? Result;
+        public bool OnDispatcher;
+        public int ThreadId;
+        public int Count => Volatile.Read(ref count);
+
+        public Action<Task<SecsMessage?>> Callback(SecsSession s, Action<Task<SecsMessage?>>? also = null) => t =>
+        {
+            Result = t;
+            OnDispatcher = s.IsDispatcherThread;
+            ThreadId = Environment.CurrentManagedThreadId;
+            also?.Invoke(t);
+            Interlocked.Increment(ref count);
+            done.Set();
+        };
+
+        public Completion Wait(int timeoutMs = 3000)
+        {
+            Assert.True(done.Wait(timeoutMs), "완료가 오지 않았습니다.");
+            return this;
+        }
+
+        /// 성공으로 끝난 결과(응답, W 없으면 null)
+        public SecsMessage? Reply
+        {
+            get
+            {
+                Assert.True(Result!.IsCompletedSuccessfully, $"성공이어야 하는데 {Result.Status} {Result.Exception?.InnerException}");
+                return Result.Result;
+            }
+        }
+
+        public TException Error<TException>() where TException : Exception
+        {
+            Assert.True(Result!.IsFaulted, $"실패여야 하는데 {Result.Status}");
+            return Assert.IsType<TException>(Result.Exception!.InnerException);
+        }
+    }
+
+    /// 디스패처를 Post한 일로 붙잡는다(풀어 줄 때까지 대기열이 쌓임)
+    static ManualResetEventSlim HoldDispatcher(SecsSession s)
+    {
+        var hold = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        s.Post(() => { entered.Set(); hold.Wait(10000); });
+        Assert.True(entered.Wait(3000), "디스패처가 돌지 않습니다.");
+        return hold;
+    }
+
+    // 응답 완료가 그 뒤에 받은 1차 메시지보다 먼저, 디스패처에서 (와이어 순서)
+    static void ReplyThenPrimary_InWireOrder(Harness h)
+    {
+        var log = new BlockingCollection<string>();
+        h.OnPrimary = e => log.Add($"primary S{e.Message.Stream}F{e.Message.Function}");
+        var c = new Completion();
+        h.Session.SendOrdered(S1F1, c.Callback(h.Session, t => log.Add($"completed S{t.Result!.Stream}F{t.Result.Function}")));
+        var wire = h.NextSent();
+        h.Receive(S1F2, wire.SystemBytes);
+        h.Receive(new SecsMessage(1, 3, true), 99);
+        var got = new List<string>();
+        for (int k = 0; k < 2; k++) { Assert.True(log.TryTake(out var x, 3000), "기록이 오지 않았습니다."); got.Add(x!); }
+        Assert.Equal(new[] { "completed S1F2", "primary S1F3" }, got);
+        Assert.Equal(0, h.NextSent().Function);   // 핸들러가 응답하지 않은 S1F3의 SxF0(다음 회차의 NextSent와 섞이지 않게 여기서 꺼냄)
+        Assert.Equal(1, c.Count);
+        Assert.True(c.OnDispatcher);
+    }
+
+    [Fact]
+    public void Ordered_Reply_CompletesOnDispatcher_BeforeNextPrimary()
+    {
+        using var h = new Harness();
+        for (int i = 0; i < 50; i++) ReplyThenPrimary_InWireOrder(h);
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    /// 스레드풀을 막는 테스트는 다른 테스트와 함께 돌지 않게 따로 둔다
+    [Collection(nameof(GemHostPoolCollection))]
+    public class PoolStarved
+    {
+        [Fact]
+        public void Ordered_Reply_WhilePoolStarved_StillCompletes()
+        {
+            using var h = new Harness();
+            using (var starver = PoolStarver.Start())
+            {
+                ReplyThenPrimary_InWireOrder(h);
+                Assert.False(starver.ProbeRan, "풀이 실제로 막히지 않아 시험이 의미 없습니다.");
+            }
+        }
+    }
+
+    [Fact]
+    public void Ordered_F0_S9_T3_Disconnect_EachCompleteOnce()
+    {
+        using var h = new Harness { T3 = 100 };
+
+        var f0 = new Completion();
+        h.Session.SendOrdered(S1F1, f0.Callback(h.Session));
+        h.Receive(new SecsMessage(1, 0, false), h.NextSent().SystemBytes);
+        Assert.Equal(0, f0.Wait().Error<SecsAbortException>().Reply.Function);
+
+        var s9 = new Completion();
+        h.Session.SendOrdered(new SecsMessage(2, 41, true, SecsItem.L()), s9.Callback(h.Session));
+        var wire = h.NextSent();
+        h.Receive(new SecsMessage(9, 5, false, SecsItem.B(Harness.Header(wire))), 77);
+        Assert.Equal(5, s9.Wait().Error<SecsErrorException>().Function);
+
+        var t3 = new Completion();
+        h.Session.SendOrdered(S1F1, t3.Callback(h.Session));
+        h.NextSent();
+        Assert.Contains("T3(100ms)", t3.Wait().Error<SecsTimeoutException>().Message);
+
+        var disc = new Completion();
+        h.Session.SendOrdered(S1F1, disc.Callback(h.Session));
+        h.NextSent();
+        h.Session.Disconnected();
+        disc.Wait().Error<SecsDisconnectedException>();
+
+        Thread.Sleep(200);   // 두 번째 완료가 없는지
+        foreach (var c in new[] { f0, s9, t3, disc })
+        {
+            Assert.Equal(1, c.Count);
+            Assert.True(c.OnDispatcher);
+        }
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
+    public void Ordered_NoWBit_CompletesWithNullAtTransmit()
+    {
+        using var h = new Harness();
+        var c = new Completion();
+        h.Session.SendOrdered(new SecsMessage(6, 11, false, SecsItem.U4(1)), c.Callback(h.Session));
+        Assert.Null(c.Wait().Reply);
+        Assert.False(h.NextSent().ReplyExpected);
+        Thread.Sleep(100);
+        Assert.Equal(1, c.Count);
+        Assert.True(c.OnDispatcher);
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
+    public void Ordered_AsyncTransmit_CompletesAtTransmitCompleted_OrFailed()
+    {
+        // SECS-I처럼 송신 Task가 끝나지 않고, 전송 계층(I/O)이 TransmitCompleted/TransmitFailed로 알린다
+        using var h = new Harness(connect: false);
+        var wires = new BlockingCollection<SecsMessage>();
+        h.Session.Connected((w, t) => { wires.Add(w); return new TaskCompletionSource().Task; });
+        SecsMessage Next() { Assert.True(wires.TryTake(out var w, 3000)); return w!; }
+
+        // W 없음 → TransmitCompleted에서 null
+        var ok = new Completion();
+        h.Session.SendOrdered(new SecsMessage(6, 11, false), ok.Callback(h.Session));
+        var w1 = Next();
+        Thread.Sleep(100);
+        Assert.Equal(0, ok.Count);
+        Assert.Equal(1, h.Session.PendingCount);
+        h.Session.TransmitCompleted(w1);
+        Assert.Null(ok.Wait().Reply);
+        h.Session.TransmitFailed(w1, new IOException("늦은 실패"));   // 이미 끝남 → 무시
+
+        // W 없음 → TransmitFailed에서 그 예외
+        var failed = new Completion();
+        h.Session.SendOrdered(new SecsMessage(6, 11, false), failed.Callback(h.Session));
+        var w2 = Next();
+        h.Session.TransmitFailed(w2, new IOException("재시도 한계"));
+        failed.Wait().Error<IOException>();
+        h.Session.TransmitCompleted(w2);   // 이미 끝남 → 무시
+
+        // W 있음 → TransmitCompleted는 T3만 시작, 응답으로 완료. 다른 객체(같은 System Bytes)의 TransmitFailed는 무시
+        var reply = new Completion();
+        h.Session.SendOrdered(S1F1, reply.Callback(h.Session));
+        var w3 = Next();
+        h.Session.TransmitFailed(S1F1.WithHeader(w3.SystemBytes, 1), new IOException("남의 것"));
+        h.Session.TransmitCompleted(w3);
+        Thread.Sleep(100);
+        Assert.Equal(0, reply.Count);
+        Assert.Equal(1, h.Session.PendingCount);
+        h.Receive(S1F2, w3.SystemBytes);
+        Assert.Equal(S1F2.Item, reply.Wait().Reply!.Item);
+
+        Thread.Sleep(100);
+        foreach (var c in new[] { ok, failed, reply })
+        {
+            Assert.Equal(1, c.Count);
+            Assert.True(c.OnDispatcher);
+        }
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
+    public void Ordered_TransmitFaulted_CompletesOnceWithThatException()
+    {
+        using var h = new Harness(connect: false);
+        h.Session.Connected((w, t) => Task.FromException(new SecsDisconnectedException("쓰기 실패")));
+        var withW = new Completion();
+        h.Session.SendOrdered(S1F1, withW.Callback(h.Session));
+        Assert.Equal("쓰기 실패", withW.Wait().Error<SecsDisconnectedException>().Message);
+        var noW = new Completion();
+        h.Session.SendOrdered(new SecsMessage(6, 11, false), noW.Callback(h.Session));
+        noW.Wait().Error<SecsDisconnectedException>();
+        Thread.Sleep(100);
+        Assert.Equal((1, 1), (withW.Count, noW.Count));
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
+    public void Ordered_TransmitThrows_ThrowsAndNeverCompletes()
+    {
+        using var h = new Harness(connect: false);
+        var c = new Completion();
+        var ex = Assert.Throws<InvalidOperationException>(() => h.Session.SendOrdered(S1F1, c.Callback(h.Session)));
+        Assert.True(SecsSession.IsNotConnected(ex));
+        h.Session.Connected(h.Transmit);
+        Assert.Throws<ArgumentException>(() => h.Session.SendOrdered(new SecsMessage(1, 2, false), c.Callback(h.Session)));
+        Assert.Throws<ArgumentNullException>(() => h.Session.SendOrdered(null!, c.Callback(h.Session)));
+        h.Session.Connected((w, t) => throw new IOException("동기 실패"));
+        Assert.Throws<IOException>(() => h.Session.SendOrdered(S1F1, c.Callback(h.Session)));
+        Assert.Throws<IOException>(() => h.Session.SendOrdered(new SecsMessage(6, 11, false), c.Callback(h.Session)));
+        Thread.Sleep(100);
+        Assert.Equal(0, c.Count);
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
+    public void Ordered_NotRunning_CompletesInlineOnCompletingThread()
+    {
+        var session = new SecsSession(() => SecsRole.Host, () => 1, () => 5000, Harness.Header, _ => { }, _ => { }, "test");
+        SecsMessage? wire = null;
+        session.Connected((w, t) => { wire = w; return Task.CompletedTask; });
+        var c = new Completion();
+        session.SendOrdered(S1F1, c.Callback(session));
+        var reply = S1F2.WithHeader(wire!.SystemBytes, 1);
+        session.Received(reply, Harness.Header(reply));
+        Assert.Equal(1, c.Count);                                          // Received 안에서 이미 끝남
+        Assert.Equal(Environment.CurrentManagedThreadId, c.ThreadId);
+        Assert.False(c.OnDispatcher);
+        Assert.NotNull(c.Reply);
+    }
+
+    [Fact]
+    public void Ordered_QueuedAtStop_RunsOnceOnStopThread()
+    {
+        using var h = new Harness();
+        using var hold = HoldDispatcher(h.Session);
+        var c = new Completion();
+        h.Session.SendOrdered(S1F1, c.Callback(h.Session));
+        h.Receive(S1F2, h.NextSent().SystemBytes);                       // 완료가 대기열에 들어감(디스패처는 붙잡혀 있음)
+        Assert.Equal(0, c.Count);
+        int stopThread = 0;
+        var stopper = new Thread(() => { stopThread = Environment.CurrentManagedThreadId; h.Session.Stop(3000); }) { IsBackground = true };
+        stopper.Start();
+        TestUtil.Wait(() => !h.Session.IsConnected);                       // Stop이 queueLock 안에서 끊음 = 이미 멈춤으로 바뀜(디스패처는 더 꺼내지 못함)
+        hold.Set();
+        Assert.True(stopper.Join(5000));
+        Assert.Equal(1, c.Count);
+        Assert.Equal(stopThread, c.ThreadId);
+        Assert.NotNull(c.Reply);
+    }
+
+    [Fact]
+    public void Ordered_QueuedAtRestart_RunsOnceOnStartThread()
+    {
+        // Stop 없이 다시 Start(지난 실행의 Stop이 번호 불일치로 건너뛴 경우와 같음): 대기열의 ordered 완료는 버리지 않는다(C3)
+        using var h = new Harness();
+        using var hold = HoldDispatcher(h.Session);
+        var c = new Completion();
+        h.Session.SendOrdered(S1F1, c.Callback(h.Session));
+        h.Receive(S1F2, h.NextSent().SystemBytes);
+        bool eventRan = false;
+        h.Session.Post(() => eventRan = true);                             // 이벤트 Action은 지금처럼 버린다(T9)
+        Assert.Equal(0, c.Count);
+        h.Session.Start();
+        Assert.Equal(1, c.Count);                                          // Start가 돌아오기 전에
+        Assert.Equal(Environment.CurrentManagedThreadId, c.ThreadId);
+        Assert.NotNull(c.Reply);
+        hold.Set();
+        Thread.Sleep(100);
+        Assert.Equal(1, c.Count);
+        Assert.False(eventRan);
+    }
+
+    [Fact]
+    public async Task PublicSend_Unchanged_ContinuationNotOnDispatcher()
+    {
+        using var h = new Harness();
+        var task = h.Session.SendAsync(S1F1, default);
+        h.Receive(S1F2, h.NextSent().SystemBytes);
+        Assert.NotNull(await task);
+        Assert.False(h.Session.IsDispatcherThread);
+        Assert.Null(await h.Session.SendAsync(new SecsMessage(6, 11, false), default));
+        Assert.False(h.Session.IsDispatcherThread);
+    }
+    #endregion
 }

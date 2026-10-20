@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 
 namespace Devinno.Communication.Secs.Data;
 
@@ -9,6 +10,8 @@ namespace Devinno.Communication.Secs.Data;
 // - 1차 메시지 핸들러가 응답하지 않으면 SxF0.
 // 전송 계층은 연결되면 Connected(송신 함수), 끊기면 Disconnected()를 부르고, I/O 스레드에서 주기적으로 CheckTimeouts()를 부른다.
 // 송신 Task를 비동기로 끝내는 전송 계층(SECS-I)은 보내기를 끝낸 I/O 스레드에서 TransmitCompleted(wire)를 불러 T3를 그 순간부터 재게 한다.
+// 순서 있는 완료(SendOrdered, GEM 내부용): 결과를 TCS 대신 디스패처 대기열(1차 메시지와 같은 대기열)에 넣어 와이어 순서로 알린다.
+// 잠금 순서는 queueLock → gate 하나뿐: gate 안에서는 대기 표에서 꺼내기만 하고, 대기열에 넣기(queueLock)는 언제나 gate를 놓은 뒤에 한다.
 internal sealed class SecsSession(
     Func<SecsRole> role,
     Func<int> deviceId,
@@ -21,10 +24,12 @@ internal sealed class SecsSession(
     // 송신 함수: 메시지(System Bytes·장치 ID가 채워진 것)를 보내고, 보내기가 끝나면 완료되는 Task
     public delegate Task Transmit(SecsMessage wire, CancellationToken token);
 
-    sealed class Pending(SecsMessage primary)
+    sealed class Pending(SecsMessage primary, Action<Task<SecsMessage?>>? ordered)
     {
         public SecsMessage Primary { get; } = primary;
         public TaskCompletionSource<SecsMessage?> Tcs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // 순서 있는 완료(SendOrdered)면 결과를 받을 콜백(TCS는 쓰지 않음). W비트가 없어도 대기 표에 들어간다(송신 완료·실패로 끝남)
+        public readonly Action<Task<SecsMessage?>>? Ordered = ordered;
         // T3 기한(Environment.TickCount64). 보내기가 끝나기 전에는 MaxValue
         public long Deadline = long.MaxValue;
         // SECS-I: 응답 첫 블록을 받았음(이후는 T4가 맡음)
@@ -38,7 +43,8 @@ internal sealed class SecsSession(
     uint systemBytes;
     // 디스패처 대기열: 스레드풀에 기대지 않도록 lock + Monitor로 깨운다(스레드풀이 바빠도 1차 메시지 전달이 늦어지지 않게)
     readonly object queueLock = new();
-    readonly Queue<(SecsMessage? Message, byte[]? Header, int Generation, Action? Action)> queue = new();
+    // Ordered = 순서 있는 완료의 Action(Start가 비울 때도 버리지 않음)
+    readonly Queue<(SecsMessage? Message, byte[]? Header, int Generation, Action? Action, bool Ordered)> queue = new();
     Thread? dispatcher;
     bool running;
     int runGeneration;      // queueLock으로 보호: Start마다 1씩 늘림(지난 실행의 정리가 새 실행을 멈추지 않게)
@@ -49,14 +55,20 @@ internal sealed class SecsSession(
     // 대기 중인 트랜잭션 수(테스트용)
     internal int PendingCount { get { lock (gate) return pending.Count; } }
 
+    // 지금 스레드가 이 세션의 디스패처 스레드인지
+    public bool IsDispatcherThread { get { lock (queueLock) return dispatcher == Thread.CurrentThread; } }
+
     #region Lifecycle
     // 디스패처 스레드를 시작한다(전송 클래스의 Start에서). 이번 실행의 번호를 돌려준다(Stop의 startGen용).
     public int Start()
     {
         Thread t;
         int gen;
+        List<Action> ordered;
         lock (queueLock)
         {
+            // 지난 실행이 남긴 순서 있는 완료는 버리지 않는다(지난 Stop이 번호 불일치로 건너뛰었을 수 있음). 이벤트 Action·1차 메시지는 지금처럼 버린다
+            ordered = [.. queue.Where(q => q.Ordered).Select(q => q.Action!)];
             queue.Clear();
             running = true;
             gen = ++runGeneration;
@@ -65,6 +77,8 @@ internal sealed class SecsSession(
             // 그 스레드가 받고 그냥 끝나 버려, 새 디스패처가 그 알림(DeviceOpened 등)을 다음 Post 때까지 처리하지 못한다
             Monitor.PulseAll(queueLock);
         }
+        // lock을 놓은 뒤 Start 스레드에서 순서대로(새 디스패처가 돌기 전에: 새 실행의 일보다 먼저)
+        foreach (var a in ordered) { try { a(); } catch (Exception) { } }
         t.Start();
         return gen;
     }
@@ -97,9 +111,40 @@ internal sealed class SecsSession(
         lock (queueLock)
         {
             if (!running) return;
-            queue.Enqueue((null, null, 0, action));
+            queue.Enqueue((null, null, 0, action, false));
             Monitor.Pulse(queueLock);
         }
+    }
+
+    // 순서 있는 완료를 디스패처 대기열에 넣는다. 디스패처가 멈춰 있으면 그 자리(완료시킨 스레드)에서 바로 실행한다. 예외는 무시한다.
+    // Stop은 queueLock을 쥔 채 Disconnected를 부르므로 그때는 running이 아직 true → 대기열에 들어가 Stop의 leftover로 Stop 스레드에서 실행된다
+    void PostCompletion(Action action)
+    {
+        Debug.Assert(!Monitor.IsEntered(gate));   // gate → queueLock 순서를 만들지 않는다
+        lock (queueLock)
+        {
+            if (running)
+            {
+                queue.Enqueue((null, null, 0, action, true));
+                Monitor.Pulse(queueLock);
+                return;
+            }
+        }
+        try { action(); } catch (Exception) { }
+    }
+
+    // 트랜잭션 하나를 끝낸다(완료 지점은 모두 여기로). 대기 표에서 꺼낸 쪽만, gate 밖에서 부른다(정확히 한 번)
+    void Complete(Pending p, SecsMessage? reply, Exception? error)
+    {
+        if (p.Ordered == null)
+        {
+            if (error != null) p.Tcs.TrySetException(error);
+            else p.Tcs.TrySetResult(reply);
+            return;
+        }
+        var result = error != null ? Task.FromException<SecsMessage?>(error) : Task.FromResult(reply);
+        var completed = p.Ordered;
+        PostCompletion(() => completed(result));
     }
 
     // 새 연결(HSMS Selected, SECS-I 포트 열림). System Bytes 카운터를 처음부터 센다.
@@ -126,7 +171,9 @@ internal sealed class SecsSession(
             pending.Clear();
         }
         foreach (var p in failed)
-            p.Tcs.TrySetException(new SecsDisconnectedException($"S{p.Primary.Stream}F{p.Primary.Function}의 응답을 기다리는 중에 연결이 끊겼습니다."));
+            Complete(p, null, new SecsDisconnectedException(p.Primary.ReplyExpected
+                ? $"S{p.Primary.Stream}F{p.Primary.Function}의 응답을 기다리는 중에 연결이 끊겼습니다."
+                : $"S{p.Primary.Stream}F{p.Primary.Function}을(를) 보내는 중에 연결이 끊겼습니다."));
     }
 
     // 다음 System Bytes (0은 건너뜀)
@@ -149,8 +196,8 @@ internal sealed class SecsSession(
     // 연결이 없어 보내지 못한 예외인지
     internal static bool IsNotConnected(Exception ex) => ex.GetType() == typeof(InvalidOperationException) && ex.Message == NotConnectedMessage;
 
-    // 보내기 시작: System Bytes를 매기고(응답을 기다리면 대기 표에 넣고) 송신 함수를 부른다
-    (Pending? P, Task Sent) Begin(SecsMessage primary, CancellationToken token)
+    // 보내기 시작: System Bytes를 매기고(응답을 기다리거나 ordered면 대기 표에 넣고) 송신 함수를 부른다
+    (Pending? P, Task Sent) Begin(SecsMessage primary, CancellationToken token, Action<Task<SecsMessage?>>? ordered = null)
     {
         ArgumentNullException.ThrowIfNull(primary);
         if (primary.Function % 2 == 0)
@@ -164,9 +211,9 @@ internal sealed class SecsSession(
         {
             tx = transmit ?? throw new InvalidOperationException(NotConnectedMessage);
             wire = primary.WithHeader(NextSystemBytesLocked(), deviceId());
-            if (primary.ReplyExpected)
+            if (primary.ReplyExpected || ordered != null)
             {
-                p = new Pending(wire);
+                p = new Pending(wire, ordered);
                 pending[wire.SystemBytes] = p;
             }
         }
@@ -197,13 +244,31 @@ internal sealed class SecsSession(
     // 전송 계층(I/O 스레드)이 보내기를 끝낸 순간에 T3를 시작한다(SECS-I: 마지막 블록의 ACK).
     // 송신 Task가 비동기로 끝나면 Sent는 스레드풀에서 늦게 돌 수 있어(스레드풀이 바쁘면 응답보다 늦게) 그때부터 재면 T3가 늦게 시작되거나 아예 시작되지 않는다.
     // wire는 송신 함수가 받은 바로 그 객체(응답·S9는 대기 표의 1차 메시지와 System Bytes가 겹칠 수 있어 참조로 확인)
+    // W비트 없는 ordered 송신이면 여기서 null로 끝낸다
     public void TransmitCompleted(SecsMessage wire)
     {
+        Pending? done = null;
         lock (gate)
         {
-            if (pending.TryGetValue(wire.SystemBytes, out var p) && ReferenceEquals(p.Primary, wire) && p.Deadline == long.MaxValue)
-                p.Deadline = Environment.TickCount64 + t3();
+            if (pending.TryGetValue(wire.SystemBytes, out var p) && ReferenceEquals(p.Primary, wire))
+            {
+                if (p.Primary.ReplyExpected) { if (p.Deadline == long.MaxValue) p.Deadline = Environment.TickCount64 + t3(); }
+                else if (p.Ordered != null) { pending.Remove(wire.SystemBytes); done = p; }
+            }
         }
+        if (done != null) Complete(done, null, null);
+    }
+
+    // 전송 계층(I/O 스레드)이 송신 실패를 알린다. 그 wire(참조)의 ordered 트랜잭션이면 error로 끝낸다. ordered가 아니면 아무것도 하지 않는다(송신 Task 쪽이 맡음)
+    public void TransmitFailed(SecsMessage wire, Exception error)
+    {
+        Pending? p;
+        lock (gate)
+        {
+            if (!pending.TryGetValue(wire.SystemBytes, out p) || !ReferenceEquals(p.Primary, wire) || p.Ordered == null) return;
+            pending.Remove(wire.SystemBytes);
+        }
+        Complete(p, null, error);
     }
 
     // 동기 보내기. 스레드풀을 거치지 않고 송신 완료·응답 TaskCompletionSource를 직접 기다린다.
@@ -223,6 +288,35 @@ internal sealed class SecsSession(
         if (p == null) return null;
         using (token.Register(() => { if (Take(p)) p.Tcs.TrySetCanceled(token); }))
             return await p.Tcs.Task.ConfigureAwait(false);
+    }
+
+    // 순서 있는 완료로 보낸다(GEM 내부용). 검사·동기 예외는 SendAsync와 같고, 동기 예외면 completed는 불리지 않는다.
+    // 그 밖에는 completed가 정확히 한 번, 끝난 Task로 불린다(응답 / W 없으면 송신 성공 때 null / 예외). 디스패처가 돌면 디스패처에서(와이어 순서)
+    public void SendOrdered(SecsMessage primary, Action<Task<SecsMessage?>> completed)
+    {
+        ArgumentNullException.ThrowIfNull(primary);
+        ArgumentNullException.ThrowIfNull(completed);
+        var (p, sent) = Begin(primary, CancellationToken.None, completed);
+        if (!sent.IsCompleted)
+        {
+            // SECS-I: 완료는 I/O 스레드의 TransmitCompleted/TransmitFailed가 한다(스레드풀을 기다리지 않음). 예외는 관찰만
+            sent.ContinueWith(static x => _ = x.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            return;
+        }
+        if (!sent.IsCompletedSuccessfully)
+        {
+            if (Take(p!)) Complete(p!, null, sent.IsFaulted ? sent.Exception!.InnerException! : new TaskCanceledException(sent));
+            return;
+        }
+        if (primary.ReplyExpected)
+        {
+            lock (gate)
+            {
+                // 이미 끝났거나(응답이 먼저 옴) TransmitCompleted로 T3를 시작했으면 그대로 둔다
+                if (pending.TryGetValue(p!.Primary.SystemBytes, out var cur) && cur == p && p.Deadline == long.MaxValue) p.Deadline = Environment.TickCount64 + t3();
+            }
+        }
+        else if (Take(p!)) Complete(p!, null, null);
     }
 
     // 대기 표에서 뺀다. 이미 빠졌으면 false
@@ -279,7 +373,8 @@ internal sealed class SecsSession(
             Pending? p;
             lock (gate)
             {
-                if (pending.TryGetValue(msg.SystemBytes, out p) && p.Primary.Stream == msg.Stream && (msg.Function == 0 || msg.Function == p.Primary.Function + 1))
+                // W 없는 ordered 항목(송신 완료 대기)은 응답과 짝짓지 않는다
+                if (pending.TryGetValue(msg.SystemBytes, out p) && p.Primary.ReplyExpected && p.Primary.Stream == msg.Stream && (msg.Function == 0 || msg.Function == p.Primary.Function + 1))
                     pending.Remove(msg.SystemBytes);
                 else p = null;
             }
@@ -288,8 +383,8 @@ internal sealed class SecsSession(
                 onError($"짝이 없는 응답을 버렸습니다: S{msg.Stream}F{msg.Function} System Bytes 0x{msg.SystemBytes:X8}");
                 return;
             }
-            if (msg.Function == 0) p.Tcs.TrySetException(new SecsAbortException(p.Primary, msg));
-            else p.Tcs.TrySetResult(msg);
+            if (msg.Function == 0) Complete(p, null, new SecsAbortException(p.Primary, msg));
+            else Complete(p, msg, null);
             return;
         }
 
@@ -301,12 +396,12 @@ internal sealed class SecsSession(
             Pending? p;
             lock (gate)
             {
-                if (pending.TryGetValue(sys, out p) && p.Primary.Stream == (h[2] & 0x7F) && p.Primary.Function == h[3]) pending.Remove(sys);
+                if (pending.TryGetValue(sys, out p) && p.Primary.ReplyExpected && p.Primary.Stream == (h[2] & 0x7F) && p.Primary.Function == h[3]) pending.Remove(sys);
                 else p = null;
             }
             if (p != null)
             {
-                p.Tcs.TrySetException(new SecsErrorException(p.Primary, msg));
+                Complete(p, null, new SecsErrorException(p.Primary, msg));
                 return;
             }
         }
@@ -316,7 +411,7 @@ internal sealed class SecsSession(
         lock (queueLock)
         {
             if (!running) return;
-            queue.Enqueue((msg, header, gen, null));
+            queue.Enqueue((msg, header, gen, null, false));
             Monitor.Pulse(queueLock);
         }
     }
@@ -340,7 +435,7 @@ internal sealed class SecsSession(
     {
         lock (gate)
         {
-            if (function % 2 != 0 || !pending.TryGetValue(systemBytes, out var p) || p.Primary.Stream != stream
+            if (function % 2 != 0 || !pending.TryGetValue(systemBytes, out var p) || !p.Primary.ReplyExpected || p.Primary.Stream != stream
                 || (function != 0 && function != p.Primary.Function + 1)) return false;
             p.Started = true;
             return true;
@@ -375,7 +470,7 @@ internal sealed class SecsSession(
 
     void Expire(Pending p, string reason)
     {
-        p.Tcs.TrySetException(new SecsTimeoutException(p.Primary, $"S{p.Primary.Stream}F{p.Primary.Function}: {reason}."));
+        Complete(p, null, new SecsTimeoutException(p.Primary, $"S{p.Primary.Stream}F{p.Primary.Function}: {reason}."));
         if (role() == SecsRole.Equipment) SendS9(9, headerOf(p.Primary));
     }
     #endregion
@@ -386,7 +481,7 @@ internal sealed class SecsSession(
         var me = Thread.CurrentThread;
         while (true)
         {
-            (SecsMessage? Message, byte[]? Header, int Generation, Action? Action) x;
+            (SecsMessage? Message, byte[]? Header, int Generation, Action? Action, bool Ordered) x;
             lock (queueLock)
             {
                 while (running && dispatcher == me && queue.Count == 0) Monitor.Wait(queueLock);
