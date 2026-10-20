@@ -11,6 +11,11 @@ internal sealed class GemTransport
     // 동기 보내기: 호출 스레드에서 송신 완료·응답을 기다린다(스레드풀을 거치지 않음, Plan 7)
     public required Func<SecsMessage, SecsMessage?> Send { get; init; }
     public required Func<SecsMessage, CancellationToken, Task<SecsMessage?>> SendAsync { get; init; }
+    // 순서 있는 완료로 보내기: 완료는 디스패처에서 와이어 순서로 정확히 한 번(동기 예외면 불리지 않음, 6G C1)
+    public required Action<SecsMessage, Action<Task<SecsMessage?>>> SendOrdered { get; init; }
+    // 디스패처 대기열에 넣기(1차 메시지·완료와 같은 순서, 멈춰 있으면 버림)
+    public required Action<Action> Post { get; init; }
+    public required Func<bool> IsDispatcherThread { get; init; }
     // Role을 Host로 되돌린다(GemHost.Start가 전송 시작 전에 부름)
     public required Action EnsureHost { get; init; }
     public required Func<bool> IsOpen { get; init; }
@@ -27,6 +32,9 @@ internal sealed class GemTransport
         Target = h,
         Send = h.Send,
         SendAsync = h.SendAsync,
+        SendOrdered = h.SendOrdered,
+        Post = h.Post,
+        IsDispatcherThread = () => h.IsDispatcherThread,
         EnsureHost = () => h.Role = SecsRole.Host,
         IsOpen = () => h.IsOpen,
         IsStart = () => h.IsStart,
@@ -42,6 +50,9 @@ internal sealed class GemTransport
         Target = s,
         Send = s.Send,
         SendAsync = s.SendAsync,
+        SendOrdered = s.SendOrdered,
+        Post = s.Post,
+        IsDispatcherThread = () => s.IsDispatcherThread,
         EnsureHost = () => s.Role = SecsRole.Host,
         IsOpen = () => s.IsOpen,
         IsStart = () => s.IsStart,

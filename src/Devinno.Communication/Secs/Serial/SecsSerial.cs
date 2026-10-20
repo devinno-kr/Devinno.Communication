@@ -257,14 +257,30 @@ public class SecsSerial : IDisposable
     public Task<SecsMessage?> SendAsync(SecsMessage primary, CancellationToken cancellationToken = default)
         => session.SendAsync(primary, cancellationToken);
 
+    // GEM 내부용: 순서 있는 완료로 보낸다(완료는 디스패처에서 와이어 순서로, SecsSession.SendOrdered)
+    internal void SendOrdered(SecsMessage primary, Action<Task<SecsMessage?>> completed) => session.SendOrdered(primary, completed);
+
+    // GEM 내부용: 디스패처 대기열에 넣는다(멈춰 있으면 버림)
+    internal void Post(Action action) => session.Post(action);
+
+    internal bool IsDispatcherThread => session.IsDispatcherThread;
+
     // 세션 송신 함수(gen = 그 연결의 번호): 블록으로 나눠 송신 큐에 넣고, I/O 스레드가 다 보내면(마지막 ACK) 완료
+    // 송신 실패는 Done과 함께 session.TransmitFailed로도 알린다(ordered 송신은 송신 Task를 기다리지 않음). TransmitFailed는 sendLock 밖에서(완료가 그 자리에서 돌 수 있음)
     Task Transmit(SecsMessage wire, int gen)
     {
         var o = new Outgoing(wire, SecsIBlock.Split(wire, RBit));
+        bool down;
         lock (sendLock)
         {
-            if (!linkUp || gen != linkGen) o.Done.TrySetException(new SecsDisconnectedException($"S{wire.Stream}F{wire.Function}을(를) 보내기 전에 포트가 닫혔습니다."));
-            else sendQueue.Enqueue(o);
+            down = !linkUp || gen != linkGen;
+            if (!down) sendQueue.Enqueue(o);
+        }
+        if (down)
+        {
+            var ex = new SecsDisconnectedException($"S{wire.Stream}F{wire.Function}을(를) 보내기 전에 포트가 닫혔습니다.");
+            o.Done.TrySetException(ex);
+            session.TransmitFailed(wire, ex);
         }
         return o.Done.Task;
     }
@@ -289,7 +305,12 @@ public class SecsSerial : IDisposable
             sendQueue.Clear();
             if (inFlight != null) { list.Add(inFlight); inFlight = null; }
         }
-        foreach (var o in list) o.Done.TrySetException(new SecsDisconnectedException($"S{o.Wire.Stream}F{o.Wire.Function}을(를) 보내기 전에 포트가 닫혔습니다."));
+        foreach (var o in list)
+        {
+            var ex = new SecsDisconnectedException($"S{o.Wire.Stream}F{o.Wire.Function}을(를) 보내기 전에 포트가 닫혔습니다.");
+            o.Done.TrySetException(ex);
+            session.TransmitFailed(o.Wire, ex);
+        }
     }
     #endregion
 
@@ -476,7 +497,9 @@ public class SecsSerial : IDisposable
                 if (!SendBlock(l, cur.Blocks[cur.Next], ref rx, ref lastHeader, token))
                 {
                     if (token.IsCancellationRequested) break;
-                    cur.Done.TrySetException(new IOException($"S{cur.Wire.Stream}F{cur.Wire.Function} 블록 {cur.Next + 1}을(를) 재시도 {RetryLimit}번 뒤에도 보내지 못했습니다."));
+                    var ex = new IOException($"S{cur.Wire.Stream}F{cur.Wire.Function} 블록 {cur.Next + 1}을(를) 재시도 {RetryLimit}번 뒤에도 보내지 못했습니다.");
+                    cur.Done.TrySetException(ex);
+                    session.TransmitFailed(cur.Wire, ex);   // 회선은 그대로: 이 메시지(W 있든 없든)만 실패
                     cur = null;
                     ClearInFlight();
                     continue;
@@ -499,7 +522,12 @@ public class SecsSerial : IDisposable
             }
             else if (b >= 0) Error($"기다리지 않은 바이트 0x{b:X2}를 버렸습니다.");
         }
-        if (cur != null) cur.Done.TrySetException(new SecsDisconnectedException($"S{cur.Wire.Stream}F{cur.Wire.Function}을(를) 보내는 중에 포트가 닫혔습니다."));
+        if (cur != null)
+        {
+            var ex = new SecsDisconnectedException($"S{cur.Wire.Stream}F{cur.Wire.Function}을(를) 보내는 중에 포트가 닫혔습니다.");
+            cur.Done.TrySetException(ex);
+            session.TransmitFailed(cur.Wire, ex);
+        }
     }
 
     // 블록 하나를 ENQ부터 보낸다. 재시도 한계를 넘으면 false

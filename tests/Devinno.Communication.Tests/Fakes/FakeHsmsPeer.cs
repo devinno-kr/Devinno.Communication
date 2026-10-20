@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
+using Devinno.Communication.Secs.Data;
 using Devinno.Communication.Secs.Hsms;
 
 namespace Devinno.Communication.Tests.Fakes;
@@ -47,6 +48,28 @@ internal sealed class FakeHsmsPeer : IDisposable
     }
 
     public void Send(byte[] bytes) => socket!.Send(bytes);
+
+    /// System Bytes·장치 ID가 채워진 메시지들을 데이터 프레임으로 이어 붙여 Socket.Send 한 번에 보낸다(한 세그먼트로 도착)
+    public void SendData(params SecsMessage[] wires)
+    {
+        var all = new List<byte>();
+        foreach (var w in wires) all.AddRange(HsmsFrame.Data(w));
+        socket!.Send(all.ToArray());
+    }
+
+    /// 데이터 프레임이 올 때까지 읽어(다른 프레임은 건너뜀) 메시지로 돌려준다
+    public SecsMessage ReadData(int timeoutMs = 3000)
+    {
+        var (h, body) = ReadUntil(HsmsSType.Data, timeoutMs);
+        return HsmsFrame.ToMessage(h, body);
+    }
+
+    /// 연결만 닫는다(리스너는 둠)
+    public void Close()
+    {
+        try { socket?.Shutdown(SocketShutdown.Both); } catch (Exception) { }
+        socket?.Dispose();
+    }
 
     /// 프레임 하나를 받는다. timeoutMs 안에 없으면 null. 연결이 닫혔으면 IOException
     public (HsmsHeader Header, byte[] Body)? Read(int timeoutMs = 3000)

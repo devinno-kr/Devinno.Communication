@@ -299,6 +299,14 @@ public class SecsHsms : IDisposable
     /// <exception cref="OperationCanceledException">The wait was canceled.</exception>
     public Task<SecsMessage?> SendAsync(SecsMessage primary, CancellationToken cancellationToken = default)
         => session.SendAsync(primary, cancellationToken);
+
+    // GEM 내부용: 순서 있는 완료로 보낸다(완료는 디스패처에서 와이어 순서로, SecsSession.SendOrdered)
+    internal void SendOrdered(SecsMessage primary, Action<Task<SecsMessage?>> completed) => session.SendOrdered(primary, completed);
+
+    // GEM 내부용: 디스패처 대기열에 넣는다(멈춰 있으면 버림)
+    internal void Post(Action action) => session.Post(action);
+
+    internal bool IsDispatcherThread => session.IsDispatcherThread;
     #endregion
 
     #region Config / Xml
