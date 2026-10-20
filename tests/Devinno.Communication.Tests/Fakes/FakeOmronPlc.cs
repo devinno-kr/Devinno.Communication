@@ -22,7 +22,7 @@ internal sealed class FakeOmronPlc : IDisposable
     Socket? udp, foreign;
     TcpListener? listener;
     CancellationTokenSource? cts;
-    int violations, connections, nextClient = 239;
+    int violations, connections, nextClient = 239, memoryCommands;
     byte[] lastHeader = [];
 
     T Locked<T>(ref T field) { lock (sync) return field; }
@@ -37,6 +37,9 @@ internal sealed class FakeOmronPlc : IDisposable
     /// EndCode를 쓰기 전에 정상으로 답할 메모리 명령 수 (연속 읽기/쓰기의 둘째 조각 실패 흉내)
     int _endCodeAfter;
     public int EndCodeAfter { get => Locked(ref _endCodeAfter); set => Store(ref _endCodeAfter, value); }
+    /// n번째(1부터, 형식이 맞는 메모리 명령만 센다) 메모리 명령은 처리하되 응답하지 않음 (연속 쓰기의 n번째 조각 무응답 흉내)
+    int? _silentAt;
+    public int? SilentAt { get => Locked(ref _silentAt); set => Store(ref _silentAt, value); }
     /// 정상 응답의 종료 코드에 더하는 CPU 오류 플래그 (예: 0x0040 비치명 오류, 0x0080 치명 오류)
     int _flagBits;
     public int FlagBits { get => Locked(ref _flagBits); set => Store(ref _flagBits, value); }
@@ -189,6 +192,7 @@ internal sealed class FakeOmronPlc : IDisposable
         lock (sync)
         {
             requests.Add(src == 0x04 ? (src, (byte)0, 0, 0, count) : (src, items[0].Area, items[0].Word, items[0].Bit, count));
+            bool mute = ++memoryCommands == _silentAt;
             if (_silent) return [];
             if (_endCode is int ec)
             {
@@ -217,7 +221,7 @@ internal sealed class FakeOmronPlc : IDisposable
                     if (IsBitArea(area)) outData.Add((byte)((w >> bit) & 1));
                     else { outData.Add((byte)(w >> 8)); outData.Add((byte)w); }
                 }
-                return [.. outData];
+                return mute ? [] : [.. outData];
             }
             var (a0, w0, b0) = items[0];
             var m = Words(WordArea(a0));
@@ -237,7 +241,7 @@ internal sealed class FakeOmronPlc : IDisposable
                 }
                 else m[index] = (ushort)(body[8 + 2 * i] << 8 | body[9 + 2 * i]);
             }
-            return [.. outData];
+            return mute ? [] : [.. outData];
         }
     }
 

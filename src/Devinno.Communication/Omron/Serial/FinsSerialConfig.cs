@@ -43,6 +43,8 @@ public class FinsSerialConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port after a disconnection (default: false).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="FinsSerial.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;Read&gt; and &lt;ReadBlock&gt; can be mixed and are polled in order.</summary>
     [XmlElement("Read", typeof(FinsReadConfig)), XmlElement("ReadBlock", typeof(FinsReadBlockConfig))]
     public List<FinsAutoConfig> Autos { get; set; } = [];

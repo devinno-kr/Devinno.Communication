@@ -117,14 +117,18 @@ internal static class FinsFrame
     static long Decode(ReadOnlySpan<byte> d) => d.Length == 2 ? BinaryPrimitives.ReadUInt16BigEndian(d) : d[0] & 1;
 
     // 조각을 차례로 주고받는다. 모두 Ack면 값을 이어 붙인 Ack, 아니면 처음 실패한 결과(이후 조각은 보내지 않음).
-    public static FinsResponse Run(IReadOnlyList<FinsChunk> chunks, Func<FinsChunk, FinsResponse> exchange)
+    // done = 이번 호출에서 Ack된 쓰기(0102) 조각의 원소(워드·비트) 수 합. 호출 때 0으로 시작하고 조각마다 갱신하므로 exchange가 예외를 던져도 그때까지의 값이 남는다.
+    // 읽기 조각(0101/0104)은 세지 않는다.
+    public static FinsResponse Run(IReadOnlyList<FinsChunk> chunks, Func<FinsChunk, FinsResponse> exchange, ref int done)
     {
+        done = 0;
         var values = new List<long>();
         foreach (var c in chunks)
         {
             var r = exchange(c);
             if (r.Status != FinsStatus.Ack) return r;
             values.AddRange(r.Values);
+            if (c.Body[1] == SrcWrite) done += c.Count;
         }
         return FinsResponse.Ack([.. values]);
     }

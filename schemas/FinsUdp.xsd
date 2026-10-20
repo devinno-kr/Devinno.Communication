@@ -20,6 +20,7 @@
     <xs:attribute default="1000" name="Timeout" type="xs:int" use="optional" />
     <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
     <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="DiscardWritesWhileDisconnected" type="xs:boolean" use="optional" />
   </xs:complexType>
   <xs:complexType name="FinsReadConfig">
     <xs:complexContent mixed="false">

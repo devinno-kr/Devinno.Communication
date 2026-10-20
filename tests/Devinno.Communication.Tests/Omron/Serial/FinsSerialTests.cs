@@ -9,14 +9,15 @@ namespace Devinno.Communication.Tests.Omron.Serial;
 public class FinsSerialTests
 {
     readonly FakeOmronPlc plc = new();
-    readonly FinsSerial fins = new();
+    readonly FinsSerial fins = new() { DiscardWritesWhileDisconnected = false };
     readonly List<string> sent = [];
 
     /// 등록된 작업 하나를 가상 PLC의 Host Link 처리기와 주고받는다 (시리얼 포트 없이 송수신·조각·재시도 검증)
     FinsStatus Exchange()
     {
         var w = fins.TakeNextWork()!;
-        return fins.Process(w, (req, t) => { sent.Add(Encoding.ASCII.GetString(req)); return plc.HandleHostLink(req); });
+        byte[]? reply = null;
+        return fins.Process(w, req => { sent.Add(Encoding.ASCII.GetString(req)); reply = plc.HandleHostLink(req); }, t => reply);
     }
 
     [Fact]

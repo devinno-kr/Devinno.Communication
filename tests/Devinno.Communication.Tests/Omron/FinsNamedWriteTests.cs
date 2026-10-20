@@ -52,7 +52,8 @@ public class FinsNamedWriteTests
     static Plc Load(Kind kind, string inner)
     {
         var p = Make(kind);
-        p.FromXml(XElement.Parse($"<{p.Root}>{inner}</{p.Root}>"));
+        // 미시작 객체의 Manual 쓰기를 Take로 확인하는 테스트라 쓰기 버림을 끈다
+        p.FromXml(XElement.Parse($"<{p.Root} DiscardWritesWhileDisconnected='false'>{inner}</{p.Root}>"));
         return p;
     }
 

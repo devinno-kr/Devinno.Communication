@@ -39,6 +39,8 @@ public class FinsTcpConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect when the connection is lost (default: true).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="FinsTcp.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;Read&gt; and &lt;ReadBlock&gt; elements can be mixed and are polled in order.</summary>
     [XmlElement("Read", typeof(FinsReadConfig)), XmlElement("ReadBlock", typeof(FinsReadBlockConfig))]
     public List<FinsAutoConfig> Autos { get; set; } = [];

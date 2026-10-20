@@ -138,6 +138,7 @@ public class FinsTcpTests : IDisposable
     [Fact]
     public async Task ReadWrite_RoundTrip_MultipleAndBits()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         int writes = 0;
         fins.WriteReceived += (s, e) => Interlocked.Increment(ref writes);
         fins.ManualWrite(1, "D100", 0x1234);
@@ -177,6 +178,7 @@ public class FinsTcpTests : IDisposable
     [Fact]
     public async Task EndCode_RaisesNak_NoRetry()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         plc.EndCode = 0x2102;
         var nak = Tcs<FinsTcp.NAKEventArgs>();
         int timeouts = 0;

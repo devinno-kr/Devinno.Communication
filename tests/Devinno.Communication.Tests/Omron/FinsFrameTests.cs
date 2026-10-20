@@ -228,15 +228,81 @@ public class FinsFrameTests
     public void Run_ConcatenatesValues_StopsAtFirstFailure()
     {
         var c = FinsFrame.Chunks(FinsCommand.ReadBlock, [A("D0")], 5, [], 2);
-        int calls = 0;
-        var ok = FinsFrame.Run(c, x => { calls++; return FinsResponse.Ack([.. Enumerable.Repeat((long)x.Count, x.Count)]); });
+        int calls = 0, done = -1;
+        var ok = FinsFrame.Run(c, x => { calls++; return FinsResponse.Ack([.. Enumerable.Repeat((long)x.Count, x.Count)]); }, ref done);
         Assert.Equal((FinsStatus.Ack, 3), (ok.Status, calls));
         Assert.Equal(new long[] { 2, 2, 2, 2, 1 }, ok.Values);
 
         calls = 0;
-        var nak = FinsFrame.Run(c, x => ++calls == 2 ? FinsResponse.Nak(0x1103) : FinsResponse.Ack([0, 0]));
+        var nak = FinsFrame.Run(c, x => ++calls == 2 ? FinsResponse.Nak(0x1103) : FinsResponse.Ack([0, 0]), ref done);
         Assert.Equal((FinsStatus.Nak, 0x1103, 2), (nak.Status, nak.ErrorCode, calls));
         Assert.Empty(nak.Values);
+    }
+
+    // done = 이번 호출에서 Ack된 쓰기 조각의 원소 수 합 (WrittenCount의 근거)
+    static FinsChunk[] WriteChunks(int count, int max) => FinsFrame.Chunks(FinsCommand.WriteBlock, [A("D0")], count, new long[count], max);
+
+    [Fact]
+    public void Run_Done_SecondOfThreeWriteChunksNak_IsFirstChunkCount()
+    {
+        var c = WriteChunks(5, 2);   // 2 + 2 + 1
+        int calls = 0, done = -1;
+        var r = FinsFrame.Run(c, x => ++calls == 2 ? FinsResponse.Nak(0x2102) : FinsResponse.Ack([]), ref done);
+        Assert.Equal((FinsStatus.Nak, 2, 2), (r.Status, done, calls));
+    }
+
+    [Fact]
+    public void Run_Done_ThirdChunkInvalid_IsSumOfFirstTwo()
+    {
+        var c = WriteChunks(5, 2);
+        int calls = 0, done = -1;
+        var r = FinsFrame.Run(c, x => ++calls == 3 ? FinsResponse.Invalid : FinsResponse.Ack([]), ref done);
+        Assert.Equal((FinsStatus.Invalid, 4), (r.Status, done));
+    }
+
+    [Fact]
+    public void Run_Done_FirstChunkInvalid_IsZero()
+    {
+        int done = -1;
+        var r = FinsFrame.Run(WriteChunks(5, 2), x => FinsResponse.Invalid, ref done);
+        Assert.Equal((FinsStatus.Invalid, 0), (r.Status, done));
+    }
+
+    [Fact]
+    public void Run_Done_AllAck_IsTotal_AndResetsOnEachCall()
+    {
+        int done = 99;
+        var r = FinsFrame.Run(WriteChunks(5, 2), x => FinsResponse.Ack([]), ref done);
+        Assert.Equal((FinsStatus.Ack, 5), (r.Status, done));
+        FinsFrame.Run(WriteChunks(5, 2), x => FinsResponse.Invalid, ref done);
+        Assert.Equal(0, done);
+    }
+
+    [Fact]
+    public void Run_Done_ExchangeThrows_KeepsChunksAckedBefore()
+    {
+        int calls = 0, done = -1;
+        Assert.Throws<IOException>(() => FinsFrame.Run(WriteChunks(5, 2), x => ++calls == 3 ? throw new IOException() : FinsResponse.Ack([]), ref done));
+        Assert.Equal(4, done);
+    }
+
+    [Fact]
+    public void Run_Done_ReadChunks_NeverCounted()
+    {
+        int done = -1;
+        FinsFrame.Run(FinsFrame.Chunks(FinsCommand.ReadBlock, [A("D0")], 5, [], 2), x => FinsResponse.Ack([0, 0]), ref done);
+        Assert.Equal(0, done);
+        FinsFrame.Run(FinsFrame.Chunks(FinsCommand.Read, [A("D0"), A("D1")], 2, [], 2), x => FinsResponse.Ack([0, 0]), ref done);
+        Assert.Equal(0, done);
+    }
+
+    [Fact]
+    public void Run_Done_WriteBits_CountsBits()
+    {
+        int calls = 0, done = -1;
+        var c = FinsFrame.Chunks(FinsCommand.WriteBlock, [A("CIO0.00")], 40, new long[40], 16);   // 16 + 16 + 8 bits
+        FinsFrame.Run(c, x => ++calls == 3 ? FinsResponse.Nak(1) : FinsResponse.Ack([]), ref done);
+        Assert.Equal(32, done);
     }
     #endregion
 }

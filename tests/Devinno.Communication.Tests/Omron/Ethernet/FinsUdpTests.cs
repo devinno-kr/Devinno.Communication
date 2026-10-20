@@ -160,6 +160,7 @@ public class FinsUdpTests : IDisposable
     [Fact]
     public async Task ManualWrite_WordTruncatesNegative_AndBit()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         int writes = 0;
         var done = Tcs<FinsUdp.ResultEventArgs>();
         fins.WriteReceived += (s, e) => { if (Interlocked.Increment(ref writes) == 2) done.TrySetResult(e); };
@@ -206,6 +207,7 @@ public class FinsUdpTests : IDisposable
     [Fact]
     public async Task WriteBlock_WordsAndBits_SplitAtMax()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         fins.MaxWordsPerRequest = 16;
         var bits = Enumerable.Range(0, 40).Select(i => (long)(i % 3 == 0 ? 1 : 0)).ToArray();
         var words = Enumerable.Range(0, 20).Select(i => (long)(i - 10)).ToArray();
@@ -223,6 +225,7 @@ public class FinsUdpTests : IDisposable
     [Fact]
     public async Task ManualWriteBlock_CopiesValuesAtRegistration()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         var values = new long[] { 1, 2, 3 };
         var done = Tcs<bool>();
         fins.WriteReceived += (s, e) => done.TrySetResult(true);
@@ -292,6 +295,7 @@ public class FinsUdpTests : IDisposable
     [Fact]
     public async Task WriteProtected_NakCodeWithoutFlags()
     {
+        fins.DiscardWritesWhileDisconnected = false;   // Start 전에 대기열에 넣은 쓰기를 시험한다
         plc.WriteProtect = true;
         plc.FlagBits = 0x0040;
         var nak = Tcs<FinsUdp.NAKEventArgs>();
