@@ -46,6 +46,8 @@ public class S7EthernetConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect after a disconnection (default: true).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="S7Ethernet.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;Read&gt; and &lt;ReadBlock&gt; can be mixed and are polled in order.</summary>
     [XmlElement("Read", typeof(S7ReadConfig)), XmlElement("ReadBlock", typeof(S7ReadBlockConfig))]
     public List<S7EthernetAutoConfig> Autos { get; set; } = [];

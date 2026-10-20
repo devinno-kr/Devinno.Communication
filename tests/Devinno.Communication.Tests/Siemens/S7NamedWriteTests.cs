@@ -10,6 +10,7 @@ public class S7NamedWriteTests
     {
         var s7 = new S7Ethernet();
         s7.FromXml(XElement.Parse(xml));
+        s7.DiscardWritesWhileDisconnected = false;   // 미시작 객체의 Manual 쓰기를 TakeNextWork로 확인하는 테스트라 쓰기 버림을 끈다(FromXml이 기본값으로 되돌리므로 그 뒤에)
         return s7;
     }
 

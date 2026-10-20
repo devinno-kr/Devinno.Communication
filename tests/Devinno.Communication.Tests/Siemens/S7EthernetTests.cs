@@ -203,6 +203,7 @@ public class S7EthernetTests : IDisposable
         var done = Tcs<S7Ethernet.ResultEventArgs>();
         s7.WriteReceived += (s, e) => done.TrySetResult(e);
         s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
         s7.ManualWrite(7, [new S7Value("M0.3", 1), new S7Value("DB1.DBW0", -1), new S7Value("DB1.DBB2", 0x7F),
             new S7Value("QD0", 4294967295), new S7Value("DB1.DBD4", BitConverter.SingleToInt32Bits(1.5f))]);
         var e = await Wait(done);
@@ -247,9 +248,10 @@ public class S7EthernetTests : IDisposable
         var data = Enumerable.Range(0, 2 * chunk + 1).Select(i => (byte)(i * 3 + 1)).ToArray();
         int writes = 0;
         s7.WriteReceived += (s, e) => Interlocked.Increment(ref writes);
+        s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
         s7.ManualWriteBlock(1, "DB1.DBB3", data);
         s7.ManualWriteBlock(2, "MB0", data[..chunk]);
-        s7.Start();
         await TestUtil.Until(() => Volatile.Read(ref writes) == 2);
         Assert.Equal(data, plc.GetBytes("DB1.DBB3", data.Length));
         Assert.Equal(data[..chunk], plc.GetBytes("MB0", chunk));
@@ -263,9 +265,10 @@ public class S7EthernetTests : IDisposable
         var data = new byte[] { 1, 2, 3, 4 };
         var done = Tcs<bool>();
         s7.WriteReceived += (s, e) => done.TrySetResult(true);
+        s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
         s7.ManualWriteBlock(1, "DB1.DBB0", data);
         data[0] = 99;
-        s7.Start();
         await Wait(done);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, plc.GetBytes("DB1.DBB0", 4));
     }
@@ -290,9 +293,10 @@ public class S7EthernetTests : IDisposable
         var written = Tcs<bool>();
         s7.DataReceived += (s, e) => data.TrySetResult(e.Values);
         s7.WriteReceived += (s, e) => written.TrySetResult(true);
+        s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
         s7.ManualWrite(2, bits[..12]);
         s7.ManualRead(3, words[..19]);
-        s7.Start();
         Assert.True(await Wait(written));
         Assert.Equal(Enumerable.Range(100, 19).Select(x => (long)x), await Wait(data));
         Assert.Equal(1L, plc.Get("Q11.0"));
@@ -344,6 +348,7 @@ public class S7EthernetTests : IDisposable
         s7.NAKReceived += (s, e) => nak.TrySetResult(e);
         s7.WriteReceived += (s, e) => Interlocked.Increment(ref written);
         s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
         s7.ManualWrite(1, [new S7Value("DB1.DBW0", 5), new S7Value("DB2.DBW0", 6)]);
         var e = await Wait(nak);
         Assert.Equal((S7Command.Write, 0x03, 1), (e.Command, e.ErrorCode, e.ItemIndex));
@@ -374,8 +379,9 @@ public class S7EthernetTests : IDisposable
         s7.BlockReceived += (s, e) => Interlocked.Increment(ref block);
         s7.WriteReceived += (s, e) => Interlocked.Increment(ref written);
         s7.ManualReadBlock(1, "DB1.DBB0", 400);   // 222바이트 성공 후 둘째 조각(222~399)이 DB 길이 300을 넘음
-        s7.ManualWriteBlock(2, "DB1.DBB0", new byte[400]);
         s7.Start();
+        await TestUtil.Until(() => s7.IsOpen);
+        s7.ManualWriteBlock(2, "DB1.DBB0", new byte[400]);
         await TestUtil.Until(() => naks.Count == 2);
         Assert.Equal(new[] { (1, S7Command.ReadBlock, 0x05, 0), (2, S7Command.WriteBlock, 0x05, 0) }, naks.Select(e => (e.MessageID, e.Command, e.ErrorCode, e.ItemIndex)));
         Assert.Equal(0, Volatile.Read(ref block));

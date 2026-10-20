@@ -7,6 +7,7 @@
 * 지원 PLC : S7-300/400/1200/1500, S7-200 SMART·LOGO!(TSAP 직접 지정)
 * 절대 주소(DB1.DBW0, M10.0, IB0 …)만 지원하며 심볼·최적화 DB·타이머/카운터는 지원하지 않음
 * **S7-1200/1500은 PLC에서 PUT/GET 허용과 "최적화된 블록 액세스" 해제가 필요**
+* 연속 쓰기(`ManualWriteBlock`)는 원자적이지 않음: 중간에 실패하면 앞 조각은 이미 PLC에 써졌을 수 있으며(`NAKReceived`/`TimeoutReceived`의 `WrittenBytes`가 그 시도에서 PLC가 Ack한 바이트 수, 재시도는 첫 조각부터 다시), 트리거/핸드셰이크 워드는 블록이 성공한 뒤 따로 쓴다
 
 ## 이름 있는 쓰기
   * Master XML에 `<Write Name Id Address>`로 쓰기 주소에 이름을 붙이고(`<Read>` 등 Auto 요소 뒤에 작성), `NamedWrite("이름", 값)`으로 쓴다 (`ContainsNamedWrite`로 등록 여부 확인)

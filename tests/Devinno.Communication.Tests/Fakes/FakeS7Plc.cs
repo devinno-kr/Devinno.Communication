@@ -46,6 +46,12 @@ internal sealed class FakeS7Plc : IDisposable
     /// 읽기/쓰기 요청에 응답하지 않음 (연결·Setup은 응답)
     bool _silent;
     public bool Silent { get { lock (sync) return _silent; } set { lock (sync) _silent = value; } }
+    /// n번째(1부터, 쓰기 요청만 센다) 쓰기 요청은 쓰지 않고 항목 오류 03(접근 거부)으로 응답
+    int? _nakWriteAt;
+    public int? NakWriteAt { get { lock (sync) return _nakWriteAt; } set { lock (sync) _nakWriteAt = value; } }
+    /// n번째(1부터, 쓰기 요청만 센다) 쓰기 요청은 처리하되 응답하지 않음
+    int? _silentWriteAt;
+    public int? SilentWriteAt { get { lock (sync) return _silentWriteAt; } set { lock (sync) _silentWriteAt = value; } }
     /// Setup 응답에 요청한 크기와 상관없이 PduSize를 그대로 보냄 (Master가 스스로 작은 쪽을 고르는지 확인용)
     bool _ignoreRequestedPdu;
     public bool IgnoreRequestedPdu { get { lock (sync) return _ignoreRequestedPdu; } set { lock (sync) _ignoreRequestedPdu = value; } }
@@ -177,9 +183,9 @@ internal sealed class FakeS7Plc : IDisposable
                     }
                     else
                     {
-                        reply = HandleJob(req, pduRef, pdu, out bool violation);
+                        reply = HandleJob(req, pduRef, pdu, out bool violation, out bool mute);
                         if (violation) return;
-                        if (Silent) continue;
+                        if (Silent || mute) continue;
                         if (StaleReply) await Send(s, Ack(S7Frame.RosctrAck, (ushort)(pduRef + 1), [], [], 0x8104), token);
                     }
                     await Send(s, reply!, token);
@@ -275,9 +281,10 @@ internal sealed class FakeS7Plc : IDisposable
     }
 
     /// 읽기/쓰기 Job. 형식 위반이면 violation = true (연결을 끊음)
-    byte[]? HandleJob(byte[] req, ushort pduRef, int pdu, out bool violation)
+    byte[]? HandleJob(byte[] req, ushort pduRef, int pdu, out bool violation, out bool mute)
     {
         violation = true;
+        mute = false;
         int pl = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(6)), dl = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(8));
         if (pl < 2) return null;
         byte func = req[10];
@@ -330,6 +337,9 @@ internal sealed class FakeS7Plc : IDisposable
         var outData = new List<byte>();
         lock (sync)
         {
+            int writeNo = func == S7Frame.FuncWrite ? jobs.Count(j => j.Function == S7Frame.FuncWrite) + 1 : 0;
+            bool nak = writeNo != 0 && writeNo == _nakWriteAt;
+            mute = writeNo != 0 && writeNo == _silentWriteAt;
             jobs.Add((func, items.Sum(x => x.Length)));
             for (int i = 0; i < n; i++)
             {
@@ -338,7 +348,7 @@ internal sealed class FakeS7Plc : IDisposable
                 int off = it.BitAddress >> 3;
                 byte rc = m == null ? (byte)0x0A
                         : off + it.Length > m.Length ? (byte)0x05
-                        : func == S7Frame.FuncWrite && it.Area == S7Address.AreaDB && protectedDbs.Contains(it.Db) ? (byte)0x03
+                        : func == S7Frame.FuncWrite && (nak || it.Area == S7Address.AreaDB && protectedDbs.Contains(it.Db)) ? (byte)0x03
                         : (byte)0xFF;
                 if (func == S7Frame.FuncWrite)
                 {
