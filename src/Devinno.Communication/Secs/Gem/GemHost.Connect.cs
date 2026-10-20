@@ -74,6 +74,7 @@ public partial class GemHost
 
     /// <summary>Raised on the app event thread when the connect sequence finishes (success or failure). It applies to both automatic and manual runs.</summary>
     /// <remarks>If an automatic run stops because the connection dropped, it is reported as a failure carrying a <see cref="SecsDisconnectedException"/> (the original exception of the step that failed because of the disconnection is its <see cref="Exception.InnerException"/>), and the sequence runs again from the start on the next connection.
+    /// If communications had already been established, <see cref="CommunicationStateChanged"/> (→ NotCommunicating) is raised first and then this event (if not, only this event).
     /// The following cases are not reported: a run stopped by <see cref="Stop"/>, a manual run that was canceled (it throws <see cref="OperationCanceledException"/>),
     /// and an automatic run that never started because that connection also dropped while it waited for the previous sequence after the connection dropped several times in quick succession.</remarks>
     public event EventHandler<GemConnectResult>? ConnectSequenceCompleted;

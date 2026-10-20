@@ -195,6 +195,7 @@ public partial class GemEquipment : IDisposable
     /// <summary>Gets whether it has been disposed</summary>
     public bool IsDisposed { get; private set; }
     /// <summary>Gets whether the transport is connected (Selected for HSMS, port open for SECS-I)</summary>
+    /// <remarks>A snapshot at that moment, not ordered with the events. Judge the communication state with <see cref="CommunicationState"/> (<see cref="CommunicationStateChanged"/>).</remarks>
     public bool IsOpen => transport.IsOpen();
     /// <summary>User-defined tag</summary>
     public object? Tag { get; set; }
@@ -356,6 +357,14 @@ public partial class GemEquipment : IDisposable
 
     #region Events
     /// <summary>Raised on the application event thread when a message sent by GEM (S1F1, S2F17, S5F1, S6F11, S10F1) failed or was discarded without being sent.</summary>
+    /// <remarks>
+    /// <para>Order of the notifications: on a disconnection or <see cref="DisableCommunication"/>, first this event for each discarded message (NotCommunicating or Disabled) in the original send order (the one waiting for a reply first, then the queue from the front; the equipment's S1F13 is not reported),
+    /// then <see cref="CommunicationStateChanged"/>, then the transition 4 <see cref="ControlStateChanged"/> if it was ATTEMPT ON-LINE.
+    /// On T3 of S5F1, S6F11, S10F1, or S2F17: this event (Timeout), this event (NotCommunicating) for the rest of the queue, <see cref="CommunicationStateChanged"/>, then the transition 4 <see cref="ControlStateChanged"/> if it was ATTEMPT ON-LINE.
+    /// On T3 of the S1F1 of <see cref="GoOnline"/>: this event (Timeout), <see cref="ControlStateChanged"/> (to <see cref="OnlineFailedState"/>), this event (NotCommunicating) for the rest of the queue, then <see cref="CommunicationStateChanged"/>.
+    /// A failure of the equipment's S1F13 is reported only through <see cref="ProtocolError"/>. So inside this handler, <see cref="CommunicationState"/> may still be Communicating.</para>
+    /// <para>A disconnection does not end a GEM message with Disconnected (it is reported as NotCommunicating as above); Disconnected remains only for a SECS-I send that exceeded the retry limit (the line is kept).</para>
+    /// </remarks>
     public event EventHandler<GemSendFailedEventArgs>? SendFailed;
     /// <summary>Raised on the application event thread for diagnostic notifications (S9 sent, body structure error, deadline exceeded, overlapping reply, communication establishment failure, and so on). It does not affect operation.</summary>
     public event EventHandler<GemProtocolErrorEventArgs>? ProtocolError;

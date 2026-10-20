@@ -18,7 +18,8 @@ namespace Devinno.Communication.Secs.Gem;
 /// and a communication failure is thrown as an exception (<see cref="SecsTimeoutException"/>, <see cref="SecsAbortException"/> — usually this one if the equipment is OFF-LINE, <see cref="SecsErrorException"/>, <see cref="SecsDisconnectedException"/>); a malformed reply is a <see cref="FormatException"/>.
 /// A synchronous method waits for the reply on the calling thread using the transport synchronous <c>Send</c>, so it does not rely on the thread pool or a SynchronizationContext. It is not delayed even if the thread pool is exhausted (ASP.NET and so on), and
 /// it does not deadlock when called from the UI thread or from inside a GemHost event handler (that thread is blocked in the meantime). An Async method resumes the reply on the thread pool and does not return to the calling context (ConfigureAwait(false)).
-/// Note that calling a synchronous method from the transport <c>DeviceOpened</c> handler (the dispatcher thread) delays the handling of the equipment other primary messages until the reply arrives.</para>
+/// Note that calling a synchronous method from the transport <c>DeviceOpened</c> handler (the dispatcher thread) delays the handling of the equipment other primary messages until the reply arrives.
+/// The order between a command method's return or exception and the app events (<see cref="CommunicationStateChanged"/> and so on) is not guaranteed (they run on different threads).</para>
 /// <para><b>ID formats</b>: when sending, it uses <see cref="VidFormat"/>, <see cref="CeidFormat"/>, <see cref="RptidFormat"/>, <see cref="AlidFormat"/>, and <see cref="DataidFormat"/>; IDs sent by the equipment are accepted in any of the eight integer formats or A.</para>
 /// <para><b>Threads</b>: besides the transport threads, it uses one GEM worker thread (reply deadlines, starting the connect sequence) and one app event thread. All public events are raised on the app event thread in order of occurrence, and handler exceptions are ignored.
 /// Even if a handler takes a long time, automatic replies are not blocked (when <see cref="MaxPendingEvents"/> events pile up, the oldest are dropped). Marshal UI updates with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF).</para>
@@ -205,6 +206,7 @@ public partial class GemHost : IDisposable
     /// <summary>Gets a value indicating whether it has been disposed.</summary>
     public bool IsDisposed { get; private set; }
     /// <summary>Gets a value indicating whether the transport is connected (Selected for HSMS, port open for SECS-I).</summary>
+    /// <remarks>A snapshot at that moment, not ordered with the events. Judge the communication state with <see cref="IsCommunicating"/> (<see cref="CommunicationStateChanged"/>).</remarks>
     public bool IsOpen => transport.IsOpen();
     /// <summary>Gets or sets a user-defined tag.</summary>
     public object? Tag { get; set; }
@@ -280,6 +282,7 @@ public partial class GemHost : IDisposable
 
     #region Events
     /// <summary>Raised on the app event thread when whether communications are established (<see cref="IsCommunicating"/>) changes (NotCommunicating ↔ Communicating; Disabled is not used).</summary>
+    /// <remarks>Once GemHost has handled the transport <c>DeviceClosed</c> of a connection, Communicating is not raised for that connection: <see cref="IsCommunicating"/> does not become true on a connection that has dropped.</remarks>
     public event EventHandler<GemCommunicationStateEventArgs>? CommunicationStateChanged;
 
     /// <summary>Raised on the app event thread when a primary message from the equipment that GemHost does not handle is received. Reply inside the handler through <see cref="GemMessageEventArgs.Reply"/>.</summary>

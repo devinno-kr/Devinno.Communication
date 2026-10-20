@@ -47,6 +47,9 @@ This is the **document to read first** when you write a communication XML or app
 - Configuration classes are `<Class>Config` (`McEthernetConfig`), used with `ConfigSchema.Get<T>()` and `ApplyConfig`/`ToConfig`.
 - Named writes (`<Write>` + `NamedWrite`) exist only on the 10 PLC masters: `ModbusRTUMaster`, `ModbusTCPMaster`, `LsCNet`, `LsFEnet`, `McSerial`, `McEthernet`, `S7Ethernet`, `FinsUdp`, `FinsTcp`, `FinsSerial`.
 - SECS/GEM, MQTT and the slaves are covered here only for their XML. Use IntelliSense for their messaging APIs.
+- SECS/GEM event order: transport events (`DeviceOpened` → that connection's `PrimaryReceived`/`ProtocolError` → `DeviceClosed`) are raised one at a time on one dispatcher thread in the order received; GEM app events keep that wire order on the GEM app event thread.
+- `Send`/`SendAsync` results (and GEM command-method returns/exceptions) are outside that order (other threads); never assume they come before or after an event.
+- Judge link state by `DeviceOpened`/`DeviceClosed`, not `IsOpen` (GEM: `GemEquipment.CommunicationState`, `GemHost.IsCommunicating` and `CommunicationStateChanged`).
 
 ---
 

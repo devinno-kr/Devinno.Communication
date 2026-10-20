@@ -20,6 +20,13 @@ namespace Devinno.Communication.Secs.Serial;
 /// Messages are sent one at a time, in order (no interleaving).</para>
 /// <para><b>Threads</b>: One line I/O thread (handles the send queue and receiving together, and checks timers) and one <see cref="PrimaryReceived"/> dispatcher thread are used.
 /// <see cref="DeviceOpened"/>, <see cref="DeviceClosed"/>, and <see cref="ProtocolError"/> are also raised on the same dispatcher thread. Exceptions thrown in any handler are ignored. For <see cref="Send"/> inside a handler, see the description of <see cref="PrimaryReceived"/>.</para>
+/// <para><b>Event order</b>: <see cref="DeviceOpened"/>, <see cref="PrimaryReceived"/>, <see cref="ProtocolError"/>, and <see cref="DeviceClosed"/> are raised one at a time on the one dispatcher thread, in the order the I/O thread detected them (those not yet raised at <see cref="Stop"/> are raised in the same order by the thread that called Stop).
+/// Each connection (port open until closed) gives <see cref="DeviceOpened"/>, then its primary messages, then one <see cref="DeviceClosed"/>, and the next <see cref="DeviceOpened"/> comes after that <see cref="DeviceClosed"/>.
+/// When the link is lost, every pending transaction of that connection ends with <see cref="SecsDisconnectedException"/>; the application may see that failure before or after the connection's <see cref="DeviceClosed"/>, but once it has seen it, that <see cref="DeviceClosed"/> has been or will soon be raised.
+/// One transaction ends with exactly one result (reply, SxF0, S9Fx, T3, disconnection, or cancellation); a reply that arrives after T3 is an unmatched reply (<see cref="ProtocolError"/>).
+/// Without a connection (after <see cref="DeviceClosed"/>, before <see cref="DeviceOpened"/>), <see cref="Send"/>/<see cref="SendAsync"/> throw <see cref="InvalidOperationException"/> at once; treat it like <see cref="SecsDisconnectedException"/> as "no link".
+/// No event is raised after <see cref="Stop"/> returns (if Stop cannot end the I/O thread within 3 seconds, that connection's <see cref="DeviceClosed"/> may be missing).
+/// Not guaranteed: the order between a <see cref="Send"/>/<see cref="SendAsync"/> result and the events, the order in which the results of concurrent <see cref="SendAsync"/> calls arrive, and the order between <see cref="IsOpen"/> and the events (a snapshot; it can still be true briefly after a <see cref="SecsDisconnectedException"/>). Judge the link state only by <see cref="DeviceOpened"/>/<see cref="DeviceClosed"/>.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -156,7 +163,7 @@ public class SecsSerial : IDisposable
     /// <remarks>Raised on the same dispatcher thread as <see cref="PrimaryReceived"/>, before the first primary message of that connection. Calling a synchronous <see cref="Send"/> inside the handler does not deadlock, but delivery of the peer's primary messages stops while it waits for the reply (up to T3) (see <see cref="PrimaryReceived"/>). <see cref="SendAsync"/> is recommended for the connection sequence.</remarks>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the port is closed.</summary>
-    /// <remarks>Raised on the same dispatcher thread as <see cref="PrimaryReceived"/>, after the primary messages of that connection. If it could not yet be raised at <see cref="Stop"/>, it is raised by the thread that called Stop. Calling a synchronous <see cref="Send"/> inside the handler does not deadlock, but delivery of the peer's primary messages stops while it waits for the reply (up to T3) (see <see cref="PrimaryReceived"/>). <see cref="SendAsync"/> is recommended for the connection sequence.</remarks>
+    /// <remarks>Raised on the same dispatcher thread as <see cref="PrimaryReceived"/>, after the primary messages of that connection. The pending transactions of that connection end with <see cref="SecsDisconnectedException"/>, which the application may see before or after this event. If it could not yet be raised at <see cref="Stop"/>, it is raised by the thread that called Stop. Calling a synchronous <see cref="Send"/> inside the handler does not deadlock, but delivery of the peer's primary messages stops while it waits for the reply (up to T3) (see <see cref="PrimaryReceived"/>). <see cref="SendAsync"/> is recommended for the connection sequence.</remarks>
     public event EventHandler? DeviceClosed;
     #endregion
 
@@ -233,7 +240,7 @@ public class SecsSerial : IDisposable
 
     #region Send
     /// <summary>Sends a primary message and, if the W-bit is set, waits for and returns the reply. It waits on the calling thread.</summary>
-    /// <remarks>The system bytes and device ID are filled in when sending, and the object passed in is not modified. T3 is measured from the time the ACK of the last block is received.</remarks>
+    /// <remarks>The system bytes and device ID are filled in when sending, and the object passed in is not modified. T3 is measured from the time the ACK of the last block is received. A <see cref="SecsDisconnectedException"/> may be seen before or after that connection's <see cref="DeviceClosed"/>. The wait does not depend on the thread pool, and calling it inside an event handler does not deadlock.</remarks>
     /// <param name="primary">The primary message (odd function).</param>
     /// <returns>The reply message. null after sending if the W-bit is not set.</returns>
     /// <exception cref="ArgumentNullException">primary is null.</exception>
@@ -247,6 +254,7 @@ public class SecsSerial : IDisposable
     public SecsMessage? Send(SecsMessage primary) => session.Send(primary);
 
     /// <summary>Sends a primary message and, if the W-bit is set, returns a Task that waits for the reply. The rules and exceptions are the same as <see cref="Send"/>.</summary>
+    /// <remarks>The continuation runs on the calling thread (when the Task completes synchronously) or on the thread pool, never on the I/O or dispatcher thread. A <see cref="SecsDisconnectedException"/> may be seen before or after that connection's <see cref="DeviceClosed"/>.</remarks>
     /// <param name="primary">The primary message (odd function).</param>
     /// <param name="cancellationToken">Cancels the wait (a message whose sending has already started is sent to the end).</param>
     /// <returns>The reply message. null if the W-bit is not set.</returns>

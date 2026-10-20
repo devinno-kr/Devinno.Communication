@@ -18,11 +18,14 @@ public partial class GemEquipment
     public GemEnableState InitialCommunicationState { get => initialCommunicationState; set => Setting(() => initialCommunicationState = value); }
 
     /// <summary>Gets or sets whether the equipment establishes communication by sending S1F13 first (default: true)</summary>
-    /// <remarks>If true, S1F13 is sent as soon as the connection is made, and if that fails (T3, COMMACK other than 0, S1F0, disconnection) it is sent again after EstablishCommunicationsTimeout seconds. If false, it only waits for the Host's S1F13.</remarks>
+    /// <remarks>If true, S1F13 is sent as soon as the connection is made. If it fails while connected (T3, COMMACK other than 0, S1F0), it is sent again after EstablishCommunicationsTimeout seconds (or at once when the Host sends a primary message other than S1F13 in the meantime).
+    /// After a disconnection (including one while waiting for S1F14), it is sent as soon as the next connection opens. If false, it only waits for the Host's S1F13.</remarks>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public bool InitiateCommunication { get => initiateCommunication; set => Setting(() => initiateCommunication = value); }
 
     /// <summary>Raised on the application event thread when the communication state changed.</summary>
+    /// <remarks>The GEM states change in wire order: the handling of the Host's primary messages and the results of GEM sends (S1F14 → this event, S1F2 → <see cref="ControlStateChanged"/>, S2F18 → <see cref="ClockSet"/>, <see cref="SendFailed"/>) happen, and their events are raised, in the order the equipment received those messages.
+    /// A disconnection changes Communicating → NotCommunicating at most once per connection, and no event about that connection follows it. After reconnecting, S5/S6/S10 are not sent until communication is established again with S1F13.</remarks>
     public event EventHandler<GemCommunicationStateEventArgs>? CommunicationStateChanged;
 
     /// <summary>Enables communication (DISABLED → ENABLED, transition 2). Does nothing if it was already enabled.</summary>

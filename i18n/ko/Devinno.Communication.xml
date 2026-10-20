@@ -5693,13 +5693,16 @@
             <summary>시작할 때 통신을 켤지 (기본값: Enabled)</summary>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.InitiateCommunication" en-hash="3e66ed61d38581f2">
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.InitiateCommunication" en-hash="8fa7d66a197e71cd">
             <summary>장비가 S1F13을 먼저 보내 통신을 수립할지 (기본값: true)</summary>
-            <remarks>true면 연결되자마자 S1F13을 보내고, 실패하면(T3·COMMACK ≠ 0·S1F0·끊김) EstablishCommunicationsTimeout 초 뒤 다시 보냅니다. false면 Host의 S1F13만 기다립니다.</remarks>
+            <remarks>true면 연결되자마자 S1F13을 보냅니다. 연결된 채 실패하면(T3·COMMACK ≠ 0·S1F0) EstablishCommunicationsTimeout 초 뒤 다시 보냅니다(그 사이 Host가 S1F13이 아닌 1차 메시지를 보내면 바로).
+            끊기면(S1F14를 기다리던 중 포함) 다음 연결이 열리자마자 보냅니다. false면 Host의 S1F13만 기다립니다.</remarks>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" en-hash="df9b7c729397df39">
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" en-hash="1076f0b00192dc6a">
             <summary>통신 상태가 바뀌었을 때 앱 이벤트 스레드에서 발생합니다.</summary>
+            <remarks>GEM 상태는 와이어 순서로 바뀝니다. Host 1차 메시지 처리와 GEM 송신 결과(S1F14 → 이 이벤트, S1F2 → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />, S2F18 → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ClockSet" />, <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />)는 장비가 그 메시지들을 받은 순서대로 일어나고 그 순서로 이벤트가 발생합니다.
+            끊김에 의한 Communicating → NotCommunicating은 연결당 최대 한 번이고, 그 뒤에 그 연결에 관한 이벤트는 더 오지 않습니다. 다시 연결되면 S1F13으로 다시 수립하기 전에는 S5/S6/S10을 보내지 않습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.EnableCommunication" en-hash="98e3fad5b167fb95">
             <summary>통신을 켭니다(DISABLED → ENABLED, 전이 2). 켜져 있었으면 아무것도 하지 않습니다.</summary>
@@ -5808,8 +5811,9 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.IsDisposed" en-hash="c9c2b70b619011cb">
             <summary>Dispose 되었는지 여부</summary>
         </member>
-        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.IsOpen" en-hash="54e7e56a804bb851">
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.IsOpen" en-hash="452774070a5bf60f">
             <summary>전송이 연결되어 있는지 여부(HSMS는 Selected, SECS-I는 포트 열림)</summary>
+            <remarks>그 순간의 스냅숏이며 이벤트와 순서가 맞지 않습니다. 통신 상태는 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationState" />(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />)로 판단하세요.</remarks>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.Tag" en-hash="f324739ceacf6235">
             <summary>사용자 정의 태그</summary>
@@ -5956,8 +5960,16 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.RegisteredMessages" en-hash="f092ba8721467beb">
             <summary>등록한 메시지 (복사본)</summary>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" en-hash="3daca9972984d74d">
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" en-hash="bb80f9beaa6a03d5">
             <summary>GEM이 보낸 메시지(S1F1, S2F17, S5F1, S6F11, S10F1)가 실패했거나 보내지 못하고 버렸을 때 앱 이벤트 스레드에서 발생합니다.</summary>
+            <remarks>
+            <para>알림 순서: 끊김·<see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.DisableCommunication" />이면 먼저 버린 메시지마다 이 이벤트(NotCommunicating 또는 Disabled)가 원래 보낼 순서대로(응답 대기 중이던 것 먼저, 다음 대기열 앞부터, 장비 S1F13은 알리지 않음) 발생하고,
+            다음 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />, ATTEMPT ON-LINE이었으면 전이 4의 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />입니다.
+            S5F1·S6F11·S10F1·S2F17의 T3: 이 이벤트(Timeout) → 남은 대기열의 이 이벤트(NotCommunicating) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" /> → ATTEMPT ON-LINE이었으면 전이 4의 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />.
+            <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.GoOnline" />의 S1F1 T3: 이 이벤트(Timeout) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.OnlineFailedState" />로) → 남은 대기열의 이 이벤트(NotCommunicating) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />.
+            장비 S1F13의 실패는 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로만 알립니다. 그래서 이 핸들러 안에서 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationState" />가 아직 Communicating일 수 있습니다.</para>
+            <para>끊김 때문에 GEM 메시지가 Disconnected로 끝나지는 않습니다(위처럼 NotCommunicating으로 알림). Disconnected는 SECS-I 재시도 초과(회선은 유지)에만 남습니다.</para>
+            </remarks>
         </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" en-hash="175c965c1cc99b9b">
             <summary>진단용 알림(S9 보냄, 본문 구조 오류, 기한 초과, 겹친 응답, 통신 수립 실패 등)이 앱 이벤트 스레드에서 발생합니다. 동작에는 영향이 없습니다.</summary>
@@ -6584,7 +6596,7 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemConstantInfo.Units" en-hash="4c78d58030467365">
             <summary>단위</summary>
         </member>
-        <member name="T:Devinno.Communication.Secs.Gem.GemHost" en-hash="83ef01b4c2aa74e5">
+        <member name="T:Devinno.Communication.Secs.Gem.GemHost" en-hash="805190e06d73e379">
              <summary>
              GEM(SEMI E30) Host 쪽입니다. 장비가 보낸 1차 메시지에 자동으로 응답하고, 명령 메서드로 장비에 묻거나 시킵니다.
              </summary>
@@ -6599,7 +6611,8 @@
              통신 실패는 예외(<see cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException" />, <see cref="T:Devinno.Communication.Secs.Data.SecsAbortException" /> — 장비가 OFF-LINE이면 대개 이것, <see cref="T:Devinno.Communication.Secs.Data.SecsErrorException" />, <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />), 응답 구조 오류는 <see cref="T:System.FormatException" />입니다.
              동기 메서드는 전송의 동기 <c>Send</c>로 호출 스레드에서 응답을 기다리므로 스레드풀이나 SynchronizationContext에 기대지 않습니다. 스레드풀이 고갈돼도(ASP.NET 등) 늦어지지 않고,
              UI 스레드나 GemHost 이벤트 핸들러 안에서 불러도 교착되지 않습니다(그 동안 그 스레드는 멈춤). Async 메서드는 응답을 스레드풀에서 이어 받고 호출 문맥으로 돌아오지 않습니다(ConfigureAwait(false)).
-             단 전송의 <c>DeviceOpened</c> 핸들러(디스패처 스레드)에서 동기 메서드를 부르면 응답을 받을 때까지 장비의 다른 1차 메시지 처리가 늦어집니다.</para>
+             단 전송의 <c>DeviceOpened</c> 핸들러(디스패처 스레드)에서 동기 메서드를 부르면 응답을 받을 때까지 장비의 다른 1차 메시지 처리가 늦어집니다.
+             명령 메서드의 반환·예외와 앱 이벤트(<see cref="E:Devinno.Communication.Secs.Gem.GemHost.CommunicationStateChanged" /> 등)의 선후는 보장하지 않습니다(서로 다른 스레드).</para>
              <para><b>ID 포맷</b>: 보낼 때는 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.VidFormat" />·<see cref="P:Devinno.Communication.Secs.Gem.GemHost.CeidFormat" />·<see cref="P:Devinno.Communication.Secs.Gem.GemHost.RptidFormat" />·<see cref="P:Devinno.Communication.Secs.Gem.GemHost.AlidFormat" />·<see cref="P:Devinno.Communication.Secs.Gem.GemHost.DataidFormat" />를 쓰고, 장비가 보낸 ID는 정수 8종·A 어느 포맷이든 받습니다.</para>
              <para><b>스레드</b>: 전송 스레드 외에 GEM 작업 스레드 1개(응답 기한, 접속 시퀀스 시작)와 앱 이벤트 스레드 1개를 씁니다. 모든 공개 이벤트는 앱 이벤트 스레드에서 발생 순서대로 불리고 핸들러 예외는 무시됩니다.
              핸들러가 오래 걸려도 자동 응답은 막히지 않습니다(이벤트가 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.MaxPendingEvents" />만큼 쌓이면 오래된 것부터 버림). UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)로 넘기세요.</para>
@@ -6632,8 +6645,10 @@
              </code>
              </example>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemHost.EstablishCommunication" en-hash="b54d20e15a47f8fe">
-            <summary>통신 수립을 요청합니다(S1F13 &lt;L&gt;). COMMACK 0이면 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />이 true가 되고 장비 이름을 기억합니다.</summary>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.EstablishCommunication" en-hash="f85da63110c025c7">
+            <summary>통신 수립을 요청합니다(S1F13 &lt;L&gt;). COMMACK 0이고 보낸 연결이 아직 열려 있으면 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />이 true가 되고 장비 이름을 기억합니다.</summary>
+            <remarks>응답을 처리할 때 그 연결이 이미 끊겼으면 COMMACK은 그대로 돌려주지만 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />은 true가 되지 않습니다.
+            GemHost가 그 연결의 전송 <c>DeviceOpened</c>를 처리하기 전에 응답이 오면, 그것을 처리할 때 수립을 반영합니다.</remarks>
             <returns>COMMACK (0 = 받음, 1 = 거절)</returns>
             <exception cref="T:System.InvalidOperationException">연결되어 있지 않은 경우</exception>
             <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없는 경우</exception>
@@ -6881,9 +6896,10 @@
             <exception cref="T:System.ArgumentOutOfRangeException">범위 밖인 경우</exception>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemHost.ConnectSequenceCompleted" en-hash="52e682dead24a883">
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.ConnectSequenceCompleted" en-hash="601879bec44acec0">
             <summary>접속 시퀀스가 끝났을 때(성공·실패) 앱 이벤트 스레드에서 발생합니다. 자동·수동 실행 모두입니다.</summary>
             <remarks>자동 실행이 연결이 끊겨 멈추면 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />을 담은 실패로 알리고(끊김 때문에 실패한 단계의 원래 예외는 그 <see cref="P:System.Exception.InnerException" />), 다음 연결 때 처음부터 다시 실행합니다.
+            통신이 이미 수립돼 있었으면 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.CommunicationStateChanged" />(→ NotCommunicating)가 먼저, 그다음 이 이벤트입니다(수립 전이면 이 이벤트만).
             다음 경우는 알리지 않습니다: <see cref="M:Devinno.Communication.Secs.Gem.GemHost.Stop" />으로 멈춘 것, 수동 실행을 취소한 것(<see cref="T:System.OperationCanceledException" />을 던짐),
             연결이 빠르게 여러 번 끊겨 이전 시퀀스를 기다리는 사이 그 연결도 끊겨 시작조차 하지 않은 자동 실행.</remarks>
         </member>
@@ -6938,8 +6954,9 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemHost.IsDisposed" en-hash="b7868a074f3e3017">
             <summary>Dispose 되었는지 여부</summary>
         </member>
-        <member name="P:Devinno.Communication.Secs.Gem.GemHost.IsOpen" en-hash="5dfc68542ddd87d3">
+        <member name="P:Devinno.Communication.Secs.Gem.GemHost.IsOpen" en-hash="aba779b6631cec8d">
             <summary>전송이 연결되어 있는지 여부(HSMS는 Selected, SECS-I는 포트 열림)</summary>
+            <remarks>그 순간의 스냅숏이며 이벤트와 순서가 맞지 않습니다. 통신 상태는 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />(<see cref="E:Devinno.Communication.Secs.Gem.GemHost.CommunicationStateChanged" />)로 판단하세요.</remarks>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemHost.Tag" en-hash="83fe5a9d3eb350c1">
             <summary>사용자 정의 태그</summary>
@@ -7000,8 +7017,9 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemHost.DroppedEventCount" en-hash="71aec390b5f6603e">
             <summary>앱 이벤트 대기열이 가득 차 버린 이벤트 수 (Start마다 0부터, Stop 뒤에도 마지막 값을 읽을 수 있음)</summary>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemHost.CommunicationStateChanged" en-hash="a66de3ff6fb3dced">
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.CommunicationStateChanged" en-hash="fc98a94f0161b81e">
             <summary>통신 수립 여부(<see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />)가 바뀌었을 때 앱 이벤트 스레드에서 발생합니다(NotCommunicating ↔ Communicating, Disabled는 쓰지 않음).</summary>
+            <remarks>GemHost가 어떤 연결의 전송 <c>DeviceClosed</c>를 처리한 뒤에는 그 연결로 Communicating이 발생하지 않습니다. 끊긴 연결에서 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.IsCommunicating" />이 true가 되지 않습니다.</remarks>
         </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" en-hash="9f7552eddc1d1cb3">
             <summary>GemHost가 처리하지 않는 장비의 1차 메시지를 받았을 때 앱 이벤트 스레드에서 발생합니다. 핸들러 안에서 <see cref="M:Devinno.Communication.Secs.Gem.GemMessageEventArgs.Reply(Devinno.Communication.Secs.Data.SecsMessage)" />로 응답합니다.</summary>
@@ -7039,13 +7057,14 @@
         
         
         
-        <member name="E:Devinno.Communication.Secs.Gem.GemHost.EventReceived" en-hash="b93320b47eaf2d44">
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.EventReceived" en-hash="33b0f0df49e238a3">
             <summary>장비의 이벤트 리포트(S6F11)를 받았을 때 앱 이벤트 스레드에서 발생합니다(ACKC6 0으로 이미 응답함).</summary>
             <remarks>
             <para>CEID·RPTID·VID는 장비가 보낸 포맷 무엇이든 받습니다. Host가 정의한 리포트(<see cref="M:Devinno.Communication.Secs.Gem.GemHost.ConfigureReports" />, <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineReports(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}})" />)는 값마다 VID를 붙이고,
             모르는 리포트는 VID 없이 값만 줍니다. 값 개수가 정의와 다르면 그 리포트는 VID 없이 주고, 그런 리포트가 여럿이어도 메시지마다 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" /> 하나로(개수와 앞 RPTID 몇 개) 알립니다.</para>
             <para>해석 표는 <see cref="P:Devinno.Communication.Secs.Gem.GemHost.RptidFormat" />이 A면 숫자 RPTID도 10진 텍스트로 맞춰 찾습니다(정의 1000 = 받은 A "1000"). <see cref="P:Devinno.Communication.Secs.Gem.GemEventReport.Ceid" />는 장비가 보낸 포맷 그대로라 A로 받았으면 텍스트 ID입니다.</para>
             <para>본문 구조가 틀렸거나 CEID·RPTID를 ID로 읽을 수 없으면 응답하지 않아(S6F0) 장비가 실패를 알게 하고 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" />로 알립니다(이벤트 없음).</para>
+            <para>VID는 그 S6F11을 받은 시점의 해석 표로 붙습니다. <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineReports(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}})" />(<see cref="M:Devinno.Communication.Secs.Gem.GemHost.ConfigureReports" />도 이것을 씀)에 대한 장비 응답(S2F34)보다 먼저 받은 S6F11은 옛 정의로, 메서드가 돌아온 뒤에 받은 것은 새 정의로 해석합니다.</para>
             </remarks>
         </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemHost.AlarmReceived" en-hash="ad6eaca3e4a678f6">
@@ -7988,7 +8007,7 @@
         <member name="F:Devinno.Communication.Secs.Hsms.HsmsState.Selected" en-hash="72b88324bcb775d4">
             <summary>Select 완료. 데이터 메시지를 주고받을 수 있음</summary>
         </member>
-        <member name="T:Devinno.Communication.Secs.Hsms.SecsHsms" en-hash="87d5b75f17c2a650">
+        <member name="T:Devinno.Communication.Secs.Hsms.SecsHsms" en-hash="1ab736636a96713a">
              <summary>
              HSMS-SS(SEMI E37/E37.1, TCP)로 SECS-II 메시지를 주고받습니다. Host와 Equipment 어느 쪽으로도 쓸 수 있습니다.
              </summary>
@@ -8009,6 +8028,13 @@
              <para><b>스레드</b>: 연결마다 수신 스레드 1개(동기 소켓 I/O와 타이머 검사), Passive는 접속 대기 스레드 1개, 그리고 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" /> 디스패처 스레드 1개를 씁니다.
              <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" />·<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />·<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.ProtocolError" />도 같은 디스패처 스레드에서 발생합니다. 모든 핸들러의 예외는 무시됩니다.
              UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요.</para>
+             <para><b>이벤트 순서</b>: <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" />·<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" />·<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.ProtocolError" />·<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />는 디스패처 스레드 하나에서 I/O 스레드가 알아챈 순서대로 하나씩 발생합니다(<see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Stop" /> 때 아직 발생하지 못한 것은 Stop을 부른 스레드에서 같은 순서로 발생).
+             연결(Selected부터 끊길 때까지)마다 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" /> → 그 연결의 1차 메시지들 → <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" /> 한 번이고, 다음 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" />는 그 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" /> 뒤입니다.
+             링크가 끊기면 그 연결의 대기 트랜잭션은 모두 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />으로 끝납니다. 앱이 이 실패를 보는 시점은 그 연결의 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />보다 먼저일 수도 나중일 수도 있지만, 이 실패를 받았다면 그 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />는 이미 발생했거나 곧 발생합니다.
+             트랜잭션 하나는 정확히 결과 하나(응답·SxF0·S9Fx·T3·끊김·취소)로 끝나고, T3 뒤에 온 응답은 짝 없는 응답(<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.ProtocolError" />)입니다.
+             연결이 없을 때(<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" /> 뒤, <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" /> 전) <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />/<see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />는 바로 <see cref="T:System.InvalidOperationException" />입니다. <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />과 같이 "링크 없음"으로 다루세요.
+             <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Stop" />이 돌아온 뒤에는 이벤트가 없습니다(Stop이 3초 안에 I/O 스레드를 끝내지 못하면 그 연결의 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />가 빠질 수 있음).
+             보장하지 않는 것: <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />/<see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" /> 결과와 이벤트의 선후, 동시에 보낸 여러 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" /> 결과가 도착하는 순서, <see cref="P:Devinno.Communication.Secs.Hsms.SecsHsms.IsOpen" />/<see cref="P:Devinno.Communication.Secs.Hsms.SecsHsms.State" />와 이벤트의 선후(그 순간의 스냅숏이라 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />을 받은 뒤에도 잠깐 true일 수 있음). 링크 상태는 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceOpened" />/<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />로만 판단하세요.</para>
              </remarks>
              <example>
              <code>
@@ -8138,9 +8164,9 @@
             <summary>Selected 상태가 됐을 때 발생합니다(이때부터 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" /> 가능).</summary>
             <remarks><see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" />와 같은 디스패처 스레드에서 발생하며, 그 연결의 첫 1차 메시지보다 먼저입니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
         </member>
-        <member name="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" en-hash="18a8b3d69cb7659d">
+        <member name="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" en-hash="8165238bcb726318">
             <summary>Selected 상태에서 연결이 끊겼을 때 발생합니다.</summary>
-            <remarks><see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" />와 같은 디스패처 스레드에서, 그 연결의 1차 메시지 뒤에 발생합니다. <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Stop" /> 때 아직 발생하지 못했으면 Stop을 부른 스레드에서 발생합니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
+            <remarks><see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" />와 같은 디스패처 스레드에서, 그 연결의 1차 메시지 뒤에 발생합니다. 그 연결의 대기 트랜잭션은 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />으로 끝나며, 앱은 이것을 이 이벤트보다 먼저 볼 수도 나중에 볼 수도 있습니다. <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Stop" /> 때 아직 발생하지 못했으면 Stop을 부른 스레드에서 발생합니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.#ctor" en-hash="87557850a41a94a0">
             <summary>HSMS 통신 객체를 만듭니다. 설정 후 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Start" />를 부르세요.</summary>
@@ -8158,9 +8184,9 @@
         <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.Dispose" en-hash="a461f5feecf37eae">
             <summary>통신을 멈추고 리소스를 해제합니다. 여러 번 불러도 됩니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="af575017c7fcbaf0">
+        <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="3c1f483a0a2d9943">
             <summary>1차 메시지를 보내고, W비트면 응답을 기다려 돌려줍니다. 호출한 스레드에서 기다립니다.</summary>
-            <remarks>System Bytes와 장치 ID는 보낼 때 채워지며 넘긴 객체는 바뀌지 않습니다. UI 스레드에서는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 쓰세요(T3 동안 멈춤).</remarks>
+            <remarks>System Bytes와 장치 ID는 보낼 때 채워지며 넘긴 객체는 바뀌지 않습니다. UI 스레드에서는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 쓰세요(T3 동안 멈춤). <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />은 그 연결의 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />보다 먼저 보일 수도 나중에 보일 수도 있습니다. 기다림은 스레드풀에 기대지 않으며 이벤트 핸들러 안에서 불러도 교착되지 않습니다.</remarks>
             <param name="primary">1차 메시지 (홀수 Function)</param>
             <returns>응답 메시지. W비트가 없으면 보낸 뒤 null</returns>
             <exception cref="T:System.ArgumentNullException">primary가 null인 경우</exception>
@@ -8171,8 +8197,9 @@
             <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 응답한 경우</exception>
             <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">보내거나 기다리는 중에 연결이 끊긴 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" en-hash="a043ef1902522d9d">
+        <member name="M:Devinno.Communication.Secs.Hsms.SecsHsms.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" en-hash="e6d34e83064abaf5">
             <summary>1차 메시지를 보내고, W비트면 응답을 기다리는 Task를 돌려줍니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Hsms.SecsHsms.Send(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</summary>
+            <remarks>이어 실행은 호출 스레드(Task가 동기로 끝난 경우, 예: W비트 없음) 또는 스레드풀에서 돌고, I/O·디스패처 스레드에서는 돌지 않습니다. <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />은 그 연결의 <see cref="E:Devinno.Communication.Secs.Hsms.SecsHsms.DeviceClosed" />보다 먼저 보일 수도 나중에 보일 수도 있습니다.</remarks>
             <param name="primary">1차 메시지 (홀수 Function)</param>
             <param name="cancellationToken">기다림을 취소합니다(취소해도 이미 보낸 메시지는 되돌릴 수 없음)</param>
             <returns>응답 메시지. W비트가 없으면 null</returns>
@@ -8288,7 +8315,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Serial.SecsSerial" en-hash="7066f8971b202bbf">
+        <member name="T:Devinno.Communication.Secs.Serial.SecsSerial" en-hash="f06f3323940397da">
              <summary>
              SECS-I(SEMI E4, RS-232)로 SECS-II 메시지를 주고받습니다. Host와 Equipment 어느 쪽으로도 쓸 수 있습니다.
              </summary>
@@ -8304,6 +8331,13 @@
              메시지는 한 번에 하나씩 순서대로 보냅니다(인터리브 안 함).</para>
              <para><b>스레드</b>: 회선 I/O 스레드 1개(송신 큐와 수신을 함께 처리, 타이머 검사)와 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" /> 디스패처 스레드 1개를 씁니다.
              <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" />·<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />·<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.ProtocolError" />도 같은 디스패처 스레드에서 발생합니다. 모든 핸들러의 예외는 무시됩니다. 핸들러 안의 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />는 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />의 설명을 참고하세요.</para>
+             <para><b>이벤트 순서</b>: <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" />·<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />·<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.ProtocolError" />·<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />는 디스패처 스레드 하나에서 I/O 스레드가 알아챈 순서대로 하나씩 발생합니다(<see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Stop" /> 때 아직 발생하지 못한 것은 Stop을 부른 스레드에서 같은 순서로 발생).
+             연결(포트가 열려서 닫힐 때까지)마다 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" /> → 그 연결의 1차 메시지들 → <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" /> 한 번이고, 다음 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" />는 그 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" /> 뒤입니다.
+             링크가 끊기면 그 연결의 대기 트랜잭션은 모두 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />으로 끝납니다. 앱이 이 실패를 보는 시점은 그 연결의 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />보다 먼저일 수도 나중일 수도 있지만, 이 실패를 받았다면 그 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />는 이미 발생했거나 곧 발생합니다.
+             트랜잭션 하나는 정확히 결과 하나(응답·SxF0·S9Fx·T3·끊김·취소)로 끝나고, T3 뒤에 온 응답은 짝 없는 응답(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.ProtocolError" />)입니다.
+             연결이 없을 때(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" /> 뒤, <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" /> 전) <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />/<see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />는 바로 <see cref="T:System.InvalidOperationException" />입니다. <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />과 같이 "링크 없음"으로 다루세요.
+             <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Stop" />이 돌아온 뒤에는 이벤트가 없습니다(Stop이 3초 안에 I/O 스레드를 끝내지 못하면 그 연결의 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />가 빠질 수 있음).
+             보장하지 않는 것: <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />/<see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" /> 결과와 이벤트의 선후, 동시에 보낸 여러 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" /> 결과가 도착하는 순서, <see cref="P:Devinno.Communication.Secs.Serial.SecsSerial.IsOpen" />와 이벤트의 선후(그 순간의 스냅숏이라 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />을 받은 뒤에도 잠깐 true일 수 있음). 링크 상태는 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceOpened" />/<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />로만 판단하세요.</para>
              </remarks>
              <example>
              <code>
@@ -8412,9 +8446,9 @@
             <summary>포트가 열렸을 때 발생합니다(이때부터 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" /> 가능).</summary>
             <remarks><see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />와 같은 디스패처 스레드에서 발생하며, 그 연결의 첫 1차 메시지보다 먼저입니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
         </member>
-        <member name="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" en-hash="dd92fc15ff063822">
+        <member name="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" en-hash="7f9e1e3dd1cf4d06">
             <summary>포트가 닫혔을 때 발생합니다.</summary>
-            <remarks><see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />와 같은 디스패처 스레드에서, 그 연결의 1차 메시지 뒤에 발생합니다. <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Stop" /> 때 아직 발생하지 못했으면 Stop을 부른 스레드에서 발생합니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
+            <remarks><see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />와 같은 디스패처 스레드에서, 그 연결의 1차 메시지 뒤에 발생합니다. 그 연결의 대기 트랜잭션은 <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />으로 끝나며, 앱은 이것을 이 이벤트보다 먼저 볼 수도 나중에 볼 수도 있습니다. <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Stop" /> 때 아직 발생하지 못했으면 Stop을 부른 스레드에서 발생합니다. 핸들러 안에서 동기 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />를 불러도 교착되지 않지만, 응답을 기다리는 동안(최대 T3) 상대의 1차 메시지 전달이 멈춥니다(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" /> 참고). 접속 시퀀스는 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" />를 권장합니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.#ctor" en-hash="7c299d163b168ae5">
             <summary>SECS-I 통신 객체를 만듭니다. 설정 후 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Start" />를 부르세요.</summary>
@@ -8431,9 +8465,9 @@
         <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.Dispose" en-hash="a461f5feecf37eae">
             <summary>통신을 멈추고 리소스를 해제합니다. 여러 번 불러도 됩니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="3af5c726a03bab1e">
+        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="04f1d058e8f27768">
             <summary>1차 메시지를 보내고, W비트면 응답을 기다려 돌려줍니다. 호출한 스레드에서 기다립니다.</summary>
-            <remarks>System Bytes와 장치 ID는 보낼 때 채워지며 넘긴 객체는 바뀌지 않습니다. T3는 마지막 블록의 ACK를 받은 뒤부터 잽니다.</remarks>
+            <remarks>System Bytes와 장치 ID는 보낼 때 채워지며 넘긴 객체는 바뀌지 않습니다. T3는 마지막 블록의 ACK를 받은 뒤부터 잽니다. <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />은 그 연결의 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />보다 먼저 보일 수도 나중에 보일 수도 있습니다. 기다림은 스레드풀에 기대지 않으며 이벤트 핸들러 안에서 불러도 교착되지 않습니다.</remarks>
             <param name="primary">1차 메시지 (홀수 Function)</param>
             <returns>응답 메시지. W비트가 없으면 보낸 뒤 null</returns>
             <exception cref="T:System.ArgumentNullException">primary가 null인 경우</exception>
@@ -8445,8 +8479,9 @@
             <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 응답한 경우</exception>
             <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">보내거나 기다리는 중에 포트가 닫힌 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" en-hash="f5e9217d75d55788">
+        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" en-hash="49bf14d7733dd840">
             <summary>1차 메시지를 보내고, W비트면 응답을 기다리는 Task를 돌려줍니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.Send(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</summary>
+            <remarks>이어 실행은 호출 스레드(Task가 동기로 끝난 경우) 또는 스레드풀에서 돌고, I/O·디스패처 스레드에서는 돌지 않습니다. <see cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException" />은 그 연결의 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.DeviceClosed" />보다 먼저 보일 수도 나중에 보일 수도 있습니다.</remarks>
             <param name="primary">1차 메시지 (홀수 Function)</param>
             <param name="cancellationToken">기다림을 취소합니다(이미 보내기 시작한 메시지는 끝까지 보냄)</param>
             <returns>응답 메시지. W비트가 없으면 null</returns>
