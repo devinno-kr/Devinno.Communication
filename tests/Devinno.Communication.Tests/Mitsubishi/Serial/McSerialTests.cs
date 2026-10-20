@@ -17,7 +17,7 @@ public class McSerialTests
     [Fact]
     public void TakeNextWork_ManualFirst_ThenAuto()
     {
-        var mc = new McSerial();
+        var mc = new McSerial { DiscardWritesWhileDisconnected = false };
         mc.AutoWR(1, 0, "D0", 1);
         mc.ManualWW(2, 0, "D0", [1]);
         Assert.Equal(2, mc.TakeNextWork()!.MessageID);
@@ -136,7 +136,7 @@ public class McSerialTests
     public void BW_WW_WriteFake_NoHostAck()
     {
         using var plc = new FakeMcPlc();
-        var mc = new McSerial();
+        var mc = new McSerial { DiscardWritesWhileDisconnected = false };
         int writes = 0;
         mc.WriteReceived += (s, e) => writes++;
         mc.ManualBW(1, 0, "M10", [1, 0, 1]);
@@ -153,7 +153,7 @@ public class McSerialTests
     public void Format4_NoSum_RoundTrip()
     {
         using var plc = new FakeMcPlc { Station = 3 };
-        var mc = new McSerial { Format = McSerialFormat.Format4, SumCheck = false };
+        var mc = new McSerial { Format = McSerialFormat.Format4, SumCheck = false, DiscardWritesWhileDisconnected = false };
         long[]? read = null;
         mc.DataReceived += (s, e) => read = e.Values;
         mc.ManualWW(1, 3, "D10", [0x1234, 0xABCD]);

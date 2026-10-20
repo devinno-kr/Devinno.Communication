@@ -58,6 +58,7 @@ public class McEthernetTests : IDisposable
         int writes = 0;
         mc.WriteReceived += (s, e) => { if (Interlocked.Increment(ref writes) == 2) done.TrySetResult(true); };
         mc.Start();
+        await TestUtil.Until(() => mc.IsOpen);
         mc.ManualBW(1, "M10", [1, 0, 1]);
         mc.ManualWW(2, "D20", [100, -1, 65535]);
         await Wait(done);
@@ -268,6 +269,7 @@ public class McEthernet1ETests : IDisposable
         var reads = new Dictionary<int, long[]>();
         mc.DataReceived += (s, e) => { lock (reads) { reads[e.MessageID] = e.Values; if (reads.Count == 2) done.TrySetResult(true); } };
         mc.Start();
+        await TestUtil.Until(() => mc.IsOpen);
         mc.ManualWW(1, "D100", [0x1234, -2]);
         mc.ManualBW(2, "Y10", [1, 1, 0]);
         mc.ManualBR(3, "X17", 2);

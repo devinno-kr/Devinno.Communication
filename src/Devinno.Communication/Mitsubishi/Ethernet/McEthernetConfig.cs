@@ -27,7 +27,7 @@ public class McEthernetConfig
     [XmlAttribute] public int RemotePort { get; set; } = 5000;
     /// <summary>Frame, E3 or E1 (default: E3).</summary>
     [XmlAttribute] public McFrame Frame { get; set; } = McFrame.E3;
-    /// <summary>Number base of X/Y numbers: Auto, Hex, or Octal (default: Auto, which is hexadecimal for E3 and octal for E1).</summary>
+    /// <summary>Number base of X/Y numbers: Auto, Hex, or Octal (default: Auto, which is hexadecimal for E3 and octal for E1). FX5 over 3E uses octal X/Y: set Octal. With Auto, X/Y numbers are read as hexadecimal and address the wrong points.</summary>
     [XmlAttribute] public McXYNotation XYNotation { get; set; } = McXYNotation.Auto;
     /// <summary>Response timeout in ms, 1 to 60000 (default: 1000).</summary>
     [XmlAttribute] public int Timeout { get; set; } = 1000;
@@ -35,6 +35,8 @@ public class McEthernetConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect after a disconnection (default: true).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="McEthernet.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;BR&gt; and &lt;WR&gt; can be mixed and are polled in order.</summary>
     [XmlElement("BR", typeof(McEthernetBrConfig)), XmlElement("WR", typeof(McEthernetWrConfig))]
     public List<McEthernetAutoConfig> Autos { get; set; } = [];

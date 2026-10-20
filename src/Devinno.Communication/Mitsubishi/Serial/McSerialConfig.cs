@@ -46,6 +46,8 @@ public class McSerialConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port after a disconnection (default: false).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while the port is not open (default: true). See <see cref="McSerial.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;BR&gt; and &lt;WR&gt; can be mixed and are polled in order.</summary>
     [XmlElement("BR", typeof(McSerialBrConfig)), XmlElement("WR", typeof(McSerialWrConfig))]
     public List<McSerialAutoConfig> Autos { get; set; } = [];

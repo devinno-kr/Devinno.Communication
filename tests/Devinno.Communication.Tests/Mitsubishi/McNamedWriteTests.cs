@@ -13,6 +13,7 @@ public class McNamedWriteTests
     {
         var mc = new McEthernet();
         mc.FromXml(XElement.Parse(xml));
+        mc.DiscardWritesWhileDisconnected = false;   // Start하지 않은 객체의 대기열을 시험한다(FromXml이 설정을 덮으므로 그 뒤에)
         return mc;
     }
 
@@ -20,6 +21,7 @@ public class McNamedWriteTests
     {
         var mc = new McSerial();
         mc.FromXml(XElement.Parse(xml));
+        mc.DiscardWritesWhileDisconnected = false;   // Start하지 않은 객체의 대기열을 시험한다(FromXml이 설정을 덮으므로 그 뒤에)
         return mc;
     }
 
@@ -229,6 +231,7 @@ public class McNamedWriteTests
         var tcs = new TaskCompletionSource<McEthernet.ResultEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         mc.WriteReceived += (s, e) => tcs.TrySetResult(e);
         mc.Start();
+        await TestUtil.Until(() => mc.IsOpen);
         mc.NamedWrite("속도", 1234);
         var e = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(20, e.MessageID);

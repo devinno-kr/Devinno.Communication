@@ -888,8 +888,8 @@
             같은 "X10"이라도 8진수면 8번째, 16진수면 16번째 점이므로 PLC에 맞게 정해야 합니다.
             </remarks>
         </member>
-        <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Auto" en-hash="b667ca372b9b24f5">
-            <summary>자동: McSerial(1C)과 McEthernet 1E(FX3)는 8진수, McEthernet 3E(Q/L)는 16진수. FX5를 3E로 쓰면 Octal을 직접 지정하세요.</summary>
+        <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Auto" en-hash="27d9633d1b92f462">
+            <summary>자동: McSerial(1C)과 McEthernet 1E(FX3)는 8진수, McEthernet 3E(Q/L)는 16진수. FX5를 3E로 쓰면 X/Y가 8진수이므로 Octal로 지정하세요. Auto로 두면 X/Y 번호를 16진수로 읽어 엉뚱한 점을 가리킵니다.</summary>
         </member>
         <member name="F:Devinno.Communication.Mitsubishi.Data.McXYNotation.Hex" en-hash="65dd2d43f079e9ea">
             <summary>16진수 (Q/L 시리즈, A 시리즈)</summary>
@@ -904,7 +904,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet" en-hash="6acc8155864ed2f5">
+        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet" en-hash="c87cc5fd98f672d3">
              <summary>
              미쓰비시 PLC와 TCP로 MC 프로토콜 바이너리 프레임(3E 또는 1E)을 주고받는 Master입니다.
              </summary>
@@ -926,6 +926,7 @@
              <para>PLC가 오류 응답을 보내면 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NAKReceived" />만 발생하고 재시도하지 않습니다. ErrorCode는 3E는 종료 코드(예: 0xC051), 1E는 종료 코드(예: 0x56), 1E의 5BH 오류는 0x5B00 | 이상 코드(예: 0x5B10)입니다.</para>
              <para>포트 번호는 프로토콜에 정해진 값이 없습니다. PLC의 오픈 설정에 맞춰 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.RemotePort" />를 지정하세요.</para>
              <para>Manual 작업은 Auto보다 먼저 처리됩니다. 통신 루프는 전용 백그라운드 스레드에서 돌고 모든 이벤트도 그 스레드에서 발생합니다. UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요. 핸들러에서 난 예외는 무시되고 루프는 계속 돕니다.</para>
+             <para>쓰기 안전: <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DiscardWritesWhileDisconnected" />가 true(기본값)이면 연결이 없을 때 요청한 Manual 쓰기(BW/WW, <see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" /> 포함)는 대기열에 넣지 않고, 연결이 끊길 때 대기열에 남아 있던 쓰기는 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DeviceClosed" /> 바로 다음에 버립니다. 둘 다 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.WriteDiscarded" />로 알리며, 이 이벤트는 호출한 스레드에서도 발생할 수 있습니다. <see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Stop" />은 대기 중인 Manual 쓰기를 항상 비웁니다. Manual 읽기와 Auto 작업은 버리지 않습니다. 쓰기 하나는 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.WriteReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NAKReceived" />, IsFinal이 true인 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.TimeoutReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.WriteDiscarded" /> 중 정확히 하나로 끝납니다(<see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ClearManual" />나 <see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.RemoveManual(System.Int32)" />로 지운 작업은 알리지 않음).</para>
              </remarks>
              <example>
              <code>
@@ -938,9 +939,13 @@
              mc.AutoBR(2, "M0", 32);
              mc.DataReceived += (s, e) =&gt; Console.WriteLine($"{e.MessageID} {e.Device}: {string.Join(",", e.Values)}");
              mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"오류 {e.ErrorCode:X4}");
+             mc.DeviceOpened += (s, e) =&gt;
+             {
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 mc.ManualWW(10, "D200", [1234, -1]);
+                 mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="D200" /&gt;를 이름으로 호출
+             };
              mc.Start();
-             mc.ManualWW(10, "D200", [1234, -1]);
-             mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="D200" /&gt;를 이름으로 호출
             
              // FX3U-ENET-ADP (1E, X/Y 8진수)
              var fx = new McEthernet { RemoteIP = "192.168.0.31", RemotePort = 5002, Frame = McFrame.E1 };
@@ -949,13 +954,13 @@
              </code>
              </example>
         </member>
-        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ResultEventArgs" en-hash="03291a937d93a102">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ResultEventArgs" en-hash="9537371a74fcf4e9">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ResultEventArgs.#ctor(System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand)" en-hash="03291a937d93a102">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ResultEventArgs.#ctor(System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand)" en-hash="9537371a74fcf4e9">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
         </member>
@@ -1000,6 +1005,31 @@
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NAKEventArgs.ErrorCode" en-hash="12449b6bb0ce54f2">
             <summary>3E는 종료 코드(예: 0xC051), 1E는 종료 코드(예: 0x56), 1E 5BH 오류는 0x5B00 | 이상 코드(예: 0x5B10)</summary>
         </member>
+        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AttemptFailedEventArgs" en-hash="e082d280236849fc">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.TimeoutReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AttemptFailedEventArgs.#ctor(System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand,System.Int32,System.Boolean,System.Boolean)" en-hash="e082d280236849fc">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.TimeoutReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
+            <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AttemptFailedEventArgs.IsFinal" en-hash="2e097ae73a6a1406">
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결이 끊김)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
+            <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.RemoteIP" en-hash="c882831f50c3ce93">
             <summary>접속할 PLC IP (기본값: "127.0.0.1")</summary>
         </member>
@@ -1009,8 +1039,8 @@
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Frame" en-hash="da61bc83c60a5531">
             <summary>프레임 (기본값: E3). FX3 이더넷은 E1을 씁니다. 등록할 때 반영됩니다.</summary>
         </member>
-        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.XYNotation" en-hash="b4b803bf5a5625e5">
-            <summary>X/Y 번호 진수 (기본값: Auto = E3는 16진수, E1은 8진수). 등록할 때 반영됩니다.</summary>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.XYNotation" en-hash="d4939c313fa243c2">
+            <summary>X/Y 번호 진수 (기본값: Auto = E3는 16진수, E1은 8진수). 등록할 때 반영됩니다. FX5를 3E로 쓰면 X/Y가 8진수이므로 Octal로 지정하세요. Auto로 두면 X/Y 번호를 16진수로 읽어 엉뚱한 점을 가리킵니다.</summary>
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" en-hash="54b5a0d6354a5842">
             <summary>응답 타임아웃 ms (기본값: 1000). 작업별 timeout이 있으면 그 값을 씁니다. PLC 감시 타이머에도 쓰입니다.</summary>
@@ -1020,6 +1050,9 @@
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AutoReconnect" en-hash="b2aeadbdf64ddc44">
             <summary>접속하지 못했거나 끊겼을 때 1초 간격으로 다시 접속할지 여부 (기본값: true)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DiscardWritesWhileDisconnected" en-hash="7ac777a12c79c9ec">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). true면 연결되지 않았을 때 요청한 Manual 쓰기·이름 쓰기는 대기열에 넣지 않고 <see cref="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.WriteDiscarded" />(NotConnected)를 발생시키며, 연결이 끊길 때 대기열에 남아 있던 쓰기도 버립니다(Disconnected). false면 대기열에 남겨 두었다가 다음 연결 뒤 보냅니다. Manual 읽기와 Auto 작업은 영향이 없고, <see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Stop" />은 이 설정과 상관없이 대기 중인 쓰기를 버립니다.</summary>
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.IsOpen" en-hash="0896b1016a941796">
             <summary>TCP 연결이 되어 있는지 여부</summary>
@@ -1042,8 +1075,11 @@
         <member name="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NAKReceived" en-hash="843c138fb818dcbe">
             <summary>PLC가 오류 응답(종료 코드 ≠ 0)을 보냈을 때 발생합니다. 재시도하지 않습니다.</summary>
         </member>
-        <member name="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.TimeoutReceived" en-hash="7a3a5aa9f86fcdbc">
-            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 연결이 끊겼을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.TimeoutReceived" en-hash="5bca561c39cbe472">
+            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 연결이 끊겼을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
+        </member>
+        <member name="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.WriteDiscarded" en-hash="d918472466242b24">
+            <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
         </member>
         <member name="E:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DeviceOpened" en-hash="765c193433169e26">
             <summary>TCP 연결이 되었을 때 발생합니다.</summary>
@@ -1055,8 +1091,8 @@
             <summary>PLC에 접속하고 통신 루프를 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <remarks>접속하지 못하면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.AutoReconnect" />가 false일 때 루프가 끝나고 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.IsStart" />가 false가 됩니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Stop" en-hash="46ae9f44a387d804">
-            <summary>통신 루프를 멈추고 연결을 끊습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다.</summary>
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Stop" en-hash="7500661defcb3d5e">
+            <summary>통신 루프를 멈추고 연결을 끊습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다. 대기 중인 Manual 쓰기는 버립니다(WriteDiscarded, Stopped).</summary>
             <remarks>이벤트 핸들러 안에서 호출해도 됩니다. 이 경우 기다리지 않고 바로 돌아옵니다. Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Dispose" en-hash="fbd8ccbde6fa6716">
@@ -1119,37 +1155,37 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualBW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="0db2fa871bb402d1">
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualBW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="15ecd9a968344b8f">
             <summary>BW(비트 일괄 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="device">시작 비트 디바이스</param>
             <param name="values">쓸 값, 각 0 또는 1. E3 1~3584개, E1 1~160개</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualWW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="8ea582988fe4dde3">
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualWW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="a1f7555032c13915">
             <summary>WW(워드 일괄 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="device">시작 디바이스 (비트 디바이스면 16점 = 1워드)</param>
             <param name="values">쓸 워드, 각 -32768~65535. E3 1~960개, E1 워드 디바이스 1~64개·비트 디바이스 1~10개</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="6bd0d995f16e585c">
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="ca82c954bc479a78">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 하나를 쓰도록 등록합니다. 비트 디바이스면 BW, 워드 디바이스면 WW입니다.</summary>
             <remarks>디바이스는 호출할 때의 Frame/XYNotation 등 현재 설정으로 해석합니다(Manual과 같음). 불러올 때 검사는 XML에 함께 있던 설정으로 했으므로, 불러온 뒤 이 설정을 바꾸면 결과가 달라질 수 있습니다.</remarks>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="value">쓸 값. 비트 디바이스는 0 또는 1, 워드 디바이스는 -32768~65535</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="1bb764c127771775">
+        <member name="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="0e33c60795d4de82">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 여러 개를 연속 디바이스에 쓰도록 등록합니다. 비트 디바이스면 BW, 워드 디바이스면 WW입니다.</summary>
             <remarks>디바이스는 호출할 때의 Frame/XYNotation 등 현재 설정으로 해석합니다(Manual과 같음). 불러올 때 검사는 XML에 함께 있던 설정으로 했으므로, 불러온 뒤 이 설정을 바꾸면 결과가 달라질 수 있습니다.</remarks>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="values">쓸 값 (<see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualBW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />, <see cref="M:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.ManualWW(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />와 같은 규칙)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
@@ -1219,8 +1255,8 @@
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.Frame" en-hash="3a85978882af10a9">
             <summary>프레임 E3, E1 (기본값: E3)</summary>
         </member>
-        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.XYNotation" en-hash="a7fae71dd666bf41">
-            <summary>X/Y 번호 진수 Auto, Hex, Octal (기본값: Auto = E3는 16진수, E1은 8진수)</summary>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.XYNotation" en-hash="951ef51bc2872904">
+            <summary>X/Y 번호 진수 Auto, Hex, Octal (기본값: Auto = E3는 16진수, E1은 8진수). FX5를 3E로 쓰면 X/Y가 8진수이므로 Octal로 지정하세요. Auto로 두면 X/Y 번호를 16진수로 읽어 엉뚱한 점을 가리킵니다.</summary>
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.Timeout" en-hash="741b67bd172bd942">
             <summary>응답 타임아웃 ms 1~60000 (기본값: 1000)</summary>
@@ -1230,6 +1266,9 @@
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.AutoReconnect" en-hash="62ea837d5be66906">
             <summary>끊겼을 때 다시 접속할지 여부 (기본값: true)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.DiscardWritesWhileDisconnected" en-hash="7817b0842a63a155">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). <see cref="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernet.DiscardWritesWhileDisconnected" /> 참고.</summary>
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Ethernet.McEthernetConfig.Autos" en-hash="705d3399108780e6">
             <summary>Auto(반복) 읽기 목록. &lt;BR&gt;과 &lt;WR&gt;을 섞어 쓸 수 있고 순서대로 폴링합니다.</summary>
@@ -1276,7 +1315,7 @@
         <member name="F:Devinno.Communication.Mitsubishi.Ethernet.McFrame.E1" en-hash="dfb82f3c9a26c925">
             <summary>1E 프레임 (A 호환, FX3U-ENET(-ADP/-L) 등 FX3 이더넷, 명령 00H~03H). X/Y 기본 8진수</summary>
         </member>
-        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial" en-hash="dc47b7875a7096b9">
+        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial" en-hash="7fa35665282dab2f">
              <summary>
              미쓰비시 PLC와 시리얼(RS-232/485)로 MC 프로토콜 1C 프레임(컴퓨터 링크 형식 1·4)을 주고받는 Master입니다.
              </summary>
@@ -1294,6 +1333,7 @@
              <para>국번은 0~31(A 시리즈 C24는 00~1F)이고, FX는 0~15를 권장하지만 라이브러리는 검사하지 않습니다. PC 번호는 "FF"(자국)로 고정입니다. 통신 설정(Baudrate, Parity …)은 PLC의 컴퓨터 링크 설정과 같아야 합니다.</para>
              <para>Manual 작업은 Auto보다 먼저 처리됩니다. 응답은 각 Received 이벤트로 오며, 등록할 때 준 id가 <c>MessageID</c>로 돌아옵니다.</para>
              <para>통신 루프는 전용 백그라운드 스레드에서 돌고 모든 이벤트도 그 스레드에서 발생합니다. UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요. 핸들러에서 난 예외는 무시되고 루프는 계속 돕니다.</para>
+             <para>쓰기 안전: <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.DiscardWritesWhileDisconnected" />가 true(기본값)이면 포트가 열려 있지 않을 때 요청한 Manual 쓰기(BW/WW, <see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" /> 포함)는 대기열에 넣지 않고, 포트가 끊길 때 대기열에 남아 있던 쓰기는 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.DeviceClosed" /> 바로 다음에 버립니다. 둘 다 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteDiscarded" />로 알리며, 이 이벤트는 호출한 스레드에서도 발생할 수 있습니다. <see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.Stop" />은 대기 중인 Manual 쓰기를 항상 비웁니다. Manual 읽기와 Auto 작업은 버리지 않습니다. 쓰기 하나는 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.NAKReceived" />, IsFinal이 true인 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" /> 또는 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteDiscarded" /> 중 정확히 하나로 끝납니다(<see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ClearManual" />나 <see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.RemoveManual(System.Int32)" />로 지운 작업은 알리지 않음).</para>
              </remarks>
              <example>
              <code>
@@ -1305,22 +1345,26 @@
              mc.AutoBR(2, 0, "X0", 16);
              mc.DataReceived += (s, e) =&gt; Console.WriteLine($"{e.MessageID} {e.Device}: {string.Join(",", e.Values)}");
              mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"NAK {e.ErrorCode:X2}");
+             mc.DeviceOpened += (s, e) =&gt;
+             {
+                 // 쓰기는 포트가 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 mc.ManualWW(10, 0, "D200", [1234, -1]);
+                 mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="0" Device="D200" /&gt;를 이름으로 호출
+             };
              mc.Start();
-             mc.ManualWW(10, 0, "D200", [1234, -1]);
-             mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="0" Device="D200" /&gt;를 이름으로 호출
              </code>
              </example>
         </member>
         
         
-        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial.ResultEventArgs" en-hash="0825fef80017641f">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃·섬체크 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial.ResultEventArgs" en-hash="cfb77f96d872f656">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">국번</param>
             <param name="command">명령</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand)" en-hash="0825fef80017641f">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃·섬체크 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand)" en-hash="cfb77f96d872f656">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">국번</param>
             <param name="command">명령</param>
@@ -1373,6 +1417,33 @@
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.NAKEventArgs.ErrorCode" en-hash="cf5a3cbca4da70ae">
             <summary>NAK 에러코드 (예: 0x02 섬체크 오류, 0x06 디바이스 지정 오류, 0x10 PC 번호 오류)</summary>
         </member>
+        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial.AttemptFailedEventArgs" en-hash="58a904c2a10c5133">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">국번</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.AttemptFailedEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Mitsubishi.Data.McCommand,System.Int32,System.Boolean,System.Boolean)" en-hash="58a904c2a10c5133">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" />, <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">국번</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
+            <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.AttemptFailedEventArgs.IsFinal" en-hash="281de11855fb176b">
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
+            <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Port" en-hash="d8a54549dcf09f16">
             <summary>시리얼 포트 이름 (기본값: "COM1")</summary>
         </member>
@@ -1409,6 +1480,9 @@
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.AutoReconnect" en-hash="298f43f13e92cc03">
             <summary>포트를 열지 못했거나 끊겼을 때 1초 간격으로 다시 열지 여부 (기본값: false)</summary>
         </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.DiscardWritesWhileDisconnected" en-hash="af778d89c60b66ab">
+            <summary>포트가 열려 있지 않은 동안 쓰기를 버릴지 여부 (기본값: true). true면 포트가 열려 있지 않을 때 요청한 Manual 쓰기·이름 쓰기는 대기열에 넣지 않고 <see cref="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteDiscarded" />(NotConnected)를 발생시키며, 포트가 끊길 때 대기열에 남아 있던 쓰기도 버립니다(Disconnected). false면 대기열에 남겨 두었다가 다음 오픈 뒤 보냅니다. Manual 읽기와 Auto 작업은 영향이 없고, <see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.Stop" />은 이 설정과 상관없이 대기 중인 쓰기를 버립니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerial.IsOpen" en-hash="986269974d476df3">
             <summary>시리얼 포트가 열려 있는지 여부</summary>
         </member>
@@ -1430,11 +1504,14 @@
         <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.NAKReceived" en-hash="eba6338bcce65060">
             <summary>PLC가 NAK를 보냈을 때 발생합니다. 재시도하지 않습니다.</summary>
         </member>
-        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" en-hash="572a69e06497c6f9">
-            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 포트가 끊겼을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" en-hash="28885746f3f1422d">
+            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 포트가 끊겼을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
         </member>
-        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" en-hash="5d1b480703134af3">
-            <summary>응답의 섬체크가 맞지 않을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" en-hash="52749caab5d3f15a">
+            <summary>응답의 섬체크가 맞지 않을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다.</summary>
+        </member>
+        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteDiscarded" en-hash="9d96c8331c4561ba">
+            <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
         </member>
         <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.DeviceOpened" en-hash="91fbc6395e188e0f">
             <summary>시리얼 포트가 열렸을 때 발생합니다.</summary>
@@ -1446,8 +1523,8 @@
             <summary>시리얼 포트를 열고 통신 루프를 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <remarks>포트를 열지 못하면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.AutoReconnect" />가 false일 때 루프가 끝나고 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.IsStart" />가 false가 됩니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.Stop" en-hash="114f7ece6019bd7e">
-            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다.</summary>
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.Stop" en-hash="21e45c2f73d54a68">
+            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다. 대기 중인 Manual 쓰기는 버립니다(WriteDiscarded, Stopped).</summary>
             <remarks>이벤트 핸들러 안에서 호출해도 됩니다. 이 경우 기다리지 않고 바로 돌아옵니다. Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.Dispose" en-hash="fbd8ccbde6fa6716">
@@ -1514,39 +1591,39 @@
             <param name="repeatCount">응답이 없거나 섬체크가 틀렸을 때 재시도 횟수 (null이면 재시도 안 함)</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualBW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="22f7de89c8286d7f">
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualBW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="87437bc06534d2f4">
             <summary>BW(비트 일괄 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">국번 0~31 (FX는 0~15)</param>
             <param name="device">시작 비트 디바이스</param>
             <param name="values">쓸 값 1~160개, 각 0 또는 1</param>
-            <param name="repeatCount">응답이 없거나 섬체크가 틀렸을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없거나 섬체크가 틀렸을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualWW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="1d178f36176a5739">
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualWW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e870509fe35aaf20">
             <summary>WW(워드 일괄 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">국번 0~31 (FX는 0~15)</param>
             <param name="device">시작 디바이스 (비트 디바이스면 16점 = 1워드)</param>
             <param name="values">쓸 워드. 워드 디바이스 1~64개, 비트 디바이스 1~10개. 각 -32768~65535</param>
-            <param name="repeatCount">응답이 없거나 섬체크가 틀렸을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없거나 섬체크가 틀렸을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e579dd76cb385c9b">
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="16721e941c90f9bc">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 하나를 쓰도록 등록합니다. 비트 디바이스면 BW, 워드 디바이스면 WW입니다.</summary>
             <remarks>디바이스는 호출할 때의 Frame/XYNotation 등 현재 설정으로 해석합니다(Manual과 같음). 불러올 때 검사는 XML에 함께 있던 설정으로 했으므로, 불러온 뒤 이 설정을 바꾸면 결과가 달라질 수 있습니다.</remarks>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="value">쓸 값. 비트 디바이스는 0 또는 1, 워드 디바이스는 -32768~65535</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="aba2e45a74d9f70a">
+        <member name="M:Devinno.Communication.Mitsubishi.Serial.McSerial.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="29604eb0102a92ce">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 여러 개를 연속 디바이스에 쓰도록 등록합니다. 비트 디바이스면 BW, 워드 디바이스면 WW입니다.</summary>
             <remarks>디바이스는 호출할 때의 Frame/XYNotation 등 현재 설정으로 해석합니다(Manual과 같음). 불러올 때 검사는 XML에 함께 있던 설정으로 했으므로, 불러온 뒤 이 설정을 바꾸면 결과가 달라질 수 있습니다.</remarks>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="values">쓸 값 (<see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualBW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />, <see cref="M:Devinno.Communication.Mitsubishi.Serial.McSerial.ManualWW(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />와 같은 규칙)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
@@ -1642,6 +1719,9 @@
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerialConfig.AutoReconnect" en-hash="c8a32698bfaf26bb">
             <summary>끊겼을 때 다시 열지 여부 (기본값: false)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerialConfig.DiscardWritesWhileDisconnected" en-hash="a076476e42471d08">
+            <summary>포트가 열려 있지 않은 동안 쓰기를 버릴지 여부 (기본값: true). <see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.DiscardWritesWhileDisconnected" /> 참고.</summary>
         </member>
         <member name="P:Devinno.Communication.Mitsubishi.Serial.McSerialConfig.Autos" en-hash="705d3399108780e6">
             <summary>Auto(반복) 읽기 목록. &lt;BR&gt;과 &lt;WR&gt;을 섞어 쓸 수 있고 순서대로 폴링합니다.</summary>

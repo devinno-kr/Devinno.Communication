@@ -23,6 +23,7 @@ namespace Devinno.Communication.Mitsubishi.Serial;
 /// <para>The station number is 0 to 31 (00 to 1F for A series C24), and 0 to 15 is recommended for FX, but the library does not check this. The PC number is fixed to "FF" (own station). The communication settings (Baudrate, Parity, ...) must match the PLC's computer link settings.</para>
 /// <para>Manual jobs are processed before Auto jobs. Responses arrive through the Received events, and the id given at registration is returned as <c>MessageID</c>.</para>
 /// <para>The communication loop runs on a dedicated background thread, and all events are raised on that thread. To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF). Exceptions thrown in a handler are ignored and the loop continues.</para>
+/// <para>Write safety: with <see cref="DiscardWritesWhileDisconnected"/> true (the default), a Manual write (BW/WW, including <see cref="NamedWrite(string, long, int?, int?)"/>) requested while the port is not open is not queued, and writes still queued when the port is lost are discarded right after <see cref="DeviceClosed"/>; both are reported through <see cref="WriteDiscarded"/>, which may also be raised on the calling thread. <see cref="Stop"/> always discards pending Manual writes. Manual reads and Auto jobs are never discarded. Each write ends with exactly one of: <see cref="WriteReceived"/>, <see cref="NAKReceived"/>, a <see cref="TimeoutReceived"/> or <see cref="SumCheckErrorReceived"/> with IsFinal true, or <see cref="WriteDiscarded"/> (jobs removed with <see cref="ClearManual"/> or <see cref="RemoveManual"/> are not reported).</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -34,9 +35,13 @@ namespace Devinno.Communication.Mitsubishi.Serial;
 /// mc.AutoBR(2, 0, "X0", 16);
 /// mc.DataReceived += (s, e) =&gt; Console.WriteLine($"{e.MessageID} {e.Device}: {string.Join(",", e.Values)}");
 /// mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"NAK {e.ErrorCode:X2}");
+/// mc.DeviceOpened += (s, e) =&gt;
+/// {
+///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected)
+///     mc.ManualWW(10, 0, "D200", [1234, -1]);
+///     mc.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Slave="0" Device="D200" /&gt; by name
+/// };
 /// mc.Start();
-/// mc.ManualWW(10, 0, "D200", [1234, -1]);
-/// mc.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Slave="0" Device="D200" /&gt; by name
 /// </code>
 /// </example>
 public class McSerial : IDisposable
@@ -60,11 +65,13 @@ public class McSerial : IDisposable
         public bool SumCheck { get; } = sumCheck;
         public int? RepeatCount { get; } = repeatCount;
         public int? Timeout { get; } = timeout;
+        // 포트가 끊긴 동안 버리는 대상(물리 동작이 있는 쓰기)
+        public bool IsWrite => Command is McCommand.BW or McCommand.WW;
     }
     #endregion
 
     #region class : EventArgs
-    /// <summary>Common event arguments for request result events. Write response, timeout, and sum check error events use this type as-is.</summary>
+    /// <summary>Common event arguments for request result events. Write response events use this type as-is.</summary>
     /// <param name="messageId">The message ID given at registration.</param>
     /// <param name="slave">Station number.</param>
     /// <param name="command">Command.</param>
@@ -104,6 +111,24 @@ public class McSerial : IDisposable
         /// <summary>NAK error code (for example 0x02 sum check error, 0x06 device specification error, 0x10 PC number error).</summary>
         public int ErrorCode { get; } = errorCode;
     }
+
+    /// <summary>Event arguments for a failed attempt (<see cref="TimeoutReceived"/>, <see cref="SumCheckErrorReceived"/>).</summary>
+    /// <param name="messageId">The message ID given at registration.</param>
+    /// <param name="slave">Station number.</param>
+    /// <param name="command">Command.</param>
+    /// <param name="attempt">Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</param>
+    /// <param name="isFinal">Whether this job will not be attempted again (retries used up or the port was lost).</param>
+    /// <param name="requestSent">Whether the request of this attempt was handed to the send function.</param>
+    public class AttemptFailedEventArgs(int messageId, int slave, McCommand command, int attempt, bool isFinal, bool requestSent)
+        : ResultEventArgs(messageId, slave, command)
+    {
+        /// <summary>Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</summary>
+        public int Attempt { get; } = attempt;
+        /// <summary>Whether this job will not be attempted again (retries used up or the port was lost).</summary>
+        public bool IsFinal { get; } = isFinal;
+        /// <summary>Whether the request of this attempt was handed to the send function. If false, the device did not receive this attempt; if true, the result is unknown and the device may have executed it.</summary>
+        public bool RequestSent { get; } = requestSent;
+    }
     #endregion
 
     #region Properties
@@ -133,6 +158,8 @@ public class McSerial : IDisposable
     public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port at 1-second intervals when it could not be opened or was lost (default: false).</summary>
     public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while the port is not open (default: true). When true, a Manual write or named write requested while the port is not open raises <see cref="WriteDiscarded"/> (NotConnected) instead of being queued, and writes still queued when the port is lost are discarded (Disconnected). When false, they stay queued and are sent after the next open. Manual reads and Auto jobs are not affected, and <see cref="Stop"/> discards pending writes regardless of this setting.</summary>
+    public bool DiscardWritesWhileDisconnected { get; set; } = true;
 
     /// <summary>Gets whether the serial port is open.</summary>
     public bool IsOpen => Volatile.Read(ref port)?.IsOpen ?? false;
@@ -153,6 +180,12 @@ public class McSerial : IDisposable
     SerialPort? port;
     Thread? thread;
     CancellationTokenSource? cts;
+    // 포트가 열려 있는지(workLock 보호). 설정이 true면 쓰기는 이것이 true일 때만 대기열에 들어간다
+    bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
+    // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
+    bool requestSent;
     #endregion
 
     #region Event
@@ -162,10 +195,12 @@ public class McSerial : IDisposable
     public event EventHandler<ResultEventArgs>? WriteReceived;
     /// <summary>Raised when the PLC sends a NAK. No retry is made.</summary>
     public event EventHandler<NAKEventArgs>? NAKReceived;
-    /// <summary>Raised when there is no response, the response is malformed, or the port is lost during a request. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? TimeoutReceived;
-    /// <summary>Raised when the sum check of a response is incorrect. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? SumCheckErrorReceived;
+    /// <summary>Raised when there is no response, the response is malformed, or the port is lost during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
+    /// <summary>Raised when the sum check of a response is incorrect. Raised on every retry; IsFinal tells whether the job will be attempted again.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? SumCheckErrorReceived;
+    /// <summary>Raised when a Manual write is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the Manual/NamedWrite call, Stopped inside Stop(); otherwise on the communication thread.</summary>
+    public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
     /// <summary>Raised when the serial port is opened.</summary>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the serial port is closed.</summary>
@@ -189,7 +224,7 @@ public class McSerial : IDisposable
         }
     }
 
-    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end.</summary>
+    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end. Pending Manual writes are discarded (WriteDiscarded, Stopped).</summary>
     /// <remarks>May be called from inside an event handler; in that case it does not wait and returns immediately. Events that were already in progress may still be raised briefly right after Stop() returns.</remarks>
     public void Stop()
     {
@@ -205,6 +240,8 @@ public class McSerial : IDisposable
         ClosePort(Volatile.Read(ref port));
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
+        // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        DiscardWrites(WriteDiscardReason.Stopped);
     }
 
     /// <summary>Stops communication and releases its resources.</summary>
@@ -288,7 +325,54 @@ public class McSerial : IDisposable
         => NewWork(id, slave, command, device, count, values, repeatCount, timeout, Format, SumCheck, MessageWait, XYNotation);
 
     void AddAuto(Work w) { lock (workLock) autoWorks.Add(w); }
-    void AddManual(Work w) { lock (workLock) manualWorks.Add(w); }
+    void AddManual(Work w)
+    {
+        bool discard = false;
+        lock (workLock)
+        {
+            if (w.IsWrite && DiscardWritesWhileDisconnected && !linkUp) discard = true;
+            else manualWorks.Add(w);
+        }
+        if (discard) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, WriteDiscardReason.NotConnected));
+    }
+
+    // 포트를 열었다. port를 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
+    internal void SetLinkUp()
+    {
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
+    }
+
+    // 포트를 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
+    internal void SetLinkDown(bool stopping)
+    {
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+    }
+
+    // 대기 중인 Manual 쓰기를 순서대로 꺼내(읽기는 남김) lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 쓰기 하나당 알림은 한 번
+    internal void DiscardWrites(WriteDiscardReason reason)
+    {
+        List<Work> dropped;
+        lock (workLock)
+        {
+            dropped = manualWorks.FindAll(x => x.IsWrite);
+            if (dropped.Count == 0) return;
+            manualWorks.RemoveAll(x => x.IsWrite);
+        }
+        foreach (var w in dropped) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, reason));
+    }
 
     // 이름 있는 쓰기 표. NamedWrite는 실행 중에도 불리므로 통째로 바꾸는 참조(volatile)로 둔다. ApplyConfig에서만 교체한다.
     volatile NamedWriteTable<McSerialWriteConfig> namedWrites = NamedWriteTable<McSerialWriteConfig>.Empty;
@@ -342,7 +426,7 @@ public class McSerial : IDisposable
     /// <param name="slave">Station number, 0 to 31 (0 to 15 for FX).</param>
     /// <param name="device">Start bit device.</param>
     /// <param name="values">1 to 160 values to write, each 0 or 1.</param>
-    /// <param name="repeatCount">Retry count when there is no response or the sum check is wrong (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response or the sum check is wrong (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualBW(int id, int slave, string device, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
     {
@@ -355,7 +439,7 @@ public class McSerial : IDisposable
     /// <param name="slave">Station number, 0 to 31 (0 to 15 for FX).</param>
     /// <param name="device">Start device (for a bit device, 16 points = 1 word).</param>
     /// <param name="values">Words to write. 1 to 64 for a word device, 1 to 10 for a bit device. Each -32768 to 65535.</param>
-    /// <param name="repeatCount">Retry count when there is no response or the sum check is wrong (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response or the sum check is wrong (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWW(int id, int slave, string device, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
     {
@@ -367,7 +451,7 @@ public class McSerial : IDisposable
     /// <remarks>The device is interpreted with the current settings at call time, such as Frame/XYNotation (same as Manual). The check at load time used the settings that came with the XML, so changing these settings after loading can change the result.</remarks>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="value">The value to write. 0 or 1 for a bit device, -32768 to 65535 for a word device.</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, long value, int? repeatCount = null, int? timeout = null)
@@ -377,7 +461,7 @@ public class McSerial : IDisposable
     /// <remarks>The device is interpreted with the current settings at call time, such as Frame/XYNotation (same as Manual). The check at load time used the settings that came with the XML, so changing these settings after loading can change the result.</remarks>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="values">The values to write (same rules as <see cref="ManualBW"/> and <see cref="ManualWW"/>).</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
@@ -413,6 +497,7 @@ public class McSerial : IDisposable
         Timeout = Timeout,
         Interval = Interval,
         AutoReconnect = AutoReconnect,
+        DiscardWritesWhileDisconnected = DiscardWritesWhileDisconnected,
         Autos = [.. AutoWorksSnapshot().Select(w =>
         {
             McSerialAutoConfig a = w.Command == McCommand.BR ? new McSerialBrConfig() : new McSerialWrConfig();
@@ -487,6 +572,7 @@ public class McSerial : IDisposable
         Timeout = config.Timeout;
         Interval = config.Interval;
         AutoReconnect = config.AutoReconnect;
+        DiscardWritesWhileDisconnected = config.DiscardWritesWhileDisconnected;
         namedWrites = table;
         ReplaceAutoWorks(works);
     }
@@ -530,6 +616,7 @@ public class McSerial : IDisposable
                 var sp = TryOpen();
                 if (sp != null)
                 {
+                    SetLinkUp();
                     Volatile.Write(ref port, sp);
                     try
                     {
@@ -550,6 +637,7 @@ public class McSerial : IDisposable
                     {
                         ClosePort(sp);
                         Raise(DeviceClosed);
+                        SetLinkDown(token.IsCancellationRequested);
                     }
                 }
                 if (!AutoReconnect || token.IsCancellationRequested) break;
@@ -593,43 +681,50 @@ public class McSerial : IDisposable
     static ResultEventArgs Result(Work w) => new(w.MessageID, w.Slave, w.Command);
 
     void ProcessWork(SerialPort sp, Work w)
-    {
-        try
-        {
-            Process(w,
-                (request, timeout) =>
-                {
-                    sp.DiscardInBuffer();
-                    sp.Write(request, 0, request.Length);
-                    return ReadFrame(sp, timeout, w.Format, w.SumCheck);
-                },
-                ack => sp.Write(ack, 0, ack.Length));
-        }
-        catch
-        {
-            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤, 재접속 경로가 돌도록 다시 던진다
-            Raise(TimeoutReceived, Result(w));
-            throw;
-        }
-    }
+        => Process(w,
+            (request, timeout) =>
+            {
+                sp.DiscardInBuffer();
+                sp.Write(request, 0, request.Length);
+                requestSent = true;
+                return ReadFrame(sp, timeout, w.Format, w.SumCheck);
+            },
+            ack => sp.Write(ack, 0, ack.Length));
+
+    AttemptFailedEventArgs Failed(Work w, int attempt, bool isFinal)
+        => new(w.MessageID, w.Slave, w.Command, attempt, isFinal, requestSent);
 
     // 작업 하나의 송수신·재시도·이벤트. exchange(요청, 타임아웃) = 요청을 보내고 응답 프레임(없으면 null), send = 컴퓨터 ACK 송신.
     // 정상 읽기 응답이면 이벤트보다 먼저 ACK를 보낸다. 마지막 상태를 돌려준다.
+    // requestSent는 실제 송신 직후 exchange 안에서 세우고, exchange가 예외 없이 돌아오면 여기서도 세운다(시험용 exchange)
     internal McStatus Process(Work w, Func<byte[], int, byte[]?> exchange, Action<byte[]> send)
     {
-        int timeout = w.Timeout ?? Timeout;
-        for (int attempt = 0; ; attempt++)
+        int attempt = 0;
+        try
         {
-            var frame = exchange(w.Request, timeout);
-            var r = frame == null ? McResponse.Invalid : McSerialFrame.Parse(frame, w.Command, w.Slave, w.Count, w.Format, w.SumCheck);
-            if (r.Status == McStatus.Ack && w.HostAck != null) send(w.HostAck);
-            if (r.Status is McStatus.Ack or McStatus.Nak)
+            int timeout = w.Timeout ?? Timeout;
+            for (; ; attempt++)
             {
-                Report(w, r);
-                return r.Status;
+                requestSent = false;
+                var frame = exchange(w.Request, timeout);
+                requestSent = true;
+                var r = frame == null ? McResponse.Invalid : McSerialFrame.Parse(frame, w.Command, w.Slave, w.Count, w.Format, w.SumCheck);
+                if (r.Status == McStatus.Ack && w.HostAck != null) send(w.HostAck);
+                if (r.Status is McStatus.Ack or McStatus.Nak)
+                {
+                    Report(w, r);
+                    return r.Status;
+                }
+                bool isFinal = attempt >= (w.RepeatCount ?? 0);
+                Raise(r.Status == McStatus.SumError ? SumCheckErrorReceived : TimeoutReceived, Failed(w, attempt + 1, isFinal));
+                if (isFinal) return r.Status;
             }
-            Raise(r.Status == McStatus.SumError ? SumCheckErrorReceived : TimeoutReceived, Result(w));
-            if (attempt >= (w.RepeatCount ?? 0)) return r.Status;
+        }
+        catch
+        {
+            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤(더 시도하지 않으므로 최종), 재접속 경로가 돌도록 다시 던진다
+            Raise(TimeoutReceived, Failed(w, attempt + 1, true));
+            throw;
         }
     }
 
