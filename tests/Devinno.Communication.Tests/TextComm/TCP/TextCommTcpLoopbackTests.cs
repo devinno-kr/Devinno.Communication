@@ -71,6 +71,7 @@ public class TextCommTcpLoopbackTests : IDisposable
         var tcs = Tcs<string>();
         master.MessageReceived += (s, e) => tcs.TrySetResult(e.Message);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
         master.ManualSend(1, 1, 0x42, "PING");
         Assert.Equal("", await Wait(tcs));
     }
@@ -83,8 +84,9 @@ public class TextCommTcpLoopbackTests : IDisposable
         var done = Tcs<bool>();
         master.MessageReceived += (s, e) => Interlocked.Increment(ref received);
         master.TimeoutReceived += (s, e) => { if (Interlocked.Increment(ref timeouts) == 3) done.TrySetResult(true); };
-        master.ManualSend(5, 1, 0x43, "X", repeatCount: 2);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
+        master.ManualSend(5, 1, 0x43, "X", repeatCount: 2);
         await Wait(done);
         await Task.Delay(300);
         Assert.Equal((3, 0, 3), (timeouts, received, requests));
@@ -97,6 +99,7 @@ public class TextCommTcpLoopbackTests : IDisposable
         var done = Tcs<bool>();
         master.MessageReceived += (s, e) => { lock (order) { order.Add(e.MessageID); if (order.Count == 2) done.TrySetResult(true); } };
         master.AutoSend(1, 1, 0x41, "AUTO");
+        master.DiscardWritesWhileDisconnected = false;
         master.ManualSend(2, 1, 0x41, "MANUAL");
         master.Start();
         await Wait(done);
@@ -111,6 +114,7 @@ public class TextCommTcpLoopbackTests : IDisposable
         var tcs = Tcs<string>();
         master.MessageReceived += (s, e) => tcs.TrySetResult(e.Message);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
         master.ManualSend(1, 1, 0x41, "온도");
         Assert.Equal("OK 온도", await Wait(tcs));
     }
@@ -239,7 +243,7 @@ public class TextCommTcpLoopbackTests : IDisposable
     {
         int requestsSeen = 0;
         var (l, _) = await RawSlave(i => i == 0 ? [0x02, 0x01, 0x41, 0x00, 0x03] : TextCommPacket.Build(1, 0x41, "GOOD"u8), i => Interlocked.Increment(ref requestsSeen));
-        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 500, Interval = 1 };
+        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 500, Interval = 1, DiscardWritesWhileDisconnected = false };
         int sumErrors = 0, timeouts = 0;
         var tcs = Tcs<string>();
         m.CheckSumErrorReceived += (s, e) => Interlocked.Increment(ref sumErrors);
@@ -260,7 +264,7 @@ public class TextCommTcpLoopbackTests : IDisposable
         var stale = TextCommPacket.Build(1, 0x40, "OLD"u8);
         var match = TextCommPacket.Build(1, 0x41, "NEW"u8);
         var (l, _) = await RawSlave(i => [.. stale, .. match]);
-        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 500, Interval = 1 };
+        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 500, Interval = 1, DiscardWritesWhileDisconnected = false };
         var got = new List<string>();
         var tcs = Tcs<bool>();
         m.MessageReceived += (s, e) => { lock (got) got.Add(e.Message); tcs.TrySetResult(true); };
@@ -283,7 +287,7 @@ public class TextCommTcpLoopbackTests : IDisposable
             if (i == 0) { Thread.Sleep(250); return late; }
             return TextCommPacket.Build(1, 0x41, "FRESH"u8);
         });
-        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 100, Interval = 1 };
+        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 100, Interval = 1, DiscardWritesWhileDisconnected = false };
         var got = new List<string>();
         var tcs = Tcs<bool>();
         int timeouts = 0;
@@ -305,7 +309,7 @@ public class TextCommTcpLoopbackTests : IDisposable
     {
         var strict = Encoding.GetEncoding("us-ascii", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
         var (l, _) = await RawSlave(i => i == 0 ? TextCommPacket.Build(1, 0x41, [0x80, 0x41]) : TextCommPacket.Build(1, 0x41, "GOOD"u8));
-        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 150, Interval = 1, MessageEncoding = strict };
+        using var m = new TextCommTCPMaster { RemoteIP = "127.0.0.1", RemotePort = ((IPEndPoint)l.LocalEndpoint).Port, Timeout = 150, Interval = 1, MessageEncoding = strict, DiscardWritesWhileDisconnected = false };
         var got = new List<string>();
         int timeouts = 0;
         var tcs = Tcs<bool>();
@@ -325,6 +329,7 @@ public class TextCommTcpLoopbackTests : IDisposable
     [Fact]
     public void TakeNextWork_ManualFirst()
     {
+        master.DiscardWritesWhileDisconnected = false;
         master.AutoSend(1, 1, 0x41, "A");
         master.ManualSend(2, 1, 0x41, "B");
         Assert.Equal(2, master.TakeNextWork()!.MessageID);

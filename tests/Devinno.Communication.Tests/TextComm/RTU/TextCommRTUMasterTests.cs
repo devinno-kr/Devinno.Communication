@@ -30,7 +30,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Defaults()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         Assert.Equal(("COM1", 115200, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One), (tc.Port, tc.Baudrate, tc.Parity, tc.DataBits, tc.StopBits));
         Assert.Equal((100, 10, false, 1024), (tc.Timeout, tc.Interval, tc.AutoReconnect, tc.BufferSize));
         Assert.Same(Encoding.ASCII, tc.MessageEncoding);
@@ -39,7 +39,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void TakeNextWork_ManualFirst_ThenAuto()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         tc.AutoSend(1, 1, 0x41, "A");
         tc.ManualSend(2, 1, 0x42, "B");
         Assert.Equal(2, tc.TakeNextWork()!.MessageID);
@@ -54,7 +54,7 @@ public class TextCommRTUMasterTests
     [InlineData(0, 256, "command")]
     public void Register_OutOfRange_Throws(int slave, int command, string param)
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         Assert.Equal(param, Assert.Throws<ArgumentOutOfRangeException>(() => tc.AutoSend(1, slave, command, "A")).ParamName);
         Assert.Equal(param, Assert.Throws<ArgumentOutOfRangeException>(() => tc.ManualSend(1, slave, command, "A")).ParamName);
         Assert.Null(tc.TakeNextWork());
@@ -63,7 +63,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Register_NullMessage_Throws()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         Assert.Equal("message", Assert.Throws<ArgumentNullException>(() => tc.AutoSend(1, 1, 1, null!)).ParamName);
         Assert.Equal("message", Assert.Throws<ArgumentNullException>(() => tc.ManualSend(1, 1, 1, null!)).ParamName);
         Assert.Null(tc.TakeNextWork());
@@ -72,7 +72,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Request_IsGoingFrame_EdgesAccepted()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         tc.ManualSend(1, 1, 0x41, "READ");
         tc.ManualSend(2, 255, 0, "");
         Assert.Equal(new byte[] { 0x02, 0x01, 0x41, 0x52, 0x45, 0x41, 0x44, 0x5E, 0x03 }, tc.TakeNextWork()!.Request);   // 기준 바이트
@@ -82,7 +82,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Match_RaisesMessageReceived()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         TextCommRTUMaster.MessageEventArgs? got = null;
         tc.MessageReceived += (s, e) => got = e;
         tc.ManualSend(7, 1, 0x41, "READ");
@@ -95,7 +95,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void EmptyResponse_RaisesEmptyMessage()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         string? got = null;
         tc.MessageReceived += (s, e) => got = e.Message;
         tc.ManualSend(1, 1, 0x41, "X");
@@ -106,7 +106,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void StaleAndOtherSlaveFrames_AreDiscarded_ThenMatch()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         var got = new List<string>();
         int timeouts = 0;
         tc.MessageReceived += (s, e) => got.Add(e.Message);
@@ -123,7 +123,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void OnlyStale_IsTimeout()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         int timeouts = 0, received = 0;
         tc.TimeoutReceived += (s, e) => timeouts++;
         tc.MessageReceived += (s, e) => received++;
@@ -135,7 +135,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void CheckSumError_RaisesEvent_AndRetries()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         int sumErrors = 0, timeouts = 0;
         TextCommRTUMaster.ResultEventArgs? args = null;
         tc.CheckSumErrorReceived += (s, e) => { sumErrors++; args = e; };
@@ -151,7 +151,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void CheckSumError_ThenGoodResponse_OnRetry()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         int sumErrors = 0;
         string? got = null;
         tc.CheckSumErrorReceived += (s, e) => sumErrors++;
@@ -165,7 +165,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Silent_RaisesTimeout_RepeatCountPlusOne()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         int timeouts = 0;
         tc.TimeoutReceived += (s, e) => timeouts++;
         tc.ManualSend(1, 1, 0x41, "X", repeatCount: 2);
@@ -177,7 +177,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Auto_NoRetry()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         int timeouts = 0;
         tc.TimeoutReceived += (s, e) => timeouts++;
         tc.AutoSend(1, 1, 0x41, "X");
@@ -189,7 +189,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void ResponseLongerThanBufferSize_IsDropped()
     {
-        var tc = new TextCommRTUMaster { BufferSize = 16 };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, BufferSize = 16 };
         int received = 0;
         tc.MessageReceived += (s, e) => received++;
         tc.ManualSend(1, 1, 0x41, "X");
@@ -203,7 +203,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void Encoding_CapturedAtRegistration()
     {
-        var tc = new TextCommRTUMaster { MessageEncoding = Encoding.UTF8 };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, MessageEncoding = Encoding.UTF8 };
         tc.ManualSend(1, 1, 0x41, "온도");
         tc.MessageEncoding = Encoding.ASCII;
         string? got = null;
@@ -218,7 +218,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void HandlerThrows_StillOk()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         bool called = false;
         tc.MessageReceived += (s, e) => { called = true; throw new InvalidOperationException(); };
         tc.ManualSend(1, 1, 0x41, "X");
@@ -243,7 +243,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void DecodeFailureOtherThanDecoderFallbackException_IsTimeout_NotThrown()
     {
-        var tc = new TextCommRTUMaster { MessageEncoding = Encoding.GetEncoding("us-ascii", EncoderFallback.ReplacementFallback, new ThrowingFallback()) };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, MessageEncoding = Encoding.GetEncoding("us-ascii", EncoderFallback.ReplacementFallback, new ThrowingFallback()) };
         int received = 0;
         tc.MessageReceived += (s, e) => received++;
         tc.ManualSend(1, 1, 0x41, "X");
@@ -257,7 +257,7 @@ public class TextCommRTUMasterTests
     [Fact]
     public void RemoveAndClear()
     {
-        var tc = new TextCommRTUMaster();
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false };
         tc.AutoSend(1, 1, 1, "A");
         tc.AutoSend(2, 1, 1, "B");
         tc.ManualSend(3, 1, 1, "C");
@@ -307,7 +307,7 @@ public class TextCommRTUMasterTests
     public void UndecodableResponse_IsTreatedAsInvalid_AndWorkerStaysUsable()
     {
         var strict = Encoding.GetEncoding("us-ascii", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
-        var tc = new TextCommRTUMaster { MessageEncoding = strict };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, MessageEncoding = strict };
         int received = 0, timeouts = 0;
         string? got = null;
         tc.MessageReceived += (s, e) => { received++; got = e.Message; };
@@ -324,7 +324,7 @@ public class TextCommRTUMasterTests
     public void UndecodableResponse_ThenGoodFrame_StillMatches()
     {
         var strict = Encoding.GetEncoding("us-ascii", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
-        var tc = new TextCommRTUMaster { MessageEncoding = strict };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, MessageEncoding = strict };
         var got = new List<string>();
         tc.MessageReceived += (s, e) => got.Add(e.Message);
         tc.ManualSend(1, 1, 0x41, "X");
@@ -336,7 +336,7 @@ public class TextCommRTUMasterTests
     public void ManualSend_UnencodableMessage_ThrowsToCaller()
     {
         var strict = Encoding.GetEncoding("us-ascii", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
-        var tc = new TextCommRTUMaster { MessageEncoding = strict };
+        var tc = new TextCommRTUMaster { DiscardWritesWhileDisconnected = false, MessageEncoding = strict };
         Assert.ThrowsAny<ArgumentException>(() => tc.ManualSend(1, 1, 1, "온도"));
         Assert.Null(tc.TakeNextWork());
     }

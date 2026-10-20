@@ -41,6 +41,8 @@ public class TextCommRTUMasterConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port when it is lost (default: false).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="TextCommRTUMaster.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Maximum size in bytes of a response frame that can be received, 16 to 65536 (default: 1024).</summary>
     [XmlAttribute] public int BufferSize { get; set; } = 1024;
     /// <summary>Web name of the message encoding (default: "us-ascii").</summary>

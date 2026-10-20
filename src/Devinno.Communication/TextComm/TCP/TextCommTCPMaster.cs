@@ -19,6 +19,7 @@ namespace Devinno.Communication.TextComm.TCP;
 /// <para>A response frame (STX to ETX) longer than <see cref="BufferSize"/> is discarded. The default port 7897 is a conventional default; the protocol defines no port.</para>
 /// <para>Manual jobs are processed before Auto jobs. Responses arrive through <see cref="MessageReceived"/>, and the id given at registration is returned as <c>MessageID</c>.</para>
 /// <para>The communication loop runs on a dedicated background thread, and all events are raised on that thread. To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF). Exceptions thrown in a handler are ignored and the loop continues.</para>
+/// <para>Write safety: TextComm cannot tell a read from a write, so every <see cref="ManualSend"/> counts as a write. With <see cref="DiscardWritesWhileDisconnected"/> true (the default), a ManualSend requested while there is no connection is not queued, and ManualSend jobs still queued when the connection is lost are discarded right after <see cref="DeviceClosed"/>; both are reported through <see cref="WriteDiscarded"/>, which may also be raised on the calling thread. <see cref="Stop"/> always discards pending ManualSend jobs. Auto jobs are never discarded. Each ManualSend ends with exactly one of: <see cref="MessageReceived"/>, a <see cref="TimeoutReceived"/> or <see cref="CheckSumErrorReceived"/> with IsFinal true, or <see cref="WriteDiscarded"/> (jobs removed with <see cref="ClearManual"/> or <see cref="RemoveManual"/> are not reported).</para>
 /// <para>The XML configuration (<see cref="ToXml"/>, <see cref="SaveXml"/>) cannot store an Auto message that contains characters XML 1.0 cannot hold (control characters 0x00 to 0x1F other than tab and line breaks, and so on). Manage such Auto items in code.</para>
 /// </remarks>
 /// <example>
@@ -29,8 +30,12 @@ namespace Devinno.Communication.TextComm.TCP;
 /// tc.AutoSend(1, 1, 0x41, "READ");
 /// tc.MessageReceived += (s, e) =&gt; Console.WriteLine($"{e.MessageID} {e.Slave}/{e.Command}: {e.Message}");
 /// tc.CheckSumErrorReceived += (s, e) =&gt; Console.WriteLine($"Sum check error {e.MessageID}");
+/// tc.DeviceOpened += (s, e) =&gt;
+/// {
+///     // ManualSend is accepted only while connected (otherwise WriteDiscarded, NotConnected)
+///     tc.ManualSend(10, 1, 0x42, "SET 100", repeatCount: 2);
+/// };
 /// tc.Start();
-/// tc.ManualSend(10, 1, 0x42, "SET 100", repeatCount: 2);
 /// </code>
 /// </example>
 public class TextCommTCPMaster : IDisposable
@@ -51,7 +56,7 @@ public class TextCommTCPMaster : IDisposable
     #endregion
 
     #region class : EventArgs
-    /// <summary>Common event arguments for request result events. Timeout and sum check error events use this type as-is.</summary>
+    /// <summary>Common event arguments for request result events.</summary>
     /// <param name="messageId">The message ID given at registration.</param>
     /// <param name="slave">Request slave, 0 to 255.</param>
     /// <param name="command">Request command, 0 to 255.</param>
@@ -75,6 +80,23 @@ public class TextCommTCPMaster : IDisposable
         /// <summary>Response message. A string read with the encoding in effect at registration; may be an empty string.</summary>
         public string Message { get; } = message;
     }
+
+    /// <summary>Event arguments for a failed attempt (<see cref="TimeoutReceived"/>, <see cref="CheckSumErrorReceived"/>).</summary>
+    /// <param name="messageId">The message ID given at registration.</param>
+    /// <param name="slave">Request slave, 0 to 255.</param>
+    /// <param name="command">Request command, 0 to 255.</param>
+    /// <param name="attempt">Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</param>
+    /// <param name="isFinal">Whether this job will not be attempted again (retries used up or the connection was lost).</param>
+    /// <param name="requestSent">Whether the request of this attempt was handed to the send function.</param>
+    public class AttemptFailedEventArgs(int messageId, int slave, int command, int attempt, bool isFinal, bool requestSent) : ResultEventArgs(messageId, slave, command)
+    {
+        /// <summary>Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</summary>
+        public int Attempt { get; } = attempt;
+        /// <summary>Whether this job will not be attempted again (retries used up or the connection was lost).</summary>
+        public bool IsFinal { get; } = isFinal;
+        /// <summary>Whether the request of this attempt was handed to the send function. If false, the device did not receive this attempt; if true, the result is unknown and the device may have executed it.</summary>
+        public bool RequestSent { get; } = requestSent;
+    }
     #endregion
 
     #region Properties
@@ -89,6 +111,8 @@ public class TextCommTCPMaster : IDisposable
     public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect at 1-second intervals when the connection could not be made or was lost (default: true).</summary>
     public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). TextComm treats every <see cref="ManualSend"/> as a write. When true, a ManualSend requested while not connected raises <see cref="WriteDiscarded"/> (NotConnected) instead of being queued, and ManualSend jobs still queued when the connection is lost are discarded (Disconnected). When false, they stay queued and are sent after the next connection. Auto jobs are not affected, and <see cref="Stop"/> discards pending ManualSend jobs regardless of this setting.</summary>
+    public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Maximum size in bytes of a response frame (STX to ETX) that can be received (default: 1024). Longer frames are discarded.</summary>
     public int BufferSize { get; set; } = 1024;
     /// <summary>Message string encoding (default: ASCII). Applied when a job is registered.</summary>
@@ -113,15 +137,23 @@ public class TextCommTCPMaster : IDisposable
     Socket? sock;
     Thread? thread;
     CancellationTokenSource? cts;
+    // 연결이 살아 있는지(workLock 보호). 설정이 true면 ManualSend는 이것이 true일 때만 대기열에 들어간다
+    bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
+    // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
+    bool requestSent;
     #endregion
 
     #region Event
     /// <summary>Raised when a response with the same slave and command as the request is received.</summary>
     public event EventHandler<MessageEventArgs>? MessageReceived;
-    /// <summary>Raised when there is no response in time, or when the connection is lost during a request. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? TimeoutReceived;
-    /// <summary>Raised when the sum byte of a response is wrong. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? CheckSumErrorReceived;
+    /// <summary>Raised when there is no response in time, or when the connection is lost during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
+    /// <summary>Raised when the sum byte of a response is wrong. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? CheckSumErrorReceived;
+    /// <summary>Raised when a ManualSend job is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the ManualSend call, Stopped inside Stop(); otherwise on the communication thread.</summary>
+    public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
     /// <summary>Raised when the TCP connection is established.</summary>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the TCP connection is lost.</summary>
@@ -145,7 +177,7 @@ public class TextCommTCPMaster : IDisposable
         }
     }
 
-    /// <summary>Stops the communication loop and disconnects. Waits up to (Timeout + 1000) ms for the loop to end.</summary>
+    /// <summary>Stops the communication loop and disconnects. Waits up to (Timeout + 1000) ms for the loop to end. Pending ManualSend jobs are discarded (WriteDiscarded, Stopped).</summary>
     /// <remarks>May be called from inside an event handler; in that case it does not wait and returns immediately. Events that were already in progress may still be raised briefly right after Stop() returns.</remarks>
     public void Stop()
     {
@@ -161,6 +193,8 @@ public class TextCommTCPMaster : IDisposable
         CloseSocket(Volatile.Read(ref sock));
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
+        // 설정과 무관하게 남은 ManualSend를 비운다(재시작 때 늦게 실행되지 않게)
+        DiscardWrites(WriteDiscardReason.Stopped);
     }
 
     /// <summary>Stops communication and releases its resources.</summary>
@@ -235,7 +269,55 @@ public class TextCommTCPMaster : IDisposable
     }
 
     void AddAuto(Work w) { lock (workLock) autoWorks.Add(w); }
-    void AddManual(Work w) { lock (workLock) manualWorks.Add(w); }
+    // TextComm은 읽기/쓰기를 구분하지 못하므로 ManualSend 전부를 쓰기로 본다
+    void AddManual(Work w)
+    {
+        bool discard = false;
+        lock (workLock)
+        {
+            if (DiscardWritesWhileDisconnected && !linkUp) discard = true;
+            else manualWorks.Add(w);
+        }
+        if (discard) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, WriteDiscardReason.NotConnected));
+    }
+
+    // 연결을 얻었다. sock을 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
+    internal void SetLinkUp()
+    {
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
+    }
+
+    // 연결을 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
+    internal void SetLinkDown(bool stopping)
+    {
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+    }
+
+    // 대기 중인 ManualSend를 순서대로 모두 꺼내 lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 작업 하나당 알림은 한 번
+    internal void DiscardWrites(WriteDiscardReason reason)
+    {
+        List<Work> dropped;
+        lock (workLock)
+        {
+            if (manualWorks.Count == 0) return;
+            dropped = [.. manualWorks];
+            manualWorks.Clear();
+        }
+        foreach (var w in dropped) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, reason));
+    }
     #endregion
 
     #region Auto / Manual
@@ -255,7 +337,7 @@ public class TextCommTCPMaster : IDisposable
     /// <param name="slave">slave 0~255</param>
     /// <param name="command">command 0~255</param>
     /// <param name="message">The message to send (an empty string is allowed; null is not).</param>
-    /// <param name="repeatCount">Retry count when there is no response or the sum check fails (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response or the sum check fails (null for no retries). A retry resends a message the device may already have executed; do not use it for pulse, counter or incremental commands.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentOutOfRangeException">slave or command is not in 0 to 255.</exception>
     /// <exception cref="ArgumentNullException">message is null.</exception>
@@ -274,6 +356,7 @@ public class TextCommTCPMaster : IDisposable
         Timeout = Timeout,
         Interval = Interval,
         AutoReconnect = AutoReconnect,
+        DiscardWritesWhileDisconnected = DiscardWritesWhileDisconnected,
         BufferSize = BufferSize,
         MessageEncoding = MessageEncoding.WebName,
         Autos = [.. AutoWorksSnapshot().Select(w =>
@@ -303,6 +386,7 @@ public class TextCommTCPMaster : IDisposable
         Timeout = config.Timeout;
         Interval = config.Interval;
         AutoReconnect = config.AutoReconnect;
+        DiscardWritesWhileDisconnected = config.DiscardWritesWhileDisconnected;
         BufferSize = config.BufferSize;
         MessageEncoding = encoding;
         ReplaceAutoWorks(works);
@@ -354,6 +438,7 @@ public class TextCommTCPMaster : IDisposable
                 var s = TryConnect(token);
                 if (s != null)
                 {
+                    SetLinkUp();
                     Volatile.Write(ref sock, s);
                     try
                     {
@@ -374,6 +459,7 @@ public class TextCommTCPMaster : IDisposable
                     {
                         CloseSocket(s);
                         Raise(DeviceClosed);
+                        SetLinkDown(token.IsCancellationRequested);
                     }
                 }
                 if (!AutoReconnect || token.IsCancellationRequested) break;
@@ -415,33 +501,25 @@ public class TextCommTCPMaster : IDisposable
         s.Dispose();
     }
 
-    static ResultEventArgs Result(Work w) => new(w.MessageID, w.Slave, w.Command);
+    AttemptFailedEventArgs Failed(Work w, int attempt, bool isFinal)
+        => new(w.MessageID, w.Slave, w.Command, attempt, isFinal, requestSent);
 
     void ProcessWork(Socket s, Work w)
     {
         var buf = new byte[1024];
-        try
-        {
-            Process(w,
-                request =>
-                {
-                    Drain(s);   // 이전 요청의 늦은 응답을 먼저 버린다
-                    s.Send(request);
-                },
-                remain =>
-                {
-                    if (!s.Poll(remain * 1000, SelectMode.SelectRead)) return null;
-                    int n = s.Receive(buf, 0, buf.Length, SocketFlags.None);
-                    if (n == 0) throw new IOException("상대가 연결을 끊었습니다.");
-                    return buf.AsSpan(0, n).ToArray();
-                });
-        }
-        catch
-        {
-            // 연결 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤, 재접속 경로가 돌도록 다시 던진다
-            Raise(TimeoutReceived, Result(w));
-            throw;
-        }
+        Process(w,
+            request =>
+            {
+                Drain(s);   // 이전 요청의 늦은 응답을 먼저 버린다
+                s.Send(request);
+            },
+            remain =>
+            {
+                if (!s.Poll(remain * 1000, SelectMode.SelectRead)) return null;
+                int n = s.Receive(buf, 0, buf.Length, SocketFlags.None);
+                if (n == 0) throw new IOException("상대가 연결을 끊었습니다.");
+                return buf.AsSpan(0, n).ToArray();
+            });
     }
 
     static void Drain(Socket s)
@@ -452,27 +530,41 @@ public class TextCommTCPMaster : IDisposable
     }
 
     // 작업 하나의 송수신·재시도·이벤트. send = 남은 바이트를 버리고 요청 쓰기, read(남은 ms) = 받은 바이트(시간 안에 없으면 null).
-    // 마지막 상태(Ok, SumError, Timeout)를 돌려준다.
+    // 마지막 상태(Ok, SumError, Timeout)를 돌려준다. send가 예외 없이 돌아오면 requestSent.
     internal TextCommStatus Process(Work w, Action<byte[]> send, Func<int, byte[]?> read)
     {
-        int timeout = w.Timeout ?? Timeout;
-        for (int attempt = 0; ; attempt++)
+        int attempt = 0;
+        try
         {
-            send(w.Request);
-            // 인코딩 폴백이 예외를 던지는 인코딩이면 디코딩 못 하는 프레임은 깨진 프레임처럼 버리고 계속 기다린다
-            string? text = null;
-            var f = TextCommPacket.Receive(read, (byte)w.Slave, (byte)w.Command, timeout, BufferSize, fr =>
+            int timeout = w.Timeout ?? Timeout;
+            for (; ; attempt++)
             {
-                try { text = w.Encoding.GetString(fr.Message); return true; }
-                catch (ArgumentException) { return false; }
-            });
-            if (f.Status == TextCommStatus.Ok)
-            {
-                Raise(MessageReceived, new MessageEventArgs(w.MessageID, w.Slave, w.Command, text!));
-                return f.Status;
+                requestSent = false;
+                send(w.Request);
+                requestSent = true;
+                // 인코딩 폴백이 예외를 던지는 인코딩이면 디코딩 못 하는 프레임은 깨진 프레임처럼 버리고 계속 기다린다
+                string? text = null;
+                var f = TextCommPacket.Receive(read, (byte)w.Slave, (byte)w.Command, timeout, BufferSize, fr =>
+                {
+                    try { text = w.Encoding.GetString(fr.Message); return true; }
+                    catch (ArgumentException) { return false; }
+                });
+                if (f.Status == TextCommStatus.Ok)
+                {
+                    Raise(MessageReceived, new MessageEventArgs(w.MessageID, w.Slave, w.Command, text!));
+                    return f.Status;
+                }
+                // 합계 오류도 슬레이브·명령이 달라도 재시도한다(기존 동작 유지)
+                bool isFinal = attempt >= (w.RepeatCount ?? 0);
+                Raise(f.Status == TextCommStatus.SumError ? CheckSumErrorReceived : TimeoutReceived, Failed(w, attempt + 1, isFinal));
+                if (isFinal) return f.Status;
             }
-            Raise(f.Status == TextCommStatus.SumError ? CheckSumErrorReceived : TimeoutReceived, Result(w));
-            if (attempt >= (w.RepeatCount ?? 0)) return f.Status;
+        }
+        catch
+        {
+            // 연결 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤(더 시도하지 않으므로 최종), 재접속 경로가 돌도록 다시 던진다
+            Raise(TimeoutReceived, Failed(w, attempt + 1, true));
+            throw;
         }
     }
     #endregion
