@@ -123,7 +123,7 @@ public partial class GemHost
     /// for unknown reports, only the values are delivered, without VIDs. If the number of values differs from the definition, that report is delivered without VIDs, and even if there are several such reports, one <see cref="ProtocolError"/> per message reports them (the count and the first few RPTIDs).</para>
     /// <para>If <see cref="RptidFormat"/> is A, the interpretation table also matches numeric RPTIDs as decimal text (definition 1000 = received A "1000"). <see cref="GemEventReport.Ceid"/> is in the format the equipment sent, so if it arrived as A, it is a text ID.</para>
     /// <para>If the body structure is wrong or the CEID or RPTID cannot be read as an ID, no reply is sent (S6F0) so that the equipment learns of the failure, and it is reported through <see cref="ProtocolError"/> (no event is raised).</para>
-    /// <para>VIDs are attached with the interpretation table at the point this S6F11 was received: an S6F11 received before the equipment's reply (S2F34) to <see cref="DefineReports"/> (also used by <see cref="ConfigureReports"/>) is interpreted with the old definitions, and one received after the method returns, with the new ones.</para>
+    /// <para>An S6F11 received before the equipment's reply (S2F34) to <see cref="DefineReports"/> (also used by <see cref="ConfigureReports"/>) is interpreted with the old definitions, and one received after the method returns, with the new ones; one that arrives in between may be interpreted with either.</para>
     /// </remarks>
     public event EventHandler<GemEventReportEventArgs>? EventReceived;
 

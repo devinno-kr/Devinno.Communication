@@ -166,7 +166,7 @@ public partial class GemHost
         return new SecsMessage(2, 33, true, SecsItem.L(NextDataId(), SecsItem.L([.. items])));
     }
 
-    // DRACK 0이면 해석 표 갱신을 디스패처 대기열에 넣는다(기다리지 않음, H3): S2F34보다 먼저 받은 S6F11은 옛 표로, 그 뒤에 받은 것은 새 표로 해석된다.
+    // DRACK 0이면 해석 표 갱신을 디스패처 대기열에 넣는다(기다리지 않음, H3): S2F34보다 먼저 받은 S6F11은 옛 표로, 메서드가 돌아온 뒤에 받은 것은 새 표로 해석된다(그 사이에 받은 것은 어느 쪽일 수도 있음).
     // 디스패처가 멈춰 있으면 버려진다(Start가 표를 비움). transport.Post는 GEM gate 밖에서
     byte DefineReportsReply(SecsMessage reply, IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
     {

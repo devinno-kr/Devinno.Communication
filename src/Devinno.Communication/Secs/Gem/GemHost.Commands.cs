@@ -57,8 +57,8 @@ public sealed class GemConstantInfo(GemId id, string name, SecsItem min, SecsIte
 public partial class GemHost
 {
     #region S1F13 / S1F1 / S1F15 / S1F17
-    /// <summary>Requests that communications be established (S1F13 &lt;L&gt;). If COMMACK is 0 and the connection it was sent on is still open, <see cref="IsCommunicating"/> becomes true and the equipment name is remembered.</summary>
-    /// <remarks>If that connection has already dropped by the time the reply is handled, the COMMACK is still returned but <see cref="IsCommunicating"/> does not become true.
+    /// <summary>Requests that communications be established (S1F13 &lt;L&gt;). If COMMACK is 0, <see cref="IsCommunicating"/> becomes true and the equipment name is remembered, unless GemHost has already handled the transport <c>DeviceClosed</c> of the connection it was sent on.</summary>
+    /// <remarks>If GemHost has already handled that connection's <c>DeviceClosed</c> by the time the reply is handled, the COMMACK is still returned but <see cref="IsCommunicating"/> does not become true.
     /// If the reply arrives before GemHost has handled the transport <c>DeviceOpened</c> of that connection, the establishment is applied when it handles it.</remarks>
     /// <returns>COMMACK (0 = accepted, 1 = denied).</returns>
     /// <exception cref="InvalidOperationException">Not connected.</exception>

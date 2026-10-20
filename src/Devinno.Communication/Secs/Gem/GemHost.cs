@@ -282,7 +282,7 @@ public partial class GemHost : IDisposable
 
     #region Events
     /// <summary>Raised on the app event thread when whether communications are established (<see cref="IsCommunicating"/>) changes (NotCommunicating ↔ Communicating; Disabled is not used).</summary>
-    /// <remarks>Once GemHost has handled the transport <c>DeviceClosed</c> of a connection, Communicating is not raised for that connection: <see cref="IsCommunicating"/> does not become true on a connection that has dropped.</remarks>
+    /// <remarks>Once GemHost has handled the transport <c>DeviceClosed</c> of a connection, Communicating is not raised for that connection, and <see cref="IsCommunicating"/> does not become true for it.</remarks>
     public event EventHandler<GemCommunicationStateEventArgs>? CommunicationStateChanged;
 
     /// <summary>Raised on the app event thread when a primary message from the equipment that GemHost does not handle is received. Reply inside the handler through <see cref="GemMessageEventArgs.Reply"/>.</summary>

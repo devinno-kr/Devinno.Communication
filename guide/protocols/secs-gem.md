@@ -70,9 +70,9 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 
 | # | GemHost |
 |---|---|
-| H1 | `CommunicationStateChanged(→ Communicating)`은 그 연결의 `DeviceClosed`를 GemHost가 처리한 뒤에는 나가지 않고, `IsCommunicating`은 끊긴 연결에서 true가 되지 않음. 수동 `EstablishCommunication()`이 COMMACK 0을 받아도 그 연결이 이미 끊겼으면 반환값만 COMMACK이고 수립되지 않음. GemHost가 그 연결의 `DeviceOpened`를 처리하기 전에 COMMACK 0이 오면 `DeviceOpened`를 처리할 때 수립을 반영. 전송이 연결되지 않았으면 지금처럼 전송의 `InvalidOperationException` |
+| H1 | GemHost가 그 연결의 `DeviceClosed`를 처리한 뒤에는 그 연결로 `CommunicationStateChanged(→ Communicating)`이 나가지 않고 `IsCommunicating`도 true가 되지 않음(물리적으로 끊긴 뒤 `DeviceClosed`를 처리하기 전까지는 잠깐 true일 수 있고, 처리하면 false로 돌아감). 수동 `EstablishCommunication()`이 COMMACK 0을 받아도 GemHost가 그 연결의 `DeviceClosed`를 이미 처리했으면 반환값만 COMMACK이고 수립되지 않음. GemHost가 그 연결의 `DeviceOpened`를 처리하기 전에 COMMACK 0이 오면 `DeviceOpened`를 처리할 때 수립을 반영. 전송이 연결되지 않았으면 지금처럼 전송의 `InvalidOperationException` |
 | H2 | **자동** 접속 시퀀스가 끊김으로 실패하면 `CommunicationStateChanged(→ NotCommunicating)` → `ConnectSequenceCompleted(실패, SecsDisconnectedException)` 순서(수립 전이면 결과만). `Stop`으로 끝나면 알리지 않음. 수동 `RunConnectSequence()`는 결과를 반환값으로 바로 줌(이 순서 계약 밖) |
-| H3 | `EventReceived`의 VID는 그 S6F11을 받은 시점의 해석 표로 붙음. `DefineReports`(`ConfigureReports`도 씀)의 응답(S2F34)보다 먼저 받은 S6F11은 옛 정의로, 메서드가 돌아온 뒤에 받은 것은 새 정의로 해석 |
+| H3 | `EventReceived`의 VID: `DefineReports`(`ConfigureReports`도 씀)의 응답(S2F34)보다 먼저 받은 S6F11은 옛 정의로, 메서드가 돌아온 뒤에 받은 것은 새 정의로 해석. 그 사이에 받은 것은 어느 쪽일 수도 있음 |
 | H4 | 동기·비동기 명령 메서드의 예외·반환과 앱 이벤트(`CommunicationStateChanged` 등)의 선후는 보장하지 않음(서로 다른 스레드) |
 
 ## XML 설정
