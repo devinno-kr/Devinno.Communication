@@ -260,6 +260,34 @@ public class ModbusTcpWriteSafetyTests : IDisposable
     }
 
     [Fact]
+    public async Task RestartFromHandler_OldLoopLinkDown_DoesNotCloseNewLink()
+    {
+        var m = Master(slave.BoundPort);
+        var ev = Record(m);
+        int opened = 0, closeDone = 0;
+        var secondOpen = new ManualResetEventSlim();
+        var got = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        m.WordWriteReceived += (s, e) => got.TrySetResult(e.WriteValue);
+        m.DeviceOpened += (s, e) =>
+        {
+            if (Interlocked.Increment(ref opened) == 1) { m.Stop(); m.Start(); }   // 핸들러 안 재시작: 새 루프가 바로 뜬다
+            else secondOpen.Set();
+        };
+        m.DeviceClosed += (s, e) =>
+        {
+            // 옛 루프의 SetLinkDown이 새 루프의 SetLinkUp 뒤에 오게 붙잡는다
+            if (Volatile.Read(ref closeDone) == 0) secondOpen.Wait(3000);
+            Interlocked.Increment(ref closeDone);
+        };
+        m.Start();
+        await TestUtil.Until(() => opened >= 2 && closeDone >= 1);
+        await Task.Delay(100);   // 옛 루프가 finally(SetLinkDown)를 마칠 시간
+        m.ManualWordWrite_FC6(9, 1, 2, 4321);
+        Assert.Empty(Snap(ev));
+        Assert.Equal(4321, await got.Task.WaitAsync(TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
     public void Xml_RoundTrip_DiscardWritesWhileDisconnected()
     {
         var m = new ModbusTCPMaster();

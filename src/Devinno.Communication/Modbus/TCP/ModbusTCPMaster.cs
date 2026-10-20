@@ -230,6 +230,8 @@ public class ModbusTCPMaster : IDisposable
     ushort transactionId;
     // 연결이 살아 있는지(workLock 보호). 설정이 true면 쓰기는 이것이 true일 때만 대기열에 들어간다
     bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
     // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
     bool requestSent;
     #endregion
@@ -367,14 +369,26 @@ public class ModbusTCPMaster : IDisposable
     // 연결을 얻었다. sock을 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
     internal void SetLinkUp()
     {
-        lock (workLock) linkUp = true;
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
     }
 
     // 연결을 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
     internal void SetLinkDown(bool stopping)
     {
-        lock (workLock) linkUp = false;
-        if (DiscardWritesWhileDisconnected) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
     }
 
     // 대기 중인 Manual 쓰기를 순서대로 꺼내(읽기는 남김) lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 쓰기 하나당 알림은 한 번
