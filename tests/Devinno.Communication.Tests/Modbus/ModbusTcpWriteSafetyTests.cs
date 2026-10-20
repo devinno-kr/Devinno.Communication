@@ -288,6 +288,22 @@ public class ModbusTcpWriteSafetyTests : IDisposable
     }
 
     [Fact]
+    public async Task Write_AfterStopReturned_IsDiscardedAsNotConnected_EvenWhenJoinTimedOut()
+    {
+        var m = Master(slave.BoundPort, timeout: 100);
+        var ev = Record(m);
+        var release = new ManualResetEventSlim();
+        int opened = 0;
+        m.DeviceOpened += (s, e) => { Interlocked.Exchange(ref opened, 1); release.Wait(10000); };   // 핸들러가 루프 스레드를 붙잡는다
+        m.Start();
+        await TestUtil.Until(() => Volatile.Read(ref opened) == 1);
+        m.Stop();   // Join이 Timeout+1000ms 뒤 시간 초과로 반환(옛 루프는 아직 핸들러 안)
+        m.ManualWordWrite_FC6(9, 1, 2, 77);
+        Assert.Equal([(9, WriteDiscardReason.NotConnected)], Snap(ev));
+        release.Set();
+    }
+
+    [Fact]
     public void Xml_RoundTrip_DiscardWritesWhileDisconnected()
     {
         var m = new ModbusTCPMaster();

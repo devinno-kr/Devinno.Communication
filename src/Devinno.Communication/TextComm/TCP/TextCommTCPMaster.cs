@@ -32,7 +32,7 @@ namespace Devinno.Communication.TextComm.TCP;
 /// tc.CheckSumErrorReceived += (s, e) =&gt; Console.WriteLine($"Sum check error {e.MessageID}");
 /// tc.DeviceOpened += (s, e) =&gt;
 /// {
-///     // ManualSend is accepted only while connected (otherwise WriteDiscarded, NotConnected)
+///     // ManualSend is accepted only while connected (otherwise WriteDiscarded, NotConnected); runs again on every (re)connect
 ///     tc.ManualSend(10, 1, 0x42, "SET 100", repeatCount: 2);
 /// };
 /// tc.Start();
@@ -194,6 +194,9 @@ public class TextCommTCPMaster : IDisposable
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
         // 설정과 무관하게 남은 ManualSend를 비운다(재시작 때 늦게 실행되지 않게)
+        // Join이 시간 초과로 끝났어도(핸들러가 루프를 붙잡은 경우) Stop 뒤 쓰기가 대기열에 들어가거나
+        // 새 루프가 옛 쓰기를 보내지 않도록 연결 상태를 즉시 내린다
+        lock (workLock) { linkUp = false; linkThread = null; }
         DiscardWrites(WriteDiscardReason.Stopped);
     }
 

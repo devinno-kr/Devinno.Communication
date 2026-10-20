@@ -21,7 +21,7 @@ namespace Devinno.Communication.Modbus.RTU;
 /// mb.WordReadReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.ReceiveData)); };
 /// mb.DeviceOpened += (s, e) =&gt;
 /// {
-///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected)
+///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected); runs again on every (re)connect
 ///     mb.ManualWordWrite_FC6(10, 1, 100, 1234);
 ///     mb.NamedWrite("Recipe", [1, 2, 3]);   // calls the XML &lt;Write Name="Recipe" Id="30" Func="FC16" Slave="1" Start="10" /&gt; by name
 /// };
@@ -304,6 +304,9 @@ public class ModbusRTUMaster : IDisposable
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
         // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        // Join이 시간 초과로 끝났어도(핸들러가 루프를 붙잡은 경우) Stop 뒤 쓰기가 대기열에 들어가거나
+        // 새 루프가 옛 쓰기를 보내지 않도록 연결 상태를 즉시 내린다
+        lock (workLock) { linkUp = false; linkThread = null; }
         DiscardWrites(WriteDiscardReason.Stopped);
     }
 

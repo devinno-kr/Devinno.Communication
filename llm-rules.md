@@ -331,7 +331,7 @@ plc.DeviceOpened += (s, e) => Console.WriteLine("connected");
 plc.DeviceClosed += (s, e) => Console.WriteLine("disconnected");
 plc.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
 
-// Write only once connected: a write made while not connected is discarded (WriteDiscarded)
+// Write only once connected: a write made while not connected is discarded (WriteDiscarded) — this handler runs on every (re)connect
 plc.DeviceOpened += (s, e) =>
 {
     plc.NamedWrite("RunCommand", 1);
@@ -410,7 +410,7 @@ plc.NAKReceived += (s, e) => Console.WriteLine($"PLC error, id {e.MessageID}: 0x
 plc.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID} (attempt {e.Attempt}, final {e.IsFinal}, sent {e.RequestSent})");
 plc.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
 
-// Write only once connected (a write while not connected is discarded)
+// Write only once connected (a write while not connected is discarded) — this handler runs on every (re)connect
 plc.DeviceOpened += (s, e) =>
 {
     plc.NamedWrite("SpeedSet", 1500);
@@ -481,7 +481,7 @@ mb.ExceptionReceived += (s, e) => Console.WriteLine($"device exception {e.Except
 mb.TimeoutReceived += (s, e) => Console.WriteLine($"no response, id {e.MessageID} (attempt {e.Attempt}, final {e.IsFinal}, sent {e.RequestSent})");
 mb.WriteDiscarded += (s, e) => Console.WriteLine($"write {e.MessageID} not sent: {e.Reason}");
 
-// Write only once connected (a write while not connected is discarded)
+// Write only once connected (a write while not connected is discarded) — this handler runs on every (re)connect
 mb.DeviceOpened += (s, e) =>
 {
     mb.NamedWrite("RunCmd", 1);                // FC5: 0 or 1

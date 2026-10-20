@@ -17,7 +17,7 @@ dotnet add package Devinno.Communication
 ```
 
 ## 시작하기
-<!-- en-hash: b3a95985a54289d0 -->
+<!-- en-hash: 6690dbcd5b6f27b1 -->
 
 Modbus TCP 장비에서 홀딩 레지스터 0~9를 계속 읽고, 100번지에 한 번 값을 씁니다.
 
@@ -39,7 +39,7 @@ master.AutoWordRead_FC3(id: 1, slave: 1, startAddr: 0, length: 10);
 
 // Manual: runs once, and is processed before the Auto list.
 // Write once connected: a write made while not connected is discarded (WriteDiscarded).
-master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
+master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);   // runs on every (re)connect
 
 master.Start();
 
@@ -92,7 +92,7 @@ master.Dispose();
   * **XML 설정** : 클래스마다 `SaveXml`/`LoadXml`과 설정 객체(`…Config`, 예: `ModbusTCPMasterConfig`)가 있음. `ConfigSchema.Get<T>()`로 XSD 생성. 인스턴스 하나 = XML 파일 하나, 루트 요소 이름은 클래스 이름. 엄격 모드라 모르는 속성·요소는 `FormatException`. 불러오기는 정지 상태에서만 가능
 
 ### 쓰기 안전
-<!-- en-hash: 58ba0fb25c8ce444 -->
+<!-- en-hash: 44e23c1369c1c357 -->
 
   * 기본으로 연결이 없을 때 한 쓰기는 보내지 않고 `WriteDiscarded` 이벤트로 알립니다(`NotConnected`). 연결이 끊길 때 대기 중이던 쓰기도 버립니다(`Disconnected`).
   * `Stop()`은 대기 중인 Manual 쓰기를 항상 비웁니다(`WriteDiscarded`, `Stopped`).
@@ -103,6 +103,7 @@ master.Dispose();
   * Modbus FC6 / FC16 Manual 쓰기는 -32768..65535 밖의 값이면 `ArgumentOutOfRangeException`을 던집니다.
   * S7과 FINS의 블록 쓰기는 원자적이지 않습니다. 중간에 실패하면 `WrittenBytes`(S7) / `WrittenCount`(FINS)로 이미 쓴 양을 알 수 있습니다.
   * FX5를 3E로 쓸 때 X/Y 번호는 8진수입니다: `XYNotation="Octal"`로 지정하세요. `Auto`에서는 16진수로 읽어 엉뚱한 점을 가리킵니다.
+  * TextComm Master는 `ManualSend`를 전부 쓰기로 취급합니다(라이브러리가 명령의 의미를 모르므로). 그래서 연결이 없을 때는 `ManualSend`도 버립니다.
   * 쓰기는 `Start()` 직후가 아니라 연결된 뒤(`DeviceOpened` 안)에 하세요.
 
 ### XML 설정과 이름 있는 쓰기
@@ -187,5 +188,7 @@ Devinno.Communication은 "있는 그대로" 제공되며 어떠한 보증도 하
 <!-- en-hash: b46496942cf1e813 -->
 
 MIT. 저장소 루트의 `LICENSE` 파일 참고.
+
+
 
 

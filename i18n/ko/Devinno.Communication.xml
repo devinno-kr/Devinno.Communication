@@ -41,7 +41,7 @@
         
         
         
-        <member name="T:Devinno.Communication.LS.CNet.LsCNet" en-hash="0381c16792303203">
+        <member name="T:Devinno.Communication.LS.CNet.LsCNet" en-hash="894001a578feec69">
              <summary>
              LS PLC와 시리얼(RS-232/485)로 XGT 전용 프로토콜(Cnet)을 주고받는 Master입니다.
              </summary>
@@ -63,7 +63,7 @@
              cnet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
              cnet.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  cnet.ManualWSS(10, 1, [new LsValue("%MW200", 1234), new LsValue("%MW201", 5)]);
                  cnet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="1" Device="%MW300" /&gt;를 이름으로 호출
              };
@@ -493,7 +493,7 @@
         
         
         
-        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet" en-hash="a78df6cabdd3cad5">
+        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet" en-hash="df24cbdfce4856d5">
              <summary>
              LS PLC의 FEnet(이더넷) 모듈과 TCP로 XGT 전용 프로토콜을 주고받는 Master입니다. 기본 포트는 2004입니다.
              </summary>
@@ -513,7 +513,7 @@
              fenet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
              fenet.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  fenet.ManualWSB(10, "%MW200", [1, 2, 3]);
                  fenet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="%MW300" /&gt;를 이름으로 호출
              };
@@ -904,7 +904,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet" en-hash="c87cc5fd98f672d3">
+        <member name="T:Devinno.Communication.Mitsubishi.Ethernet.McEthernet" en-hash="867282d7d52cd436">
              <summary>
              미쓰비시 PLC와 TCP로 MC 프로토콜 바이너리 프레임(3E 또는 1E)을 주고받는 Master입니다.
              </summary>
@@ -941,7 +941,7 @@
              mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"오류 {e.ErrorCode:X4}");
              mc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  mc.ManualWW(10, "D200", [1234, -1]);
                  mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="D200" /&gt;를 이름으로 호출
              };
@@ -1315,7 +1315,7 @@
         <member name="F:Devinno.Communication.Mitsubishi.Ethernet.McFrame.E1" en-hash="dfb82f3c9a26c925">
             <summary>1E 프레임 (A 호환, FX3U-ENET(-ADP/-L) 등 FX3 이더넷, 명령 00H~03H). X/Y 기본 8진수</summary>
         </member>
-        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial" en-hash="7fa35665282dab2f">
+        <member name="T:Devinno.Communication.Mitsubishi.Serial.McSerial" en-hash="984367464e507f89">
              <summary>
              미쓰비시 PLC와 시리얼(RS-232/485)로 MC 프로토콜 1C 프레임(컴퓨터 링크 형식 1·4)을 주고받는 Master입니다.
              </summary>
@@ -1347,7 +1347,7 @@
              mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"NAK {e.ErrorCode:X2}");
              mc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 포트가 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 포트가 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  mc.ManualWW(10, 0, "D200", [1234, -1]);
                  mc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="0" Device="D200" /&gt;를 이름으로 호출
              };
@@ -1507,8 +1507,8 @@
         <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.TimeoutReceived" en-hash="28885746f3f1422d">
             <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 포트가 끊겼을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
         </member>
-        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" en-hash="52749caab5d3f15a">
-            <summary>응답의 섬체크가 맞지 않을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다.</summary>
+        <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.SumCheckErrorReceived" en-hash="22d172a39a03c5a8">
+            <summary>응답의 섬체크가 맞지 않을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
         </member>
         <member name="E:Devinno.Communication.Mitsubishi.Serial.McSerial.WriteDiscarded" en-hash="9d96c8331c4561ba">
             <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.Mitsubishi.Serial.McSerial.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
@@ -1891,7 +1891,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster" en-hash="0f6bfe85cd32d13e">
+        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster" en-hash="d2db988f1bba2b11">
             <summary>
             시리얼(RS-232/485) Modbus RTU 마스터입니다. Auto(반복)/Manual(1회) 작업 큐로 폴링합니다.
             </summary>
@@ -1908,7 +1908,7 @@
             mb.WordReadReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.ReceiveData)); };
             mb.DeviceOpened += (s, e) =&gt;
             {
-                // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                 mb.ManualWordWrite_FC6(10, 1, 100, 1234);
                 mb.NamedWrite("레시피", [1, 2, 3]);   // XML의 &lt;Write Name="레시피" Id="30" Func="FC16" Slave="1" Start="10" /&gt;를 이름으로 호출
             };
@@ -2647,7 +2647,7 @@
         </member>
         
         
-        <member name="T:Devinno.Communication.Modbus.TCP.ModbusTCPMaster" en-hash="19f4d91737bc0ee4">
+        <member name="T:Devinno.Communication.Modbus.TCP.ModbusTCPMaster" en-hash="6caa120cd5e884fd">
             <summary>
             Modbus TCP 마스터(클라이언트)입니다. Auto(반복)/Manual(1회) 작업 큐로 폴링합니다.
             </summary>
@@ -2664,7 +2664,7 @@
             mb.WordReadReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.ReceiveData)); };
             mb.DeviceOpened += (s, e) =&gt;
             {
-                // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                 mb.ManualWordWrite_FC6(10, 1, 100, 1234);
                 mb.NamedWrite("레시피", [1, 2, 3]);   // XML의 &lt;Write Name="레시피" Id="30" Func="FC16" Slave="1" Start="10" /&gt;를 이름으로 호출
             };
@@ -3890,7 +3890,7 @@
         <member name="P:Devinno.Communication.Omron.Data.FinsWriteConfig.Address" en-hash="1eae5b91055ef145">
             <summary>쓸 주소 (예: "D100", "CIO0.05"). 워드 주소면 워드, 비트 주소면 비트를 씁니다 (필수)</summary>
         </member>
-        <member name="T:Devinno.Communication.Omron.Ethernet.FinsTcp" en-hash="550585dd9933d5ea">
+        <member name="T:Devinno.Communication.Omron.Ethernet.FinsTcp" en-hash="7461f664bc594acb">
              <summary>
              옴론 PLC와 FINS/TCP(기본 포트 9600)로 메모리 영역 읽기/쓰기(0101/0102/0104)를 주고받는 Master입니다.
              CS1W/CJ1W-ETN21, EIP21, CJ2, CP1L-E, NJ, NX102/NX701/NX502를 대상으로 합니다(NX1P2·ETN11은 FINS/TCP가 없으니 <see cref="T:Devinno.Communication.Omron.Ethernet.FinsUdp" />를 쓰세요).
@@ -3928,7 +3928,7 @@
              plc.NAKReceived += (s, e) =&gt; Console.WriteLine($"종료 코드 0x{e.ErrorCode:X4}");
              plc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  plc.ManualWrite(10, "H20.15", 1);
                  plc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Address="D200" /&gt;를 이름으로 호출
              };
@@ -4272,7 +4272,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Omron.Ethernet.FinsUdp" en-hash="8fc4faaf7a4ce2dd">
+        <member name="T:Devinno.Communication.Omron.Ethernet.FinsUdp" en-hash="c88f765a44fdaf02">
              <summary>
              옴론 PLC와 FINS/UDP(기본 포트 9600)로 메모리 영역 읽기/쓰기(0101/0102/0104)를 주고받는 Master입니다.
              CS1/CJ1(ETN 유닛), CJ2, CP1L-E/CP1E-N□□S 내장 포트, NJ/NX(CJ 메모리)를 대상으로 합니다.
@@ -4316,7 +4316,7 @@
              plc.NAKReceived += (s, e) =&gt; Console.WriteLine($"종료 코드 0x{e.ErrorCode:X4}");   // 예: 0x1103 주소 범위, 0x2102 쓰기 보호
              plc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 소켓이 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 소켓이 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  plc.ManualWrite(10, "D200", -1);
                  plc.ManualWriteBlock(11, "CIO100.00", [1, 0, 1, 1]);   // 비트 4개
                  plc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Address="D200" /&gt;를 이름으로 호출
@@ -4674,7 +4674,7 @@
         <member name="P:Devinno.Communication.Omron.Ethernet.FinsUdpConfig.Writes" en-hash="9e5e5e93b3973f76">
             <summary>이름 있는 쓰기 목록. &lt;Write&gt; 요소이며, <see cref="M:Devinno.Communication.Omron.Ethernet.FinsUdp.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" />로 이름을 불러 씁니다.</summary>
         </member>
-        <member name="T:Devinno.Communication.Omron.Serial.FinsSerial" en-hash="4b1b67dd84d5cfc0">
+        <member name="T:Devinno.Communication.Omron.Serial.FinsSerial" en-hash="2df69d163ec9c62d">
              <summary>
              옴론 PLC와 시리얼(RS-232C/422/485) Host Link로 FINS 명령(헤더 코드 FA)을 주고받는 Master입니다.
              CS/CJ/CP 시리즈(CP1E-N/NA, CP1L, CP1H, CJ1/CJ2, CS1의 내장·옵션 시리얼 포트, SCU/SCB)를 대상으로 합니다. 예전 C 시리즈(C-mode만 지원)는 대상이 아닙니다.
@@ -4709,7 +4709,7 @@
              plc.NAKReceived += (s, e) =&gt; Console.WriteLine($"종료 코드 0x{e.ErrorCode:X4}");
              plc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 포트가 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 포트가 열려 있는 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  plc.ManualWrite(10, "D200", 1234);
                  plc.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Address="D200" /&gt;를 이름으로 호출
              };
@@ -8994,7 +8994,7 @@
         <member name="F:Devinno.Communication.Siemens.S7ConnectionType.Basic" en-hash="bf8e3250027414fa">
             <summary>S7 Basic(기타) 연결 = 0x03 (S7.Net 기본값)</summary>
         </member>
-        <member name="T:Devinno.Communication.Siemens.S7Ethernet" en-hash="553a1d1aa6666c05">             <summary>
+        <member name="T:Devinno.Communication.Siemens.S7Ethernet" en-hash="dd6753412b650738">             <summary>
              지멘스 S7 PLC와 ISO-on-TCP(RFC 1006, 기본 포트 102)로 S7 통신(S7comm)의 Read Var / Write Var를 주고받는 Master입니다.
              S7-300/400/1200/1500과 S7-200 SMART·LOGO!(TSAP 직접 지정)를 대상으로 합니다.
              </summary>
@@ -9040,7 +9040,7 @@
              plc.NAKReceived += (s, e) =&gt; Console.WriteLine($"오류 0x{e.ErrorCode:X2} (항목 {e.ItemIndex})");
              plc.DeviceOpened += (s, e) =&gt;
              {
-                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  plc.ManualWrite(10, [new S7Value("DB1.DBW0", 1234), new S7Value("M10.0", 1)]);
                  plc.ManualWrite(11, [new S7Value("DB1.DBD4", BitConverter.SingleToInt32Bits(1.5f))]);   // REAL 쓰기
                  plc.ManualWriteBlock(12, "DB2.DBB0", new byte[300]);
@@ -9492,7 +9492,7 @@
         <member name="P:Devinno.Communication.Siemens.S7Value.Value" en-hash="7bbd8be3a48a8de5">
             <summary>쓸 값. 비트는 0 또는 1, 나머지는 크기 범위 안의 값(음수는 2의 보수로 전송)</summary>
         </member>
-        <member name="T:Devinno.Communication.TextComm.RTU.TextCommRTUMaster" en-hash="cf8e985ec38ccafc">
+        <member name="T:Devinno.Communication.TextComm.RTU.TextCommRTUMaster" en-hash="51943620c400ecbd">
              <summary>
              시리얼(RS-232/485)로 TextComm 프레임(STX/ETX/DLE 텍스트 메시지)을 주고받는 Master입니다.
              </summary>
@@ -9520,7 +9520,7 @@
              tc.TimeoutReceived += (s, e) =&gt; Console.WriteLine($"응답 없음 {e.MessageID}");
              tc.DeviceOpened += (s, e) =&gt;
              {
-                 // ManualSend는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // ManualSend는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  tc.ManualSend(10, 1, 0x42, "SET 100", repeatCount: 2);
              };
              tc.Start();
@@ -9983,7 +9983,7 @@
             <summary>끊겼을 때 다시 열지 여부 (기본값: false)</summary>
         </member>
         
-        <member name="T:Devinno.Communication.TextComm.TCP.TextCommTCPMaster" en-hash="833d72f19c230805">
+        <member name="T:Devinno.Communication.TextComm.TCP.TextCommTCPMaster" en-hash="4d4262c98796cd6b">
              <summary>
              TCP로 TextComm 프레임(STX/ETX/DLE 텍스트 메시지)을 주고받는 Master(클라이언트)입니다.
              </summary>
@@ -10011,7 +10011,7 @@
              tc.CheckSumErrorReceived += (s, e) =&gt; Console.WriteLine($"합계 오류 {e.MessageID}");
              tc.DeviceOpened += (s, e) =&gt;
              {
-                 // ManualSend는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 // ManualSend는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected); 연결(재연결)될 때마다 다시 실행됩니다
                  tc.ManualSend(10, 1, 0x42, "SET 100", repeatCount: 2);
              };
              tc.Start();

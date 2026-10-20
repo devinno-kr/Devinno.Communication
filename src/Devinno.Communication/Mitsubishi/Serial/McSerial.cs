@@ -37,7 +37,7 @@ namespace Devinno.Communication.Mitsubishi.Serial;
 /// mc.NAKReceived += (s, e) =&gt; Console.WriteLine($"NAK {e.ErrorCode:X2}");
 /// mc.DeviceOpened += (s, e) =&gt;
 /// {
-///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected)
+///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected); runs again on every (re)connect
 ///     mc.ManualWW(10, 0, "D200", [1234, -1]);
 ///     mc.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Slave="0" Device="D200" /&gt; by name
 /// };
@@ -197,7 +197,7 @@ public class McSerial : IDisposable
     public event EventHandler<NAKEventArgs>? NAKReceived;
     /// <summary>Raised when there is no response, the response is malformed, or the port is lost during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
     public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
-    /// <summary>Raised when the sum check of a response is incorrect. Raised on every retry; IsFinal tells whether the job will be attempted again.</summary>
+    /// <summary>Raised when the sum check of a response is incorrect. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
     public event EventHandler<AttemptFailedEventArgs>? SumCheckErrorReceived;
     /// <summary>Raised when a Manual write is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the Manual/NamedWrite call, Stopped inside Stop(); otherwise on the communication thread.</summary>
     public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
@@ -241,6 +241,9 @@ public class McSerial : IDisposable
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
         // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        // Join이 시간 초과로 끝났어도(핸들러가 루프를 붙잡은 경우) Stop 뒤 쓰기가 대기열에 들어가거나
+        // 새 루프가 옛 쓰기를 보내지 않도록 연결 상태를 즉시 내린다
+        lock (workLock) { linkUp = false; linkThread = null; }
         DiscardWrites(WriteDiscardReason.Stopped);
     }
 

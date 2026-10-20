@@ -33,7 +33,7 @@ master.AutoWordRead_FC3(id: 1, slave: 1, startAddr: 0, length: 10);
 
 // Manual: runs once, and is processed before the Auto list.
 // Write once connected: a write made while not connected is discarded (WriteDiscarded).
-master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);
+master.DeviceOpened += (s, e) => master.ManualWordWrite_FC6(id: 2, slave: 1, startAddr: 100, value: 1234);   // runs on every (re)connect
 
 master.Start();
 
@@ -94,6 +94,7 @@ The other Master classes follow the same flow: create, attach events, register `
   * Modbus FC6 / FC16 Manual writes throw `ArgumentOutOfRangeException` for a value outside -32768..65535.
   * S7 and FINS block writes are not atomic: when one fails part-way, `WrittenBytes` (S7) / `WrittenCount` (FINS) tell how much was already written.
   * An FX5 over 3E uses octal X/Y numbers: set `XYNotation="Octal"`; with `Auto` they are read as hexadecimal and address the wrong points.
+  * For the TextComm masters every `ManualSend` counts as a write (the library does not know what a command means), so it is also discarded while there is no connection.
   * Write right after the connection is up (inside `DeviceOpened`), not right after `Start()`.
 
 ### XML configuration and named write
