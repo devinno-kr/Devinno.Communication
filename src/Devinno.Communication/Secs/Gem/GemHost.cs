@@ -86,6 +86,7 @@ public partial class GemHost : IDisposable
     bool linkUp;                        // gate: GEM이 아는 연결 상태(디스패처의 DeviceOpened/DeviceClosed로 바뀜)
     int linkEpoch;                      // gate: 연결 세대(열림·닫힘마다 1 늘림). 끊긴 연결의 늦은 S1F14를 가려낸다
     GemConnectResult? pendingSequenceResult;   // gate: 자동 시퀀스의 끊김 실패(그 연결이 아직 열려 있을 때). DeviceClosed가 상태 이벤트 뒤에 알린다
+    (int Epoch, SecsItem? Model)? pendingEstablish;   // gate: GEM이 DeviceOpened를 처리하기 전에 온 그 연결의 S1F14(COMMACK 0). 그 DeviceOpened가 적용한다
     string modelName = "", softwareRevision = "";   // gate: 장비가 알려 준 MDLN·SOFTREV
 
     SecsFormat vidFormat = SecsFormat.U4, ceidFormat = SecsFormat.U4, rptidFormat = SecsFormat.U4, alidFormat = SecsFormat.U4, dataidFormat = SecsFormat.U4;
@@ -130,8 +131,24 @@ public partial class GemHost : IDisposable
             lock (gate)
             {
                 if (!running) return;
+                // DeviceClosed 없이 다시 열림: 남은 시퀀스 실패는 새 연결을 다루기 전에 알린다
+                if (pendingSequenceResult is { } stale)
+                {
+                    pendingSequenceResult = null;
+                    Raise(ConnectSequenceCompleted, stale);
+                }
                 linkUp = true;
                 epoch = ++linkEpoch;
+                // 이 연결에서 보낸 S1F13의 응답이 먼저 처리됐으면 이제 수립을 반영한다
+                if (pendingEstablish is { } est)
+                {
+                    pendingEstablish = null;
+                    if (est.Epoch == linkEpoch)
+                    {
+                        StoreModel(est.Model);
+                        SetCommunicatingLocked(true);
+                    }
+                }
             }
             OnTransportOpened(epoch);
         };
@@ -142,6 +159,7 @@ public partial class GemHost : IDisposable
                 if (!running) return;
                 linkUp = false;
                 ++linkEpoch;
+                pendingEstablish = null;
                 SetCommunicatingLocked(false);
                 // 보류된 자동 시퀀스 실패는 CommunicationStateChanged 다음에(H2)
                 if (pendingSequenceResult is { } pending)
@@ -297,6 +315,7 @@ public partial class GemHost : IDisposable
                 communicating = false;
                 linkUp = false;
                 pendingSequenceResult = null;
+                pendingEstablish = null;
                 OnCommunicatingChangedLocked(false);
                 modelName = softwareRevision = "";
                 ResetReports();
@@ -341,6 +360,7 @@ public partial class GemHost : IDisposable
         {
             running = false;
             pendingSequenceResult = null;                // Stop 뒤 이벤트 없음
+            pendingEstablish = null;
             deferreds.Clear();
             w = worker;
             a = app;

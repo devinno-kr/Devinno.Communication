@@ -83,6 +83,7 @@ public partial class GemHost
     static SecsMessage EstablishRequest() => new(1, 13, true, SecsItem.L());
 
     // sendEpoch = 보내기 직전에 캡처한 SendEpoch(). 응답 처리 때 그 연결이 아직 열려 있을 때만 장비 이름·통신 수립을 반영한다(H1).
+    // GEM이 그 연결의 DeviceOpened를 아직 처리하지 않았으면(sendEpoch == linkEpoch + 1) 보류했다가 DeviceOpened가 반영한다.
     // 끊긴 연결의 늦은 응답이면 COMMACK만 돌려준다
     byte EstablishReply(SecsMessage reply, int sendEpoch)
     {
@@ -98,6 +99,7 @@ public partial class GemHost
                     StoreModel(body.Items[1]);
                     SetCommunicatingLocked(true);
                 }
+                else if (running && !linkUp && sendEpoch == linkEpoch + 1) pendingEstablish = (sendEpoch, body.Items[1]);
             }
         }
         return ack;

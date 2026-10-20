@@ -172,16 +172,18 @@ public partial class GemHost
     {
         byte ack = AckOf(reply.Item, reply, "DRACK");
         if (ack != GemAck.DrackAccepted) return ack;
-        transport.Post(() => ApplyReportTable(reports));
+        int r;
+        lock (gate) r = run;
+        transport.Post(() => ApplyReportTable(reports, r));
         return ack;
     }
 
-    // 해석 표에 반영(디스패처, 또는 전송 Stop 스레드). 열쇠는 보낸 포맷 기준: A면 숫자 RPTID도 텍스트
-    void ApplyReportTable(IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
+    // 해석 표에 반영(디스패처, 또는 전송 Stop 스레드). r = 응답을 받은 실행 번호(Stop → Start 뒤의 늦은 갱신은 버림). 열쇠는 보낸 포맷 기준: A면 숫자 RPTID도 텍스트
+    void ApplyReportTable(IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports, int r)
     {
         lock (gate)
         {
-            if (!running) return;
+            if (!running || run != r) return;
             if (reports.Count == 0) reportTable.Clear();
             foreach (var (rptid, vids) in reports)
             {

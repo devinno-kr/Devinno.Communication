@@ -143,6 +143,31 @@ public class GemHostOrderingTests
         }
     }
 
+    // D1: GEM이 DeviceOpened를 처리하기 전에 수동 S1F13의 응답(COMMACK 0)이 돌아와도, 그 연결의 DeviceOpened를 처리할 때 수립이 반영된다
+    [Fact]
+    public async Task Manual_ReplyBeforeOpenedHandled_EstablishedWhenOpenedHandled()
+    {
+        using var fake = new FakeGemEquipment();
+        fake.Start();
+        using var release = new ManualResetEventSlim();
+        var hsms = GemHostKit.Transport(fake.Port);
+        hsms.DeviceOpened += (s, e) => release.Wait(10000);                                // GemHost보다 먼저 구독: GEM의 DeviceOpened 처리를 붙잡음
+        using var host = new GemHost(hsms) { AutoConnectSequence = false };
+        var log = GemHostKit.Log(host);
+        try
+        {
+            host.Start();
+            await TestUtil.Until(() => host.IsOpen, 5000);
+            Assert.Equal(0, await Task.Run(host.EstablishCommunication).WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(host.LinkUp);                                                     // 아직 GEM은 연결을 모름
+            Assert.False(host.IsCommunicating);
+        }
+        finally { release.Set(); }
+        await TestUtil.Until(() => host.IsCommunicating);
+        await TestUtil.Until(() => log.Contains("Comm NotCommunicating->Communicating"));
+        Assert.Equal("FAKE", host.ModelName);
+    }
+
     // H3(P10): S2F34보다 먼저 받은 S6F11은 옛 표로 해석된다(디스패처를 붙잡아 S6F11과 S2F34를 한 세그먼트로)
     [Fact]
     public async Task P10_OldS6F11BeforeS2F34_InterpretedWithOldTable()
