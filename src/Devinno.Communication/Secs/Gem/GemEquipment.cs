@@ -652,11 +652,10 @@ public partial class GemEquipment : IDisposable
         GemLoop? w;
         lock (gate)
         {
-            if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패·Stop/Start)
-            // 장비 S1F13은 지난 연결의 완료라도 받아 WAIT DELAY로 보낸다(끊김 때 응답 대기 중인 S1F13을 놓는 곳이 아직 없음)
-            if (!s1f13 && o.Epoch != linkEpoch) return;   // 지난 연결의 늦은 완료(그 연결의 DeviceClosed가 이미 정리함)
-            // 링크가 끊겨 끝난 송신은 아무 상태도 바꾸지 않는다: 그 연결의 DeviceClosed가 전이 14로 이 메시지와 대기열을 버림 경로로 보낸다
-            if (!s1f13 && t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex))) return;
+            if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패·끊김·Stop/Start)
+            if (o.Epoch != linkEpoch) return;          // 지난 연결의 늦은 완료(그 연결의 DeviceClosed가 이미 정리함)
+            // 링크가 끊겨 끝난 송신은 아무 상태도 바꾸지 않는다: 그 연결의 DeviceClosed가 전이 14(또는 WAIT CRA 정리)로 이 메시지와 대기열을 끝낸다
+            if (t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex))) return;
             inFlight = null;
             w = worker;
         }

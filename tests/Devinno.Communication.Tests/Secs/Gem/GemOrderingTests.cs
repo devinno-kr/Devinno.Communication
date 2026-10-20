@@ -181,8 +181,9 @@ public class GemOrderingTests
         using (var eq = RunP1()) Assert.Equal(0, eq.DispatcherSendCount);
     }
 
+    // 회귀: 지난 연결의 늦은 실패가 새 연결을 건드리지 않는다. 그 연결의 DeviceClosed(전이 14)가 이미 inFlight를 비웠으므로 inFlight != o로 버려진다(epoch 검사까지 가지 않음)
     [Fact]
-    public void C2_LateFailureOfPreviousLink_IgnoredByEpoch()
+    public void C2_LateFailureOfPreviousLink_AfterReconnect_Ignored()
     {
         var fake = new FakeGemTransport();
         using var eq = new GemEquipment(fake.Transport) { ModelName = "DV-100", SoftwareRevision = "1.0.0" };
@@ -209,5 +210,120 @@ public class GemOrderingTests
         Assert.DoesNotContain(log, l => l.StartsWith("SendFailed S6F11 Disconnected", StringComparison.Ordinal));
         Assert.DoesNotContain(log, l => l.StartsWith("Error ", StringComparison.Ordinal));
         Assert.Equal(["SendFailed S6F11 NotCommunicating"], GemKit.Only(log, "SendFailed"));
+    }
+
+    // 지난 연결의 S1F13(응답 대기 중 끊김)의 늦은 실패: DeviceClosed가 WAIT CRA를 정리해 WAIT DELAY로 보냈으므로 재연결 때 새 S1F13이 바로 나가고,
+    // 늦은 실패는 버려져(inFlight != o) 새 S1F13은 그대로 응답 대기, ProtocolError·상태 변화 없음
+    [Fact]
+    public void C2_LateS1F13FailureOfPreviousLink_NewS1F13StaysInFlight()
+    {
+        var fake = new FakeGemTransport();
+        using var eq = new GemEquipment(fake.Transport) { ModelName = "DV-100", SoftwareRevision = "1.0.0" };
+        GemKit.Sample(eq);
+        var log = GemKit.Log(eq);
+        eq.Start();
+        fake.Open();
+        var stale = fake.Next(1, 13);                        // 완료를 붙잡아 둔다
+        fake.Close();                                        // WAIT CRA 중 끊김 → WAIT DELAY(알림 없음)
+        fake.Open();                                         // 새 연결: CommDelay를 기다리지 않고 바로 S1F13
+        var s1f13 = fake.Next(1, 13, 1000);
+        stale.Completed(Task.FromException<SecsMessage?>(new SecsDisconnectedException("지난 연결의 쓰기 실패")));
+        Thread.Sleep(200);
+        Assert.Equal(GemCommunicationState.NotCommunicating, eq.CommunicationState);
+        Assert.Empty(log);
+        s1f13.Completed(Task.FromResult<SecsMessage?>(new SecsMessage(1, 14, false, S1F14Body)));   // 새 S1F13은 그대로 응답 대기였음
+        TestUtil.Wait(() => eq.CommunicationState == GemCommunicationState.Communicating);
+        Thread.Sleep(100);
+        Assert.Equal(["Comm NotCommunicating->Communicating"], [.. log]);
+        Assert.False(fake.Sent.TryTake(out _, 100));       // S1F13을 한 번 더 보내지 않음
+    }
+
+    // P2: S1F14 직후 끊김(풀 고갈). S1F14 성공 완료가 먼저(COMMUNICATING), DeviceClosed가 전이 14 → NOT COMMUNICATING.
+    // 재연결 뒤에는 S1F13으로 다시 수립하기 전까지 S6F11을 보내지 않는다(E5)
+    [Fact]
+    public void P2_S1F14ThenClose_PoolStarved_EndsNotCommunicating_ReestablishesOnReconnect()
+    {
+        using var eq = GemKit.Equipment(e => { GemKit.Sample(e); e.InitialControlState = GemControlState.OnlineRemote; e.EventsEnabledByDefault = true; });
+        var (peer, s1f13) = Selected(eq);
+        using (peer)
+        {
+            using (var s = PoolStarver.Start())
+            {
+                peer.SendData(new SecsMessage(1, 14, false, S1F14Body).WithHeader(s1f13.SystemBytes, 1));
+                peer.Close();
+                TestUtil.Wait(() => !eq.IsOpen);
+            }
+            Thread.Sleep(300);
+            Assert.Equal(GemCommunicationState.NotCommunicating, eq.CommunicationState);
+        }
+        using var peer2 = FakeHsmsPeer.Connect(GemKit.Port(eq));
+        Assert.Equal(HsmsFrame.SelectOk, peer2.Select());
+        Assert.False(eq.TriggerEvent(5002));                 // 링크 없이 COMMUNICATING으로 남지 않음
+        var first = peer2.ReadData();
+        Assert.Equal((1, 13), (first.Stream, first.Function));
+    }
+
+    // P4·E2a·E3·E4: COMMUNICATING에서 끊김(응답 대기 1 + 대기열 2). 버림 알림이 보낼 순서대로 → 상태 변화 한 번, Disconnected·S1F13 실패 알림 없음, 그 뒤 이벤트 없음
+    [Fact]
+    public async Task P4_E2a_E3_E4_CloseWithQueuedEvents_DiscardInOrder_OneStateChange()
+    {
+        using var eq = GemKit.Equipment(e => { GemKit.Sample(e); e.InitialControlState = GemControlState.OnlineRemote; e.EventsEnabledByDefault = true; });
+        var host = await GemKit.Communicating(eq, h => h.Hold(6, 11));
+        var log = GemKit.Log(eq);
+        for (int i = 0; i < 3; i++) Assert.True(eq.TriggerEvent(5002));
+        Assert.True(host.Held.TryTake(out _, 3000));         // 하나는 응답 대기, 둘은 대기열
+        host.Dispose();
+        await TestUtil.Until(() => GemKit.Only(log, "Comm").Length >= 1, 5000);
+        int n = log.Count;
+        await Task.Delay(500);
+        Assert.Equal(["SendFailed S6F11 NotCommunicating", "SendFailed S6F11 NotCommunicating", "SendFailed S6F11 NotCommunicating", "Comm Communicating->NotCommunicating"], [.. log]);
+        Assert.Equal(n, log.Count);                          // 그 연결에 관한 이벤트가 더 오지 않음
+    }
+
+    // P5: 끊긴 직후(GEM이 DeviceClosed를 아직 처리하지 않았을 수 있음) 통신을 켜도 죽은 링크로 S1F13 실패가 나지 않고, 재연결 때 바로 S1F13
+    [Fact]
+    public void P5_EnableCommunicationRightAfterClose_NoDeadLinkS1F13()
+    {
+        for (int i = 0; i < 20; i++)
+        {
+            using var eq = GemKit.Equipment(e => { GemKit.Sample(e); e.InitialCommunicationState = GemEnableState.Disabled; });
+            var log = GemKit.Log(eq);
+            eq.Start();
+            using (var peer = FakeHsmsPeer.Connect(GemKit.Port(eq)))
+            {
+                Assert.Equal(HsmsFrame.SelectOk, peer.Select());
+                TestUtil.Wait(() => eq.IsOpen);
+                peer.Close();
+                Assert.True(eq.EnableCommunication());
+                Thread.Sleep(300);
+            }
+            Assert.DoesNotContain(log, l => l.StartsWith("Error S1F13 통신 수립 실패", StringComparison.Ordinal));
+            using var peer2 = FakeHsmsPeer.Connect(GemKit.Port(eq));
+            Assert.Equal(HsmsFrame.SelectOk, peer2.Select());
+            var m = peer2.ReadData(1000);
+            Assert.Equal((1, 13), (m.Stream, m.Function));
+        }
+    }
+
+    // P6: WAIT CRA 중 끊김(풀 고갈) → WAIT DELAY. 재연결하면 EstablishCommunicationsTimeout(10초)을 기다리지 않고 바로 S1F13
+    [Fact]
+    public void P6_CloseDuringWaitCra_Reconnect_S1F13WithoutCommDelay_PoolStarved()
+    {
+        using var eq = GemKit.Equipment(GemKit.Sample);
+        var log = GemKit.Log(eq);
+        var (peer1, _) = Selected(eq);                       // S1F13에 응답하지 않는다
+        FakeHsmsPeer peer2;
+        using (PoolStarver.Start())
+        {
+            peer1.Close();
+            peer1.Dispose();
+            peer2 = FakeHsmsPeer.Connect(GemKit.Port(eq));
+            Assert.Equal(HsmsFrame.SelectOk, peer2.Select());
+            var m = peer2.ReadData(2000);
+            Assert.Equal((1, 13), (m.Stream, m.Function));
+        }
+        using var p2 = peer2;
+        Thread.Sleep(200);
+        Assert.Empty(log);                                   // 끊김으로 놓은 S1F13은 알리지 않는다(원인이 분명함, 6G.5.3)
     }
 }

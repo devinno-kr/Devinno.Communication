@@ -338,8 +338,9 @@ public class GemReportTests
     [Fact]
     public async Task LinkLoss_SendFailsBeforeDeviceClosed_StillDiscardPath()
     {
-        // 끊기면 전송은 응답 대기 트랜잭션을 먼저 SecsDisconnectedException으로 끝내고 DeviceClosed는 디스패처에서 나중에 낸다.
-        // 끊김 알림(전송 ProtocolError, DeviceClosed 바로 앞)에서 디스패처를 붙잡아 송신 실패가 DeviceClosed보다 먼저 처리되는 순서를 만든다
+        // 끊기면 전송은 응답 대기 트랜잭션을 먼저 SecsDisconnectedException으로 끝내고(순서 있는 완료라 디스패처에서 DeviceClosed보다 앞) DeviceClosed는 그 뒤에 낸다.
+        // 끊김 알림(전송 ProtocolError, DeviceClosed 바로 앞)에서 디스패처를 붙잡아도(앱 핸들러의 head-of-line) GEM은 끊김 실패 완료로는 상태를 바꾸지 않고,
+        // 뒤이은 DeviceClosed의 전이 14가 응답 대기·대기열을 함께 버림 경로로 보낸다(붙잡는 동안 COMMUNICATING 그대로라 SpinUntil은 시간 초과로 풀린다)
         using var eq = Eq(e => e.EventsEnabledByDefault = true);
         var log = GemKit.Log(eq);
         bool arm = false, blocked = false;
