@@ -75,6 +75,7 @@ public class LsFEnetTests : IDisposable
         int writes = 0;
         fenet.WriteReceived += (s, e) => { if (Interlocked.Increment(ref writes) == 2) done.TrySetResult(true); };
         fenet.Start();
+        await TestUtil.Until(() => fenet.IsOpen);
         fenet.ManualWSS(1, [new LsValue("%MX3", 1), new LsValue("%MX4", 1)]);
         fenet.ManualWSB(2, "%MW20", [100, -1, 300]);
         await Wait(done);

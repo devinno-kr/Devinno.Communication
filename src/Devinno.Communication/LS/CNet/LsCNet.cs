@@ -15,6 +15,7 @@ namespace Devinno.Communication.LS.CNet;
 /// <para>Manual jobs are processed before Auto jobs. Responses arrive through the Received events, and the id given at registration is returned as <c>MessageID</c>. When the PLC sends a NAK, only <see cref="NAKReceived"/> is raised and no retry is made.</para>
 /// <para>A Cnet frame is limited to 256 bytes. The library does not check this size at registration. If a request or response exceeds 256 bytes (for example 16 long device names or 16 L values), the PLC rejects it and the rejection arrives as <see cref="NAKReceived"/>.</para>
 /// <para>The communication loop runs on a dedicated background thread, and all events are raised on that thread. To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF). Exceptions thrown in a handler are ignored and the loop continues.</para>
+/// <para>Write safety: with <see cref="DiscardWritesWhileDisconnected"/> true (the default), a Manual write (WSS/WSB, including <see cref="NamedWrite(string, long, int?, int?)"/>) requested while the port is not open is not queued, and writes still queued when the port is lost are discarded right after <see cref="DeviceClosed"/>; both are reported through <see cref="WriteDiscarded"/>, which may also be raised on the calling thread. <see cref="Stop"/> always discards pending Manual writes. Manual reads and Auto jobs are never discarded. Each write ends with exactly one of: <see cref="WriteReceived"/>, <see cref="NAKReceived"/>, a <see cref="TimeoutReceived"/> or <see cref="BCCErrorReceived"/> with IsFinal true, or <see cref="WriteDiscarded"/> (jobs removed with <see cref="ClearManual"/> or <see cref="RemoveManual"/> are not reported).</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -24,9 +25,13 @@ namespace Devinno.Communication.LS.CNet;
 /// var cnet = new LsCNet { Port = "COM5", Baudrate = 9600 };
 /// cnet.AutoRSB(1, 1, "%MW100", 10);
 /// cnet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
+/// cnet.DeviceOpened += (s, e) =&gt;
+/// {
+///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected)
+///     cnet.ManualWSS(10, 1, [new LsValue("%MW200", 1234), new LsValue("%MW201", 5)]);
+///     cnet.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Slave="1" Device="%MW300" /&gt; by name
+/// };
 /// cnet.Start();
-/// cnet.ManualWSS(10, 1, [new LsValue("%MW200", 1234), new LsValue("%MW201", 5)]);
-/// cnet.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Slave="1" Device="%MW300" /&gt; by name
 /// </code>
 /// </example>
 public class LsCNet : IDisposable
@@ -43,11 +48,13 @@ public class LsCNet : IDisposable
         public byte[] Request { get; } = request;
         public int? RepeatCount { get; } = repeatCount;
         public int? Timeout { get; } = timeout;
+        // 연결이 끊긴 동안 버리는 대상(물리 동작이 있는 쓰기)
+        public bool IsWrite => Command is LsCommand.WSS or LsCommand.WSB;
     }
     #endregion
 
     #region class : EventArgs
-    /// <summary>Common event arguments for request result events. Write response, timeout, and BCC error events use this type as-is.</summary>
+    /// <summary>Common event arguments for request result events. Write response events use this type as-is.</summary>
     /// <param name="messageId">The message ID given at registration.</param>
     /// <param name="slave">Station number.</param>
     /// <param name="command">Command.</param>
@@ -87,6 +94,24 @@ public class LsCNet : IDisposable
         /// <summary>NAK error code (for example 0x1132 device area error, 0x1232 size exceeded).</summary>
         public int ErrorCode { get; } = errorCode;
     }
+
+    /// <summary>Event arguments for a failed attempt (<see cref="TimeoutReceived"/>, <see cref="BCCErrorReceived"/>).</summary>
+    /// <param name="messageId">The message ID given at registration.</param>
+    /// <param name="slave">Station number.</param>
+    /// <param name="command">Command.</param>
+    /// <param name="attempt">Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</param>
+    /// <param name="isFinal">Whether this job will not be attempted again (retries used up or the port was lost).</param>
+    /// <param name="requestSent">Whether the request of this attempt was handed to the send function.</param>
+    public class AttemptFailedEventArgs(int messageId, int slave, LsCommand command, int attempt, bool isFinal, bool requestSent)
+        : ResultEventArgs(messageId, slave, command)
+    {
+        /// <summary>Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</summary>
+        public int Attempt { get; } = attempt;
+        /// <summary>Whether this job will not be attempted again (retries used up or the port was lost).</summary>
+        public bool IsFinal { get; } = isFinal;
+        /// <summary>Whether the request of this attempt was handed to the send function. If false, the device did not receive this attempt; if true, the result is unknown and the device may have executed it.</summary>
+        public bool RequestSent { get; } = requestSent;
+    }
     #endregion
 
     #region Properties
@@ -107,6 +132,8 @@ public class LsCNet : IDisposable
     public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port at 1-second intervals when it could not be opened or was lost (default: false).</summary>
     public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). When true, a Manual write or named write requested while the port is not open raises <see cref="WriteDiscarded"/> (NotConnected) instead of being queued, and writes still queued when the port is lost are discarded (Disconnected). When false, they stay queued and are sent after the port is opened. Manual reads and Auto jobs are not affected, and <see cref="Stop"/> discards pending writes regardless of this setting.</summary>
+    public bool DiscardWritesWhileDisconnected { get; set; } = true;
 
     /// <summary>Gets whether the serial port is open.</summary>
     public bool IsOpen => Volatile.Read(ref port)?.IsOpen ?? false;
@@ -127,6 +154,12 @@ public class LsCNet : IDisposable
     SerialPort? port;
     Thread? thread;
     CancellationTokenSource? cts;
+    // 연결이 살아 있는지(workLock 보호). 설정이 true면 쓰기는 이것이 true일 때만 대기열에 들어간다
+    bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
+    // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
+    bool requestSent;
     #endregion
 
     #region Event
@@ -136,10 +169,12 @@ public class LsCNet : IDisposable
     public event EventHandler<ResultEventArgs>? WriteReceived;
     /// <summary>Raised when the PLC sends a NAK. No retry is made.</summary>
     public event EventHandler<NAKEventArgs>? NAKReceived;
-    /// <summary>Raised when there is no response, the response is malformed, or the port is lost during a request. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? TimeoutReceived;
-    /// <summary>Raised when the BCC of a response is incorrect. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? BCCErrorReceived;
+    /// <summary>Raised when there is no response, the response is malformed, or the port is lost during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
+    /// <summary>Raised when the BCC of a response is incorrect. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? BCCErrorReceived;
+    /// <summary>Raised when a Manual write is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the Manual/NamedWrite call, Stopped inside Stop(); otherwise on the communication thread.</summary>
+    public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
     /// <summary>Raised when the serial port is opened.</summary>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the serial port is closed.</summary>
@@ -163,7 +198,7 @@ public class LsCNet : IDisposable
         }
     }
 
-    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end.</summary>
+    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end. Pending Manual writes are discarded (WriteDiscarded, Stopped).</summary>
     /// <remarks>May be called from inside an event handler; in that case it does not wait and returns immediately. Events that were already in progress may still be raised briefly right after Stop() returns.</remarks>
     public void Stop()
     {
@@ -179,6 +214,8 @@ public class LsCNet : IDisposable
         ClosePort(Volatile.Read(ref port));
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
+        // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        DiscardWrites(WriteDiscardReason.Stopped);
     }
 
     /// <summary>Stops communication and releases its resources.</summary>
@@ -293,7 +330,54 @@ public class LsCNet : IDisposable
     }
 
     void AddAuto(Work w) { lock (workLock) autoWorks.Add(w); }
-    void AddManual(Work w) { lock (workLock) manualWorks.Add(w); }
+    void AddManual(Work w)
+    {
+        bool discard = false;
+        lock (workLock)
+        {
+            if (w.IsWrite && DiscardWritesWhileDisconnected && !linkUp) discard = true;
+            else manualWorks.Add(w);
+        }
+        if (discard) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, WriteDiscardReason.NotConnected));
+    }
+
+    // 연결을 얻었다. port을 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
+    internal void SetLinkUp()
+    {
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
+    }
+
+    // 연결을 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
+    internal void SetLinkDown(bool stopping)
+    {
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+    }
+
+    // 대기 중인 Manual 쓰기를 순서대로 꺼내(읽기는 남김) lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 쓰기 하나당 알림은 한 번
+    internal void DiscardWrites(WriteDiscardReason reason)
+    {
+        List<Work> dropped;
+        lock (workLock)
+        {
+            dropped = manualWorks.FindAll(x => x.IsWrite);
+            if (dropped.Count == 0) return;
+            manualWorks.RemoveAll(x => x.IsWrite);
+        }
+        foreach (var w in dropped) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, reason));
+    }
 
     // 이름 있는 쓰기 표. NamedWrite는 실행 중에도 불리므로 통째로 바꾸는 참조(volatile)로 둔다. ApplyConfig에서만 교체한다.
     volatile NamedWriteTable<LsCNetWriteConfig> namedWrites = NamedWriteTable<LsCNetWriteConfig>.Empty;
@@ -340,7 +424,7 @@ public class LsCNet : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="slave">Station number, 0 to 255.</param>
     /// <param name="values">1 to 16 device and value pairs; all size characters must be the same. Bits accept only 0/1.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWSS(int id, int slave, IReadOnlyList<LsValue> values, int? repeatCount = null, int? timeout = null)
         => AddManual(WssWork(id, slave, values, repeatCount, timeout));
@@ -350,7 +434,7 @@ public class LsCNet : IDisposable
     /// <param name="slave">Station number, 0 to 255.</param>
     /// <param name="device">Start device (bit X not allowed).</param>
     /// <param name="values">The values to write. At most 120 bytes; each value must be within the size range.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWSB(int id, int slave, string device, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
         => AddManual(WsbWork(id, slave, device, values, repeatCount, timeout));
@@ -358,7 +442,7 @@ public class LsCNet : IDisposable
     /// <summary>Registers a write of one value by the name defined in the XML &lt;Write&gt; element. It is sent as WSS (random write).</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="value">The value to write. 0/1 for a bit; otherwise within the device size range.</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, long value, int? repeatCount = null, int? timeout = null)
@@ -367,7 +451,7 @@ public class LsCNet : IDisposable
     /// <summary>Registers a write of several values to consecutive devices by the name defined in the XML &lt;Write&gt; element. One value is sent as WSS, several values as WSB.</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="values">The values to write (several values follow the same rules as <see cref="ManualWSB"/>: no bit devices, at most 120 bytes).</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
@@ -400,6 +484,7 @@ public class LsCNet : IDisposable
         Timeout = Timeout,
         Interval = Interval,
         AutoReconnect = AutoReconnect,
+        DiscardWritesWhileDisconnected = DiscardWritesWhileDisconnected,
         Autos = [.. AutoWorksSnapshot().Select(w =>
         {
             LsCNetAutoConfig a = w.Command == LsCommand.RSS
@@ -470,6 +555,7 @@ public class LsCNet : IDisposable
         Timeout = config.Timeout;
         Interval = config.Interval;
         AutoReconnect = config.AutoReconnect;
+        DiscardWritesWhileDisconnected = config.DiscardWritesWhileDisconnected;
         namedWrites = table;
         ReplaceAutoWorks(works);
     }
@@ -513,6 +599,7 @@ public class LsCNet : IDisposable
                 var sp = TryOpen();
                 if (sp != null)
                 {
+                    SetLinkUp();
                     Volatile.Write(ref port, sp);
                     try
                     {
@@ -533,6 +620,7 @@ public class LsCNet : IDisposable
                     {
                         ClosePort(sp);
                         Raise(DeviceClosed);
+                        SetLinkDown(token.IsCancellationRequested);
                     }
                 }
                 if (!AutoReconnect || token.IsCancellationRequested) break;
@@ -575,26 +663,43 @@ public class LsCNet : IDisposable
 
     static ResultEventArgs Result(Work w) => new(w.MessageID, w.Slave, w.Command);
 
+    AttemptFailedEventArgs Failed(Work w, int attempt, bool isFinal)
+        => new(w.MessageID, w.Slave, w.Command, attempt, isFinal, requestSent);
+
     void ProcessWork(SerialPort sp, Work w)
+        => Process(w,
+            request =>
+            {
+                sp.DiscardInBuffer();
+                sp.Write(request, 0, request.Length);
+            },
+            timeout => ReadFrame(sp, timeout));
+
+    // 작업 하나의 송수신·재시도·이벤트. send = 요청 송신, receive(타임아웃) = 응답 프레임(없으면 null).
+    // send가 예외 없이 돌아오면 requestSent
+    internal void Process(Work w, Action<byte[]> send, Func<int, byte[]?> receive)
     {
+        int attempt = 0;
         try
         {
             int timeout = w.Timeout ?? Timeout;
-            for (int attempt = 0; ; attempt++)
+            for (; ; attempt++)
             {
-                sp.DiscardInBuffer();
-                sp.Write(w.Request, 0, w.Request.Length);
-                var frame = ReadFrame(sp, timeout);
+                requestSent = false;
+                send(w.Request);
+                requestSent = true;
+                var frame = receive(timeout);
                 var status = frame == null ? LsStatus.Invalid : HandleResponse(w, frame);
                 if (status is LsStatus.Ack or LsStatus.Nak) return;
-                Raise(status == LsStatus.BccError ? BCCErrorReceived : TimeoutReceived, Result(w));
-                if (attempt >= (w.RepeatCount ?? 0)) return;
+                bool isFinal = attempt >= (w.RepeatCount ?? 0);
+                Raise(status == LsStatus.BccError ? BCCErrorReceived : TimeoutReceived, Failed(w, attempt + 1, isFinal));
+                if (isFinal) return;
             }
         }
         catch
         {
-            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤, 재접속 경로가 돌도록 다시 던진다
-            Raise(TimeoutReceived, Result(w));
+            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤(더 시도하지 않으므로 최종), 재접속 경로가 돌도록 다시 던진다
+            Raise(TimeoutReceived, Failed(w, attempt + 1, true));
             throw;
         }
     }

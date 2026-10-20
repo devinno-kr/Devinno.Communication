@@ -17,7 +17,7 @@ public class LsCNetTests
     [Fact]
     public void TakeNextWork_ManualFirst_ThenAuto()
     {
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         c.AutoRSB(1, 1, "%MW0", 1);
         c.ManualWSS(2, 1, [new LsValue("%MW0", 1)]);
         Assert.Equal(2, c.TakeNextWork()!.MessageID);
@@ -34,7 +34,7 @@ public class LsCNetTests
     [InlineData("wssValue")]
     public void Register_Invalid_Throws(string kind)
     {
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         Action act = kind switch
         {
             "slave" => () => c.AutoRSS(1, 256, ["%MW0"]),
@@ -53,7 +53,7 @@ public class LsCNetTests
     {
         using var plc = new FakeXgtPlc { Station = 3 };
         plc.Set("%MW100", 0x1234); plc.Set("%MW101", 0xFFFF);
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         LsCNet.DataEventArgs? got = null;
         c.DataReceived += (s, e) => got = e;
         c.ManualRSS(7, 3, ["%mw100", "%MW101"]);
@@ -68,7 +68,7 @@ public class LsCNetTests
     {
         using var plc = new FakeXgtPlc();
         for (int i = 0; i < 16; i++) plc.Set($"%MW{i}", i * 10);
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         long[]? values = null;
         c.DataReceived += (s, e) => values = e.Values;
         c.ManualRSS(1, 1, Enumerable.Range(0, 16).Select(i => $"%MW{i}").ToList());
@@ -81,7 +81,7 @@ public class LsCNetTests
     {
         using var plc = new FakeXgtPlc();
         plc.Set("%MD1", 0xFFFFFFFF); plc.Set("%ML1", -2);
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         var got = new List<long>();
         c.DataReceived += (s, e) => got.AddRange(e.Values);
         c.ManualRSS(1, 1, ["%MD1"]);
@@ -94,7 +94,7 @@ public class LsCNetTests
     public void RSB_And_WSB_RoundTrip()
     {
         using var plc = new FakeXgtPlc();
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         int writes = 0; long[]? read = null;
         c.WriteReceived += (s, e) => { if (e.Command == LsCommand.WSB) writes++; };
         c.DataReceived += (s, e) => read = e.Values;
@@ -110,7 +110,7 @@ public class LsCNetTests
     public void WSS_WritesBitsAndWords()
     {
         using var plc = new FakeXgtPlc();
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         c.ManualWSS(1, 1, [new LsValue("%MX5", 1), new LsValue("%MX6", 1)]);
         Assert.Equal(LsStatus.Ack, Exchange(c, plc));
         Assert.Equal((1L, 1L, 0L), (plc.Get("%MX5"), plc.Get("%MX6"), plc.Get("%MX4")));
@@ -120,7 +120,7 @@ public class LsCNetTests
     public void Nak_RaisesNakOnly()
     {
         using var plc = new FakeXgtPlc { ForceNak = 0x1132 };
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         int code = 0, data = 0;
         c.NAKReceived += (s, e) => code = e.ErrorCode;
         c.DataReceived += (s, e) => data++;
@@ -133,7 +133,7 @@ public class LsCNetTests
     public void HandlerThrows_StillReturnsAck()
     {
         using var plc = new FakeXgtPlc();
-        var c = new LsCNet();
+        var c = new LsCNet { DiscardWritesWhileDisconnected = false };
         c.DataReceived += (s, e) => throw new InvalidOperationException();
         c.ManualRSS(1, 1, ["%MW0"]);
         Assert.Equal(LsStatus.Ack, Exchange(c, plc));

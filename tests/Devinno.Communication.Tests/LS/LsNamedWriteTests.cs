@@ -8,8 +8,9 @@ namespace Devinno.Communication.Tests.LS;
 
 public class LsNamedWriteTests
 {
-    static LsCNet CNet(string xml) { var c = new LsCNet(); c.FromXml(XElement.Parse(xml)); return c; }
-    static LsFEnet FEnet(string xml) { var f = new LsFEnet(); f.FromXml(XElement.Parse(xml)); return f; }
+    // 미시작 객체의 Manual 쓰기를 TakeNextWork로 확인하는 테스트라 쓰기 버림을 끈다(FromXml이 기본값으로 되돌리므로 그 뒤에 끈다)
+    static LsCNet CNet(string xml) { var c = new LsCNet(); c.FromXml(XElement.Parse(xml)); c.DiscardWritesWhileDisconnected = false; return c; }
+    static LsFEnet FEnet(string xml) { var f = new LsFEnet(); f.FromXml(XElement.Parse(xml)); f.DiscardWritesWhileDisconnected = false; return f; }
 
     [Fact]
     public void CNet_NamedWrite_Single_IsWss()
@@ -19,7 +20,7 @@ public class LsNamedWriteTests
         var w = c.TakeNextWork()!;
         Assert.Equal((5, 1, LsCommand.WSS), (w.MessageID, w.Slave, w.Command));
 
-        var m = new LsCNet();
+        var m = new LsCNet { DiscardWritesWhileDisconnected = false };
         m.ManualWSS(5, 1, [new LsValue("%MW100", 1234)]);
         Assert.Equal(m.TakeNextWork()!.Request, w.Request);
     }
@@ -32,7 +33,7 @@ public class LsNamedWriteTests
         var w = c.TakeNextWork()!;
         Assert.Equal((5, 1, LsCommand.WSB), (w.MessageID, w.Slave, w.Command));
 
-        var m = new LsCNet();
+        var m = new LsCNet { DiscardWritesWhileDisconnected = false };
         m.ManualWSB(5, 1, "%MW100", [1, 2, 3]);
         Assert.Equal(m.TakeNextWork()!.Request, w.Request);
     }
@@ -44,7 +45,7 @@ public class LsNamedWriteTests
         f.NamedWrite("A", 9);
         var w = f.TakeNextWork()!;
         Assert.Equal((7, LsCommand.WSS, (int?)2, (int?)500), (w.MessageID, w.Command, w.RepeatCount, w.Timeout));
-        var m = new LsFEnet();
+        var m = new LsFEnet { DiscardWritesWhileDisconnected = false };
         m.ManualWSS(7, [new LsValue("%MW100", 9)]);
         Assert.Equal(m.TakeNextWork()!.Body, w.Body);
 

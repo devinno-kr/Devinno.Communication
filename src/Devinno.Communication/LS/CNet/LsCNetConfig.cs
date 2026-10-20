@@ -37,6 +37,8 @@ public class LsCNetConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port after a disconnection (default: false).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="LsCNet.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. &lt;RSS&gt; and &lt;RSB&gt; can be mixed and are polled in order.</summary>
     [XmlElement("RSS", typeof(LsCNetRssConfig)), XmlElement("RSB", typeof(LsCNetRsbConfig))]
     public List<LsCNetAutoConfig> Autos { get; set; } = [];

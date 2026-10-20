@@ -15,6 +15,7 @@ namespace Devinno.Communication.LS.FEnet;
 /// A block command is converted internally to a byte variable before sending (%MW100 x10 becomes %MB200 x20 bytes), so only numeric addresses are allowed; bits (X) and dotted addresses cannot be used, and the limit is 1400 bytes.</para>
 /// <para>Manual jobs are processed before Auto jobs. Responses are matched to requests by Invoke ID; a response that does not match is discarded. When the PLC sends an error, only <see cref="NAKReceived"/> is raised and no retry is made.</para>
 /// <para>The communication loop runs on a dedicated background thread, and all events are raised on that thread. To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF). Exceptions thrown in a handler are ignored and the loop continues.</para>
+/// <para>Write safety: with <see cref="DiscardWritesWhileDisconnected"/> true (the default), a Manual write (WSS/WSB, including <see cref="NamedWrite(string, long, int?, int?)"/>) requested while there is no connection is not queued, and writes still queued when the connection is lost are discarded right after <see cref="DeviceClosed"/>; both are reported through <see cref="WriteDiscarded"/>, which may also be raised on the calling thread. <see cref="Stop"/> always discards pending Manual writes. Manual reads and Auto jobs are never discarded. Each write ends with exactly one of: <see cref="WriteReceived"/>, <see cref="NAKReceived"/>, a <see cref="TimeoutReceived"/> with IsFinal true, or <see cref="WriteDiscarded"/> (jobs removed with <see cref="ClearManual"/> or <see cref="RemoveManual"/> are not reported).</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -24,9 +25,13 @@ namespace Devinno.Communication.LS.FEnet;
 /// var fenet = new LsFEnet { RemoteIP = "192.168.0.20" };
 /// fenet.AutoRSB(1, "%MW100", 10);
 /// fenet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
+/// fenet.DeviceOpened += (s, e) =&gt;
+/// {
+///     // writes are accepted only while connected (otherwise WriteDiscarded, NotConnected)
+///     fenet.ManualWSB(10, "%MW200", [1, 2, 3]);
+///     fenet.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Device="%MW300" /&gt; by name
+/// };
 /// fenet.Start();
-/// fenet.ManualWSB(10, "%MW200", [1, 2, 3]);
-/// fenet.NamedWrite("Speed", 1500);   // calls the XML &lt;Write Name="Speed" Id="20" Device="%MW300" /&gt; by name
 /// </code>
 /// </example>
 public class LsFEnet : IDisposable
@@ -42,11 +47,13 @@ public class LsFEnet : IDisposable
         public byte[] Body { get; } = body;
         public int? RepeatCount { get; } = repeatCount;
         public int? Timeout { get; } = timeout;
+        // 연결이 끊긴 동안 버리는 대상(물리 동작이 있는 쓰기)
+        public bool IsWrite => Command is LsCommand.WSS or LsCommand.WSB;
     }
     #endregion
 
     #region class : EventArgs
-    /// <summary>Common event arguments for request result events. Write response and timeout events use this type as-is.</summary>
+    /// <summary>Common event arguments for request result events. Write response events use this type as-is.</summary>
     /// <param name="messageId">The message ID given at registration.</param>
     /// <param name="command">Command.</param>
     public class ResultEventArgs(int messageId, LsCommand command) : EventArgs
@@ -81,6 +88,23 @@ public class LsFEnet : IDisposable
         /// <summary>Error code (for example 0x0003 unsupported device, 0x0004 device range exceeded).</summary>
         public int ErrorCode { get; } = errorCode;
     }
+
+    /// <summary>Event arguments for a failed attempt (<see cref="TimeoutReceived"/>).</summary>
+    /// <param name="messageId">The message ID given at registration.</param>
+    /// <param name="command">Command.</param>
+    /// <param name="attempt">Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</param>
+    /// <param name="isFinal">Whether this job will not be attempted again (retries used up or the connection was lost).</param>
+    /// <param name="requestSent">Whether the request of this attempt was handed to the send function.</param>
+    public class AttemptFailedEventArgs(int messageId, LsCommand command, int attempt, bool isFinal, bool requestSent)
+        : ResultEventArgs(messageId, command)
+    {
+        /// <summary>Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</summary>
+        public int Attempt { get; } = attempt;
+        /// <summary>Whether this job will not be attempted again (retries used up or the connection was lost).</summary>
+        public bool IsFinal { get; } = isFinal;
+        /// <summary>Whether the request of this attempt was handed to the send function. If false, the device did not receive this attempt; if true, the result is unknown and the device may have executed it.</summary>
+        public bool RequestSent { get; } = requestSent;
+    }
     #endregion
 
     #region Properties
@@ -95,6 +119,8 @@ public class LsFEnet : IDisposable
     public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect at 1-second intervals when the connection could not be made or was lost (default: true).</summary>
     public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). When true, a Manual write or named write requested while not connected raises <see cref="WriteDiscarded"/> (NotConnected) instead of being queued, and writes still queued when the connection is lost are discarded (Disconnected). When false, they stay queued and are sent after the next connection. Manual reads and Auto jobs are not affected, and <see cref="Stop"/> discards pending writes regardless of this setting.</summary>
+    public bool DiscardWritesWhileDisconnected { get; set; } = true;
 
     /// <summary>Gets whether the TCP connection is established.</summary>
     public bool IsOpen => Volatile.Read(ref sock)?.Connected ?? false;
@@ -116,6 +142,12 @@ public class LsFEnet : IDisposable
     Thread? thread;
     CancellationTokenSource? cts;
     ushort invokeId;
+    // 연결이 살아 있는지(workLock 보호). 설정이 true면 쓰기는 이것이 true일 때만 대기열에 들어간다
+    bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
+    // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
+    bool requestSent;
     #endregion
 
     #region Event
@@ -125,8 +157,10 @@ public class LsFEnet : IDisposable
     public event EventHandler<ResultEventArgs>? WriteReceived;
     /// <summary>Raised when the PLC sends an error response. No retry is made.</summary>
     public event EventHandler<NAKEventArgs>? NAKReceived;
-    /// <summary>Raised when there is no response, the response is malformed, or the connection is lost during a request. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? TimeoutReceived;
+    /// <summary>Raised when there is no response, the response is malformed, or the connection is lost during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
+    /// <summary>Raised when a Manual write is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the Manual/NamedWrite call, Stopped inside Stop(); otherwise on the communication thread.</summary>
+    public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
     /// <summary>Raised when the TCP connection is established.</summary>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the TCP connection is lost.</summary>
@@ -150,7 +184,7 @@ public class LsFEnet : IDisposable
         }
     }
 
-    /// <summary>Stops the communication loop and disconnects. Waits up to (Timeout + 1000) ms for the loop to end.</summary>
+    /// <summary>Stops the communication loop and disconnects. Waits up to (Timeout + 1000) ms for the loop to end. Pending Manual writes are discarded (WriteDiscarded, Stopped).</summary>
     /// <remarks>May be called from inside an event handler; in that case it does not wait and returns immediately. Events that were already in progress may still be raised briefly right after Stop() returns.</remarks>
     public void Stop()
     {
@@ -166,6 +200,8 @@ public class LsFEnet : IDisposable
         CloseSocket(Volatile.Read(ref sock));
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
+        // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        DiscardWrites(WriteDiscardReason.Stopped);
     }
 
     /// <summary>Stops communication and releases its resources.</summary>
@@ -272,7 +308,54 @@ public class LsFEnet : IDisposable
     }
 
     void AddAuto(Work w) { lock (workLock) autoWorks.Add(w); }
-    void AddManual(Work w) { lock (workLock) manualWorks.Add(w); }
+    void AddManual(Work w)
+    {
+        bool discard = false;
+        lock (workLock)
+        {
+            if (w.IsWrite && DiscardWritesWhileDisconnected && !linkUp) discard = true;
+            else manualWorks.Add(w);
+        }
+        if (discard) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, WriteDiscardReason.NotConnected));
+    }
+
+    // 연결을 얻었다. sock을 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
+    internal void SetLinkUp()
+    {
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
+    }
+
+    // 연결을 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
+    internal void SetLinkDown(bool stopping)
+    {
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+    }
+
+    // 대기 중인 Manual 쓰기를 순서대로 꺼내(읽기는 남김) lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 쓰기 하나당 알림은 한 번
+    internal void DiscardWrites(WriteDiscardReason reason)
+    {
+        List<Work> dropped;
+        lock (workLock)
+        {
+            dropped = manualWorks.FindAll(x => x.IsWrite);
+            if (dropped.Count == 0) return;
+            manualWorks.RemoveAll(x => x.IsWrite);
+        }
+        foreach (var w in dropped) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, reason));
+    }
 
     // 이름 있는 쓰기 표. NamedWrite는 실행 중에도 불리므로 통째로 바꾸는 참조(volatile)로 둔다. ApplyConfig에서만 교체한다.
     volatile NamedWriteTable<LsFEnetWriteConfig> namedWrites = NamedWriteTable<LsFEnetWriteConfig>.Empty;
@@ -314,7 +397,7 @@ public class LsFEnet : IDisposable
     /// <summary>Registers a one-shot WSS (random write).</summary>
     /// <param name="id">Message ID.</param>
     /// <param name="values">1 to 16 device and value pairs; all size characters must be the same. Bits accept only 0/1.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWSS(int id, IReadOnlyList<LsValue> values, int? repeatCount = null, int? timeout = null)
         => AddManual(WssWork(id, values, repeatCount, timeout));
@@ -323,7 +406,7 @@ public class LsFEnet : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="device">Start device (numeric address only, bit X not allowed).</param>
     /// <param name="values">The values to write. At most 1400 bytes; each value must be within the size range.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWSB(int id, string device, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
         => AddManual(WsbWork(id, device, values, repeatCount, timeout));
@@ -331,7 +414,7 @@ public class LsFEnet : IDisposable
     /// <summary>Registers a write of one value by the name defined in the XML &lt;Write&gt; element. It is sent as WSS (random write).</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="value">The value to write. 0/1 for a bit; otherwise within the device size range.</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, long value, int? repeatCount = null, int? timeout = null)
@@ -340,7 +423,7 @@ public class LsFEnet : IDisposable
     /// <summary>Registers a write of several values to consecutive devices by the name defined in the XML &lt;Write&gt; element. One value is sent as WSS, several values as WSB.</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="values">The values to write (several values follow the same rules as <see cref="ManualWSB"/>: numeric addresses only, no bit devices, at most 1400 bytes).</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is invalid.</exception>
     public void NamedWrite(string name, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
@@ -370,6 +453,7 @@ public class LsFEnet : IDisposable
         Timeout = Timeout,
         Interval = Interval,
         AutoReconnect = AutoReconnect,
+        DiscardWritesWhileDisconnected = DiscardWritesWhileDisconnected,
         Autos = [.. AutoWorksSnapshot().Select(w =>
         {
             LsFEnetAutoConfig a = w.Command == LsCommand.RSS
@@ -435,6 +519,7 @@ public class LsFEnet : IDisposable
         Timeout = config.Timeout;
         Interval = config.Interval;
         AutoReconnect = config.AutoReconnect;
+        DiscardWritesWhileDisconnected = config.DiscardWritesWhileDisconnected;
         namedWrites = table;
         ReplaceAutoWorks(works);
     }
@@ -478,6 +563,7 @@ public class LsFEnet : IDisposable
                 var s = TryConnect(token);
                 if (s != null)
                 {
+                    SetLinkUp();
                     Volatile.Write(ref sock, s);
                     try
                     {
@@ -498,6 +584,7 @@ public class LsFEnet : IDisposable
                     {
                         CloseSocket(s);
                         Raise(DeviceClosed);
+                        SetLinkDown(token.IsCancellationRequested);
                     }
                 }
                 if (!AutoReconnect || token.IsCancellationRequested) break;
@@ -541,23 +628,29 @@ public class LsFEnet : IDisposable
 
     static ResultEventArgs Result(Work w) => new(w.MessageID, w.Command);
 
+    AttemptFailedEventArgs Failed(Work w, int attempt, bool isFinal)
+        => new(w.MessageID, w.Command, attempt, isFinal, requestSent);
+
     void ProcessWork(Socket s, Work w)
     {
+        int attempt = 0;
         try
         {
             int timeout = w.Timeout ?? Timeout;
-            for (int attempt = 0; ; attempt++)
+            for (; ; attempt++)
             {
+                requestSent = false;
                 var body = Exchange(s, w, timeout);
                 if (body != null && HandleResponse(w, body) is LsStatus.Ack or LsStatus.Nak) return;
-                Raise(TimeoutReceived, Result(w));
-                if (attempt >= (w.RepeatCount ?? 0)) return;
+                bool isFinal = attempt >= (w.RepeatCount ?? 0);
+                Raise(TimeoutReceived, Failed(w, attempt + 1, isFinal));
+                if (isFinal) return;
             }
         }
         catch
         {
-            // 연결 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤, 재접속 경로가 돌도록 다시 던진다
-            Raise(TimeoutReceived, Result(w));
+            // 연결 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤(더 시도하지 않으므로 최종), 재접속 경로가 돌도록 다시 던진다
+            Raise(TimeoutReceived, Failed(w, attempt + 1, true));
             throw;
         }
     }
@@ -569,6 +662,7 @@ public class LsFEnet : IDisposable
         var request = FEnetFrame.Request(invoke, w.Body);
         Drain(s);
         s.Send(request);
+        requestSent = true;
 
         var sw = Stopwatch.StartNew();
         while (true)

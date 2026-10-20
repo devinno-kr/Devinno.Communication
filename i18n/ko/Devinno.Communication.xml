@@ -41,7 +41,7 @@
         
         
         
-        <member name="T:Devinno.Communication.LS.CNet.LsCNet" en-hash="c0d4ebc3467930eb">
+        <member name="T:Devinno.Communication.LS.CNet.LsCNet" en-hash="0381c16792303203">
              <summary>
              LS PLC와 시리얼(RS-232/485)로 XGT 전용 프로토콜(Cnet)을 주고받는 Master입니다.
              </summary>
@@ -51,6 +51,7 @@
              <para>Manual 작업은 Auto보다 먼저 처리됩니다. 응답은 각 Received 이벤트로 오며, 등록할 때 준 id가 <c>MessageID</c>로 돌아옵니다. PLC가 NAK를 보내면 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.NAKReceived" />만 발생하고 재시도하지 않습니다.</para>
              <para>Cnet 프레임은 256바이트가 한계입니다. 라이브러리는 등록할 때 이 크기를 검사하지 않습니다. 요청이나 응답이 256바이트를 넘으면(예: 긴 디바이스 이름 16개, L 값 16개) PLC가 거부하고 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.NAKReceived" />로 도착합니다.</para>
              <para>통신 루프는 전용 백그라운드 스레드에서 돌고 모든 이벤트도 그 스레드에서 발생합니다. UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요. 핸들러에서 난 예외는 무시되고 루프는 계속 돕니다.</para>
+             <para>쓰기 안전: <see cref="P:Devinno.Communication.LS.CNet.LsCNet.DiscardWritesWhileDisconnected" />가 true(기본값)이면 포트가 열려 있지 않을 때 요청한 Manual 쓰기(WSS/WSB, <see cref="M:Devinno.Communication.LS.CNet.LsCNet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" /> 포함)는 대기열에 넣지 않고, 포트가 끊길 때 대기열에 남아 있던 쓰기는 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.DeviceClosed" /> 바로 다음에 버립니다. 둘 다 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.WriteDiscarded" />로 알리며, 이 이벤트는 호출한 스레드에서도 발생할 수 있습니다. <see cref="M:Devinno.Communication.LS.CNet.LsCNet.Stop" />은 대기 중인 Manual 쓰기를 항상 비웁니다. Manual 읽기와 Auto 작업은 버리지 않습니다. 쓰기 하나는 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.WriteReceived" />, <see cref="E:Devinno.Communication.LS.CNet.LsCNet.NAKReceived" />, IsFinal이 true인 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.TimeoutReceived" /> 또는 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.BCCErrorReceived" />, <see cref="E:Devinno.Communication.LS.CNet.LsCNet.WriteDiscarded" /> 중 정확히 하나로 끝납니다(<see cref="M:Devinno.Communication.LS.CNet.LsCNet.ClearManual" />나 <see cref="M:Devinno.Communication.LS.CNet.LsCNet.RemoveManual(System.Int32)" />로 지운 작업은 알리지 않음).</para>
              </remarks>
              <example>
              <code>
@@ -60,20 +61,24 @@
              var cnet = new LsCNet { Port = "COM5", Baudrate = 9600 };
              cnet.AutoRSB(1, 1, "%MW100", 10);
              cnet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
+             cnet.DeviceOpened += (s, e) =&gt;
+             {
+                 // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 cnet.ManualWSS(10, 1, [new LsValue("%MW200", 1234), new LsValue("%MW201", 5)]);
+                 cnet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="1" Device="%MW300" /&gt;를 이름으로 호출
+             };
              cnet.Start();
-             cnet.ManualWSS(10, 1, [new LsValue("%MW200", 1234), new LsValue("%MW201", 5)]);
-             cnet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Slave="1" Device="%MW300" /&gt;를 이름으로 호출
              </code>
              </example>
         </member>
-        <member name="T:Devinno.Communication.LS.CNet.LsCNet.ResultEventArgs" en-hash="13fc5f5e4761ad12">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃·BCC 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="T:Devinno.Communication.LS.CNet.LsCNet.ResultEventArgs" en-hash="cfb77f96d872f656">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">국번</param>
             <param name="command">명령</param>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.LS.Data.LsCommand)" en-hash="13fc5f5e4761ad12">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃·BCC 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.LS.Data.LsCommand)" en-hash="cfb77f96d872f656">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">국번</param>
             <param name="command">명령</param>
@@ -126,6 +131,33 @@
         <member name="P:Devinno.Communication.LS.CNet.LsCNet.NAKEventArgs.ErrorCode" en-hash="bca29ce0f57c1389">
             <summary>NAK 에러코드 (예: 0x1132 디바이스 영역 오류, 0x1232 크기 초과)</summary>
         </member>
+        <member name="T:Devinno.Communication.LS.CNet.LsCNet.AttemptFailedEventArgs" en-hash="1f00d60902d74690">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.LS.CNet.LsCNet.TimeoutReceived" />, <see cref="E:Devinno.Communication.LS.CNet.LsCNet.BCCErrorReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">국번</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.AttemptFailedEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.LS.Data.LsCommand,System.Int32,System.Boolean,System.Boolean)" en-hash="1f00d60902d74690">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.LS.CNet.LsCNet.TimeoutReceived" />, <see cref="E:Devinno.Communication.LS.CNet.LsCNet.BCCErrorReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">국번</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="P:Devinno.Communication.LS.CNet.LsCNet.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
+            <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.CNet.LsCNet.AttemptFailedEventArgs.IsFinal" en-hash="281de11855fb176b">
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.CNet.LsCNet.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
+            <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.LS.CNet.LsCNet.Port" en-hash="d8a54549dcf09f16">
             <summary>시리얼 포트 이름 (기본값: "COM1")</summary>
         </member>
@@ -150,6 +182,9 @@
         <member name="P:Devinno.Communication.LS.CNet.LsCNet.AutoReconnect" en-hash="298f43f13e92cc03">
             <summary>포트를 열지 못했거나 끊겼을 때 1초 간격으로 다시 열지 여부 (기본값: false)</summary>
         </member>
+        <member name="P:Devinno.Communication.LS.CNet.LsCNet.DiscardWritesWhileDisconnected" en-hash="8fc336111c457b2a">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). true면 포트가 열려 있지 않을 때 요청한 Manual 쓰기·이름 쓰기는 대기열에 넣지 않고 <see cref="E:Devinno.Communication.LS.CNet.LsCNet.WriteDiscarded" />(NotConnected)를 발생시키며, 포트가 끊길 때 대기열에 남아 있던 쓰기도 버립니다(Disconnected). false면 대기열에 남겨 두었다가 포트가 열린 뒤 보냅니다. Manual 읽기와 Auto 작업은 영향이 없고, <see cref="M:Devinno.Communication.LS.CNet.LsCNet.Stop" />은 이 설정과 상관없이 대기 중인 쓰기를 버립니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.LS.CNet.LsCNet.IsOpen" en-hash="986269974d476df3">
             <summary>시리얼 포트가 열려 있는지 여부</summary>
         </member>
@@ -171,11 +206,14 @@
         <member name="E:Devinno.Communication.LS.CNet.LsCNet.NAKReceived" en-hash="eba6338bcce65060">
             <summary>PLC가 NAK를 보냈을 때 발생합니다. 재시도하지 않습니다.</summary>
         </member>
-        <member name="E:Devinno.Communication.LS.CNet.LsCNet.TimeoutReceived" en-hash="572a69e06497c6f9">
-            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 포트가 끊겼을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.LS.CNet.LsCNet.TimeoutReceived" en-hash="28885746f3f1422d">
+            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 포트가 끊겼을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
         </member>
-        <member name="E:Devinno.Communication.LS.CNet.LsCNet.BCCErrorReceived" en-hash="ea1bbb9932e3f3d1">
-            <summary>응답의 BCC가 맞지 않을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.LS.CNet.LsCNet.BCCErrorReceived" en-hash="ed03c9bb231759a0">
+            <summary>응답의 BCC가 맞지 않을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
+        </member>
+        <member name="E:Devinno.Communication.LS.CNet.LsCNet.WriteDiscarded" en-hash="abbf3461680856c1">
+            <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.LS.CNet.LsCNet.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
         </member>
         <member name="E:Devinno.Communication.LS.CNet.LsCNet.DeviceOpened" en-hash="91fbc6395e188e0f">
             <summary>시리얼 포트가 열렸을 때 발생합니다.</summary>
@@ -187,8 +225,8 @@
             <summary>시리얼 포트를 열고 통신 루프를 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <remarks>포트를 열지 못하면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.AutoReconnect" />가 false일 때 루프가 끝나고 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.IsStart" />가 false가 됩니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.Stop" en-hash="114f7ece6019bd7e">
-            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다.</summary>
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.Stop" en-hash="21e45c2f73d54a68">
+            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다. 대기 중인 Manual 쓰기는 버립니다(WriteDiscarded, Stopped).</summary>
             <remarks>이벤트 핸들러 안에서 호출해도 됩니다. 이 경우 기다리지 않고 바로 돌아옵니다. Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.LS.CNet.LsCNet.Dispose" en-hash="fbd8ccbde6fa6716">
@@ -251,36 +289,36 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ManualWSS(System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.LS.Data.LsValue},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="8cf66adf82ba62fe">
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ManualWSS(System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.LS.Data.LsValue},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="1f90f74bdf452381">
             <summary>WSS(개별 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">국번 0~255</param>
             <param name="values">디바이스와 값 1~16쌍, 크기 문자가 모두 같아야 함. 비트는 0/1만</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ManualWSB(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="a5815616742d88ec">
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.ManualWSB(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="9fd3fc4a037cb3df">
             <summary>WSB(연속 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">국번 0~255</param>
             <param name="device">시작 디바이스 (비트 X 불가)</param>
             <param name="values">쓸 값들. 최대 120바이트, 각 값은 크기 범위 안</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="3ed5af66a1da74d5">
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="28b829ba4b7c6eae">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 하나를 쓰도록 등록합니다. WSS(개별 쓰기)로 보냅니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="value">쓸 값. 비트는 0/1, 그 외는 디바이스 크기 범위 안</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.LS.CNet.LsCNet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="15c2533c5a779f29">
+        <member name="M:Devinno.Communication.LS.CNet.LsCNet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="5aef95b4bd53ef61">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 여러 개를 연속 디바이스에 쓰도록 등록합니다. 값이 하나면 WSS, 여러 개면 WSB로 보냅니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="values">쓸 값들 (값이 여러 개면 <see cref="M:Devinno.Communication.LS.CNet.LsCNet.ManualWSB(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />와 같은 규칙: 비트 디바이스 불가, 최대 120바이트)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.LS.CNet.LsCNet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
@@ -362,6 +400,9 @@
         </member>
         <member name="P:Devinno.Communication.LS.CNet.LsCNetConfig.AutoReconnect" en-hash="c8a32698bfaf26bb">
             <summary>끊겼을 때 다시 열지 여부 (기본값: false)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.CNet.LsCNetConfig.DiscardWritesWhileDisconnected" en-hash="20ed9959fcf0591b">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). <see cref="P:Devinno.Communication.LS.CNet.LsCNet.DiscardWritesWhileDisconnected" /> 참고.</summary>
         </member>
         <member name="P:Devinno.Communication.LS.CNet.LsCNetConfig.Autos" en-hash="74ead93d6001d48d">
             <summary>Auto(반복) 읽기 목록. &lt;RSS&gt;와 &lt;RSB&gt;를 섞어 쓸 수 있고 순서대로 폴링합니다.</summary>
@@ -452,16 +493,15 @@
         
         
         
-        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet" en-hash="603a3e77299601b0">
+        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet" en-hash="a78df6cabdd3cad5">
              <summary>
              LS PLC의 FEnet(이더넷) 모듈과 TCP로 XGT 전용 프로토콜을 주고받는 Master입니다. 기본 포트는 2004입니다.
              </summary>
              <remarks>
              <para>명령 이름은 매뉴얼의 공식 이름을 씁니다: RSS(개별 읽기), RSB(연속 읽기), WSS(개별 쓰기), WSB(연속 쓰기).</para>
-             <para>디바이스는 직접 변수 이름(예: %MW100, %MX0)으로 지정합니다. 개별 명령은 1~16개, 크기 문자가 모두 같아야 합니다.
-             연속 명령은 내부에서 바이트 변수로 바꿔 보내므로(%MW100 ×10 → %MB200 ×20바이트) 숫자 주소만 되고, 비트(X)와 점 주소는 쓸 수 없으며 최대 1400바이트입니다.</para>
              <para>Manual 작업은 Auto보다 먼저 처리됩니다. 응답은 Invoke ID로 요청과 짝지으며, 짝이 맞지 않는 응답은 버립니다. PLC가 에러를 보내면 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.NAKReceived" />만 발생하고 재시도하지 않습니다.</para>
              <para>통신 루프는 전용 백그라운드 스레드에서 돌고 모든 이벤트도 그 스레드에서 발생합니다. UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요. 핸들러에서 난 예외는 무시되고 루프는 계속 돕니다.</para>
+             <para>쓰기 안전: <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.DiscardWritesWhileDisconnected" />가 true(기본값)이면 연결이 없을 때 요청한 Manual 쓰기(WSS/WSB, <see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" /> 포함)는 대기열에 넣지 않고, 연결이 끊길 때 대기열에 남아 있던 쓰기는 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.DeviceClosed" /> 바로 다음에 버립니다. 둘 다 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.WriteDiscarded" />로 알리며, 이 이벤트는 호출한 스레드에서도 발생할 수 있습니다. <see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.Stop" />은 대기 중인 Manual 쓰기를 항상 비웁니다. Manual 읽기와 Auto 작업은 버리지 않습니다. 쓰기 하나는 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.WriteReceived" />, <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.NAKReceived" />, IsFinal이 true인 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.TimeoutReceived" />, <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.WriteDiscarded" /> 중 정확히 하나로 끝납니다(<see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.ClearManual" />나 <see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.RemoveManual(System.Int32)" />로 지운 작업은 알리지 않음).</para>
              </remarks>
              <example>
              <code>
@@ -471,19 +511,23 @@
              var fenet = new LsFEnet { RemoteIP = "192.168.0.20" };
              fenet.AutoRSB(1, "%MW100", 10);
              fenet.DataReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.Values)); };
+             fenet.DeviceOpened += (s, e) =&gt;
+             {
+                 // 쓰기는 연결된 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                 fenet.ManualWSB(10, "%MW200", [1, 2, 3]);
+                 fenet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="%MW300" /&gt;를 이름으로 호출
+             };
              fenet.Start();
-             fenet.ManualWSB(10, "%MW200", [1, 2, 3]);
-             fenet.NamedWrite("속도", 1500);   // XML의 &lt;Write Name="속도" Id="20" Device="%MW300" /&gt;를 이름으로 호출
              </code>
              </example>
         </member>
-        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet.ResultEventArgs" en-hash="03291a937d93a102">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet.ResultEventArgs" en-hash="9537371a74fcf4e9">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ResultEventArgs.#ctor(System.Int32,Devinno.Communication.LS.Data.LsCommand)" en-hash="03291a937d93a102">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답·타임아웃 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ResultEventArgs.#ctor(System.Int32,Devinno.Communication.LS.Data.LsCommand)" en-hash="9537371a74fcf4e9">
+            <summary>요청 결과 이벤트의 공통 인자입니다. 쓰기 응답 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="command">명령</param>
         </member>
@@ -528,6 +572,31 @@
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.NAKEventArgs.ErrorCode" en-hash="86f5c87835a2161f">
             <summary>에러코드 (예: 0x0003 지원 안 하는 디바이스, 0x0004 디바이스 범위 초과)</summary>
         </member>
+        <member name="T:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs" en-hash="dd8ed061bd681cee">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.TimeoutReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.#ctor(System.Int32,Devinno.Communication.LS.Data.LsCommand,System.Int32,System.Boolean,System.Boolean)" en-hash="dd8ed061bd681cee">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.TimeoutReceived" />)의 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="command">명령</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
+            <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.IsFinal" en-hash="2e097ae73a6a1406">
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 연결가 끊김)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
+            <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.RemoteIP" en-hash="3c30c0d00092c48a">
             <summary>접속할 PLC(FEnet 모듈) IP (기본값: "127.0.0.1")</summary>
         </member>
@@ -542,6 +611,9 @@
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.AutoReconnect" en-hash="b2aeadbdf64ddc44">
             <summary>접속하지 못했거나 끊겼을 때 1초 간격으로 다시 접속할지 여부 (기본값: true)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.DiscardWritesWhileDisconnected" en-hash="46dbe0dbc87a1d99">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). true면 연결되지 않았을 때 요청한 Manual 쓰기·이름 쓰기는 대기열에 넣지 않고 <see cref="E:Devinno.Communication.LS.FEnet.LsFEnet.WriteDiscarded" />(NotConnected)를 발생시키며, 연결이 끊길 때 대기열에 남아 있던 쓰기도 버립니다(Disconnected). false면 대기열에 남겨 두었다가 다음 연결 뒤 보냅니다. Manual 읽기와 Auto 작업은 영향이 없고, <see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.Stop" />은 이 설정과 상관없이 대기 중인 쓰기를 버립니다.</summary>
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnet.IsOpen" en-hash="0896b1016a941796">
             <summary>TCP 연결이 되어 있는지 여부</summary>
@@ -564,8 +636,11 @@
         <member name="E:Devinno.Communication.LS.FEnet.LsFEnet.NAKReceived" en-hash="21d1d0dd4ae4042b">
             <summary>PLC가 에러 응답을 보냈을 때 발생합니다. 재시도하지 않습니다.</summary>
         </member>
-        <member name="E:Devinno.Communication.LS.FEnet.LsFEnet.TimeoutReceived" en-hash="7a3a5aa9f86fcdbc">
-            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 연결이 끊겼을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.LS.FEnet.LsFEnet.TimeoutReceived" en-hash="5bca561c39cbe472">
+            <summary>응답이 없거나 형식이 맞지 않거나, 요청 중 연결이 끊겼을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
+        </member>
+        <member name="E:Devinno.Communication.LS.FEnet.LsFEnet.WriteDiscarded" en-hash="d0469cae6286164d">
+            <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
         </member>
         <member name="E:Devinno.Communication.LS.FEnet.LsFEnet.DeviceOpened" en-hash="765c193433169e26">
             <summary>TCP 연결이 되었을 때 발생합니다.</summary>
@@ -577,8 +652,8 @@
             <summary>PLC에 접속하고 통신 루프를 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <remarks>접속하지 못하면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.AutoReconnect" />가 false일 때 루프가 끝나고 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.IsStart" />가 false가 됩니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.Stop" en-hash="46ae9f44a387d804">
-            <summary>통신 루프를 멈추고 연결을 끊습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다.</summary>
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.Stop" en-hash="7500661defcb3d5e">
+            <summary>통신 루프를 멈추고 연결을 끊습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다. 대기 중인 Manual 쓰기는 버립니다(WriteDiscarded, Stopped).</summary>
             <remarks>이벤트 핸들러 안에서 호출해도 됩니다. 이 경우 기다리지 않고 바로 돌아옵니다. Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.Dispose" en-hash="fbd8ccbde6fa6716">
@@ -637,34 +712,34 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ManualWSS(System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.LS.Data.LsValue},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="196d6c522655f737">
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ManualWSS(System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.LS.Data.LsValue},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="d8622e84da912767">
             <summary>WSS(개별 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="values">디바이스와 값 1~16쌍, 크기 문자가 모두 같아야 함. 비트는 0/1만</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ManualWSB(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="75a1a7193686502e">
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.ManualWSB(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="fd2edf5e23f09cce">
             <summary>WSB(연속 쓰기)를 1회 실행하도록 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="device">시작 디바이스 (숫자 주소만, 비트 X 불가)</param>
             <param name="values">쓸 값들. 최대 1400바이트, 각 값은 크기 범위 안</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="b62b1aa2eab0807a">
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="0f994b8f1e585804">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 하나를 쓰도록 등록합니다. WSS(개별 쓰기)로 보냅니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="value">쓸 값. 비트는 0/1, 그 외는 디바이스 크기 범위 안</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="cdf187f39e096757">
+        <member name="M:Devinno.Communication.LS.FEnet.LsFEnet.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="f464046a43d0f515">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 여러 개를 연속 디바이스에 쓰도록 등록합니다. 값이 하나면 WSS, 여러 개면 WSB로 보냅니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="values">쓸 값들 (값이 여러 개면 <see cref="M:Devinno.Communication.LS.FEnet.LsFEnet.ManualWSB(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" />와 같은 규칙: 숫자 주소만, 비트 디바이스 불가, 최대 1400바이트)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 잘못된 경우</exception>
         </member>
@@ -736,6 +811,9 @@
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnetConfig.AutoReconnect" en-hash="62ea837d5be66906">
             <summary>끊겼을 때 다시 접속할지 여부 (기본값: true)</summary>
+        </member>
+        <member name="P:Devinno.Communication.LS.FEnet.LsFEnetConfig.DiscardWritesWhileDisconnected" en-hash="cf71510a052a5aa0">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). <see cref="P:Devinno.Communication.LS.FEnet.LsFEnet.DiscardWritesWhileDisconnected" /> 참고.</summary>
         </member>
         <member name="P:Devinno.Communication.LS.FEnet.LsFEnetConfig.Autos" en-hash="74ead93d6001d48d">
             <summary>Auto(반복) 읽기 목록. &lt;RSS&gt;와 &lt;RSB&gt;를 섞어 쓸 수 있고 순서대로 폴링합니다.</summary>
