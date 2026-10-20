@@ -57,6 +57,7 @@ public class ModbusTcpLoopbackTests : IDisposable
         var tcs = Tcs<int[]>();
         master.MultiWordWriteReceived += (s, e) => tcs.TrySetResult(e.WriteValues);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
         master.ManualMultiWordWrite_FC16(2, 1, 10, new[] { 7, 8, 9 });
         Assert.Equal(new[] { 7, 8, 9 }, await Wait(tcs));
         Assert.Equal(new[] { 7, 8, 9 }, hold[10..13]);
@@ -70,6 +71,7 @@ public class ModbusTcpLoopbackTests : IDisposable
         master.BitWriteReceived += (s, e) => bit.TrySetResult(e.WriteValue);
         master.WordBitSetReceived += (s, e) => bitSet.TrySetResult(e.BitIndex);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
         master.ManualBitWrite_FC5(1, 1, 3, true);
         master.ManualWordBitSet_FC26(2, 1, 0, 2, true);
         Assert.True(await Wait(bit));
@@ -196,6 +198,7 @@ public class ModbusTcpLoopbackTests : IDisposable
     [Fact]
     public void TakeNextWork_ManualFirst()
     {
+        master.DiscardWritesWhileDisconnected = false;   // Start 안 한 객체에 쓰기를 넣어 순서를 본다
         master.AutoWordRead_FC3(1, 1, 0, 1);
         master.ManualWordWrite_FC6(2, 1, 0, 1);
         Assert.Equal(2, master.TakeNextWork()!.MessageID);

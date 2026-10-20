@@ -25,6 +25,7 @@ public class ModbusNamedWriteTests
     {
         var m = new ModbusTCPMaster();
         m.FromXml(XElement.Parse(xml));
+        m.DiscardWritesWhileDisconnected = false;   // Start 안 한 객체에 쓰기를 넣어 대기열을 본다
         return m;
     }
 
@@ -369,6 +370,7 @@ public class ModbusNamedWriteTests
         var tcs = new TaskCompletionSource<ModbusTCPMaster.MultiWordWriteEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         master.MultiWordWriteReceived += (s, e) => tcs.TrySetResult(e);
         master.Start();
+        await TestUtil.Until(() => master.IsOpen);
         master.NamedWrite("레시피", [1, 2, 3]);
         var e = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(30, e.MessageID);

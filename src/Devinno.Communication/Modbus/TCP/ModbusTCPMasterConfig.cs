@@ -30,6 +30,8 @@ public class ModbusTCPMasterConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reconnect when the connection is lost (default: true).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = true;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="ModbusTCPMaster.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. Unit ID 0 to 255.</summary>
     [XmlElement("Auto")] public List<ModbusAutoConfig> Autos { get; set; } = [];
     /// <summary>Named write list. These are &lt;Write&gt; elements, invoked by name through <see cref="ModbusTCPMaster.NamedWrite(string, long, int?, int?)"/>. Slave address 0 to 255.</summary>

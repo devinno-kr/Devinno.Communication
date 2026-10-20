@@ -11,6 +11,7 @@
     <xs:attribute default="100" name="Timeout" type="xs:int" use="optional" />
     <xs:attribute default="10" name="Interval" type="xs:int" use="optional" />
     <xs:attribute default="true" name="AutoReconnect" type="xs:boolean" use="optional" />
+    <xs:attribute default="true" name="DiscardWritesWhileDisconnected" type="xs:boolean" use="optional" />
   </xs:complexType>
   <xs:complexType name="ModbusAutoConfig">
     <xs:attribute name="Id" type="xs:int" use="required" />
