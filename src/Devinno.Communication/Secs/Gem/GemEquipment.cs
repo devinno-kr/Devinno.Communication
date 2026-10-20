@@ -362,7 +362,8 @@ public partial class GemEquipment : IDisposable
     /// then <see cref="CommunicationStateChanged"/>, then the transition 4 <see cref="ControlStateChanged"/> if it was ATTEMPT ON-LINE.
     /// On T3 of S5F1, S6F11, S10F1, or S2F17: this event (Timeout), this event (NotCommunicating) for the rest of the queue, <see cref="CommunicationStateChanged"/>, then the transition 4 <see cref="ControlStateChanged"/> if it was ATTEMPT ON-LINE.
     /// On T3 of the S1F1 of <see cref="GoOnline"/>: this event (Timeout), <see cref="ControlStateChanged"/> (to <see cref="OnlineFailedState"/>), this event (NotCommunicating) for the rest of the queue, then <see cref="CommunicationStateChanged"/>.
-    /// A failure of the equipment's S1F13 is reported only through <see cref="ProtocolError"/>. So inside this handler, <see cref="CommunicationState"/> may still be Communicating.</para>
+    /// A failure of the equipment's S1F13 is reported only through <see cref="ProtocolError"/>.
+    /// Because this event comes before <see cref="CommunicationStateChanged"/> in the orders above, <see cref="CommunicationState"/> may still be Communicating inside this handler.</para>
     /// <para>A disconnection does not end a GEM message with Disconnected (it is reported as NotCommunicating as above); Disconnected remains only for a SECS-I send that exceeded the retry limit (the line is kept).</para>
     /// </remarks>
     public event EventHandler<GemSendFailedEventArgs>? SendFailed;

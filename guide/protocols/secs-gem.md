@@ -39,7 +39,7 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 | T3 | 링크가 끊기면 그 연결의 대기 트랜잭션 전부가 `SecsDisconnectedException`으로 끝나고 `DeviceClosed`가 한 번 발생. 앱이 끊김 실패를 보는 시점은 그 `DeviceClosed`보다 먼저일 수도 나중일 수도 있음(어느 연결의 실패인지는 앱이 `DeviceOpened`마다 세는 번호로 구분) |
 | T4 | `SecsDisconnectedException`을 받았다면 그 연결의 `DeviceClosed`는 이미 발생했거나 곧 발생(`Stop` 경계 제외) |
 | T5 | 한 트랜잭션은 정확히 하나의 결과(응답·SxF0·S9·T3·끊김·취소)로 끝남. T3 뒤에 온 응답은 짝 없는 응답(`ProtocolError`) |
-| T6 | 동기 `Send`는 호출 스레드에서 기다려 스레드풀이 고갈돼도 늦어지지 않음. `SendAsync`의 이어 실행은 호출 스레드(동기로 끝난 경우) 또는 스레드풀이고 I/O·디스패처 스레드에서는 돌지 않음. 핸들러 안 동기 `Send`도 교착되지 않음(최대 T3 동안 다음 이벤트가 밀릴 뿐) |
+| T6 | 동기 `Send`는 호출 스레드에서 기다려 스레드풀이 고갈돼도 늦어지지 않음. `SendAsync`의 이어 실행은 동기로 끝나면 호출 스레드, 아니면 스레드풀. I/O 스레드에서는 돌지 않고, 디스패처 스레드에서는 거기서 불렀을 때만 돔. 핸들러 안 동기 `Send`도 교착되지 않음(최대 T3 동안 다음 이벤트가 밀릴 뿐) |
 | T7 | 연결이 없을 때(`DeviceClosed` 뒤, `DeviceOpened` 전) `Send`/`SendAsync`는 바로 `InvalidOperationException`, 연결 중 쓰기 실패는 `SecsDisconnectedException`. 둘 다 "링크 없음"으로 다룸 |
 | T8 | 이전 연결의 트랜잭션은 새 연결의 응답으로 끝나지 않음. 이전 연결에서 받은 1차 메시지의 `Reply`는 보내지 않고 `SecsDisconnectedException` |
 | T9 | `Stop`이 돌아온 뒤에는 이벤트가 없음. 단 `Stop`이 수신 스레드를 3초 안에 끝내지 못하면 그 연결의 `DeviceClosed`가 빠질 수 있음 |
@@ -62,15 +62,16 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 | E2a | 끊김·`DisableCommunication`: ① 버린 메시지의 `SendFailed`(NotCommunicating 또는 Disabled, 원래 보낼 순서대로 — 응답 대기 중이던 것 먼저, 다음 대기열 앞부터, 장비 S1F13은 알리지 않음) → ② `CommunicationStateChanged` → ③ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
 | E2b | S5F1·S6F11·S10F1·S2F17의 T3: ① 그 메시지의 `SendFailed(Timeout)` → ② 남은 대기열의 `SendFailed(NotCommunicating)` → ③ `CommunicationStateChanged` → ④ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
 | E2c | `GoOnline`의 S1F1 T3: ① `SendFailed(Timeout)` → ② `ControlStateChanged`(→ `OnlineFailedState`) → ③ 남은 대기열의 `SendFailed(NotCommunicating)` → ④ `CommunicationStateChanged` |
-| E2d | 장비 S1F13의 T3·실패: `ProtocolError`만(통신 실패 아님). 그래서 `SendFailed` 핸들러 안에서 `CommunicationState`가 아직 Communicating일 수 있음 |
+| E2d | 장비 S1F13의 T3·실패: `ProtocolError`만(통신 실패 아님) |
+| E2 참고 | E2a·E2b에서 `SendFailed`가 `CommunicationStateChanged`보다 먼저이므로 `SendFailed` 핸들러 안에서 `CommunicationState`가 아직 Communicating일 수 있음 |
 | E3 | 끊김 때문에 GEM 메시지가 `SendFailed(Disconnected)`로 끝나지 않음. COMMUNICATING에서 끊기면 NotCommunicating으로만 알림 |
 | E4 | 끊김에 의한 `CommunicationStateChanged(Communicating → NotCommunicating)`은 연결당 최대 한 번이고, 그 연결에 관한 이벤트는 그 뒤에 더 오지 않음 |
-| E5 | 다시 연결되면 S1F13으로 다시 수립하기 전에는 S5/S6/S10을 보내지 않음. `InitiateCommunication`이면 끊긴 뒤(S1F14를 기다리던 중 포함) 다음 연결이 열리자마자 S1F13을 보내고, 연결된 채 실패(T3·COMMACK ≠ 0·S1F0)하면 EstablishCommunicationsTimeout 초 뒤 다시 보냄 |
+| E5 | 앱의 전송 이벤트(`DeviceOpened`·`DeviceClosed`·`ProtocolError`) 핸들러가 재연결을 사이에 두고 전송 디스패처를 붙잡고 있지 않다면, 다시 연결되면 S1F13으로 다시 수립하기 전에는 S5/S6/S10을 보내지 않음(붙잡고 있으면 GEM이 아직 옛 연결로 아는 동안 대기열의 S5/S6/S10이 새 연결로 먼저 나가고, 옛 연결의 `DeviceClosed` 처리 때 `SendFailed(NotCommunicating)`으로 알려질 수 있음 — 전부터 있던 창). `InitiateCommunication`이면 끊긴 뒤(S1F14를 기다리던 중 포함) 다음 연결이 열리자마자 S1F13을 보내고, 연결된 채 실패(T3·COMMACK ≠ 0·S1F0)하면 EstablishCommunicationsTimeout 초 뒤 다시 보냄 |
 | E6 | `SendFailed`의 `Disconnected`는 SECS-I 재시도 초과(회선 유지)에만 남음 |
 
 | # | GemHost |
 |---|---|
-| H1 | GemHost가 그 연결의 `DeviceClosed`를 처리한 뒤에는 그 연결로 `CommunicationStateChanged(→ Communicating)`이 나가지 않고 `IsCommunicating`도 true가 되지 않음(물리적으로 끊긴 뒤 `DeviceClosed`를 처리하기 전까지는 잠깐 true일 수 있고, 처리하면 false로 돌아감). 수동 `EstablishCommunication()`이 COMMACK 0을 받아도 GemHost가 그 연결의 `DeviceClosed`를 이미 처리했으면 반환값만 COMMACK이고 수립되지 않음. GemHost가 그 연결의 `DeviceOpened`를 처리하기 전에 COMMACK 0이 오면 `DeviceOpened`를 처리할 때 수립을 반영. 전송이 연결되지 않았으면 지금처럼 전송의 `InvalidOperationException` |
+| H1 | GemHost가 그 연결의 `DeviceClosed`를 처리한 뒤에는 그 연결로 `CommunicationStateChanged(→ Communicating)`이 나가지 않고 `IsCommunicating`도 true가 되지 않음(물리적으로 끊긴 뒤 `DeviceClosed`를 처리하기 전까지는 잠깐 true일 수 있고, 처리하면 false로 돌아감). 수동 `EstablishCommunication()`이 COMMACK 0을 받아도 GemHost가 그 연결의 `DeviceClosed`를 이미 처리했으면 반환값만 COMMACK이고 수립되지 않음. GemHost가 그 연결의 `DeviceOpened`를 처리하기 전에 COMMACK 0이 오면 `DeviceOpened`를 처리할 때 수립을 반영. 이 규칙은 앱의 전송 이벤트(`DeviceOpened`·`DeviceClosed`·`ProtocolError`) 핸들러가 재연결을 사이에 두고 전송 디스패처를 붙잡고 있지 않을 때의 이야기다(붙잡고 있으면 새 연결로 보낸 수동 S1F13이 옛 연결 몫으로 잡혀 옛 연결의 `DeviceClosed` 처리 때 지워지고 `IsCommunicating`이 false로 남을 수 있음 — 전부터 있던 창). 전송이 연결되지 않았으면 지금처럼 전송의 `InvalidOperationException` |
 | H2 | **자동** 접속 시퀀스가 끊김으로 실패하면 `CommunicationStateChanged(→ NotCommunicating)` → `ConnectSequenceCompleted(실패, SecsDisconnectedException)` 순서(수립 전이면 결과만). `Stop`으로 끝나면 알리지 않음. 수동 `RunConnectSequence()`는 결과를 반환값으로 바로 줌(이 순서 계약 밖) |
 | H3 | `EventReceived`의 VID: `DefineReports`(`ConfigureReports`도 씀)의 응답(S2F34)보다 먼저 받은 S6F11은 옛 정의로, 메서드가 돌아온 뒤에 받은 것은 새 정의로 해석. 그 사이에 받은 것은 어느 쪽일 수도 있음 |
 | H4 | 동기·비동기 명령 메서드의 예외·반환과 앱 이벤트(`CommunicationStateChanged` 등)의 선후는 보장하지 않음(서로 다른 스레드) |

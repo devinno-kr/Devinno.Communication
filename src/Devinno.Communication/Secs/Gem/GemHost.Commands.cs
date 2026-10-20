@@ -57,9 +57,10 @@ public sealed class GemConstantInfo(GemId id, string name, SecsItem min, SecsIte
 public partial class GemHost
 {
     #region S1F13 / S1F1 / S1F15 / S1F17
-    /// <summary>Requests that communications be established (S1F13 &lt;L&gt;). If COMMACK is 0, <see cref="IsCommunicating"/> becomes true and the equipment name is remembered, unless GemHost has already handled the transport <c>DeviceClosed</c> of the connection it was sent on.</summary>
+    /// <summary>Requests that communications be established (S1F13 &lt;L&gt;). If COMMACK is 0, <see cref="IsCommunicating"/> becomes true and the equipment name is remembered, unless GemHost has already handled the transport <c>DeviceClosed</c> of the connection it was sent on (see remarks).</summary>
     /// <remarks>If GemHost has already handled that connection's <c>DeviceClosed</c> by the time the reply is handled, the COMMACK is still returned but <see cref="IsCommunicating"/> does not become true.
-    /// If the reply arrives before GemHost has handled the transport <c>DeviceOpened</c> of that connection, the establishment is applied when it handles it.</remarks>
+    /// If the reply arrives before GemHost has handled the transport <c>DeviceOpened</c> of that connection, the establishment is applied when it handles it.
+    /// This assumes no application handler of the transport events (<c>DeviceOpened</c>, <c>DeviceClosed</c>, <c>ProtocolError</c>) holds the transport dispatcher across the reconnection: otherwise a request sent on the new connection can be counted for the old one, and <see cref="IsCommunicating"/> stays false after that connection's <c>DeviceClosed</c> is handled.</remarks>
     /// <returns>COMMACK (0 = accepted, 1 = denied).</returns>
     /// <exception cref="InvalidOperationException">Not connected.</exception>
     /// <exception cref="SecsTimeoutException">No reply within T3.</exception>

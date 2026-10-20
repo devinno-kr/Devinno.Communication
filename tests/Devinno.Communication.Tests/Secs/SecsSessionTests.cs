@@ -794,6 +794,27 @@ public class SecsSessionTests
     }
 
     [Fact]
+    public void Ordered_TransmitDisconnectsThenThrows_CompletesOnceAndDoesNotThrow()
+    {
+        // 송신 함수가 던지기 전에 연결이 끊겨(Disconnected가 대기 표를 비움) completed가 이미 넘어간 경우: 동기 예외 없이 완료 한 번
+        using var h = new Harness(connect: false);
+        h.Session.Connected((w, t) => { h.Session.Disconnected(); throw new IOException("쓰기 실패"); });
+        var withW = new Completion();
+        h.Session.SendOrdered(S1F1, withW.Callback(h.Session));
+        withW.Wait().Error<SecsDisconnectedException>();
+        h.Session.Connected((w, t) => { h.Session.Disconnected(); throw new IOException("쓰기 실패"); });
+        var noW = new Completion();
+        h.Session.SendOrdered(new SecsMessage(6, 11, false), noW.Callback(h.Session));
+        noW.Wait().Error<SecsDisconnectedException>();
+        // 공개 Send는 그대로 송신 함수의 예외를 던진다
+        h.Session.Connected((w, t) => { h.Session.Disconnected(); throw new IOException("쓰기 실패"); });
+        Assert.Throws<IOException>(() => h.Session.Send(S1F1));
+        Thread.Sleep(100);
+        Assert.Equal((1, 1), (withW.Count, noW.Count));
+        Assert.Equal(0, h.Session.PendingCount);
+    }
+
+    [Fact]
     public void Ordered_NotRunning_CompletesInlineOnCompletingThread()
     {
         var session = new SecsSession(() => SecsRole.Host, () => 1, () => 5000, Harness.Header, _ => { }, _ => { }, "test");

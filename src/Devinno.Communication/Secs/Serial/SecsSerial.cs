@@ -254,7 +254,7 @@ public class SecsSerial : IDisposable
     public SecsMessage? Send(SecsMessage primary) => session.Send(primary);
 
     /// <summary>Sends a primary message and, if the W-bit is set, returns a Task that waits for the reply. The rules and exceptions are the same as <see cref="Send"/>.</summary>
-    /// <remarks>The continuation runs on the calling thread (when the Task completes synchronously) or on the thread pool, never on the I/O or dispatcher thread. A <see cref="SecsDisconnectedException"/> may be seen before or after that connection's <see cref="DeviceClosed"/>.</remarks>
+    /// <remarks>The continuation runs on the calling thread when the Task completes synchronously, otherwise on the thread pool. It never runs on the I/O thread, and runs on the dispatcher thread only if SendAsync was called there. A <see cref="SecsDisconnectedException"/> may be seen before or after that connection's <see cref="DeviceClosed"/>.</remarks>
     /// <param name="primary">The primary message (odd function).</param>
     /// <param name="cancellationToken">Cancels the wait (a message whose sending has already started is sent to the end).</param>
     /// <returns>The reply message. null if the W-bit is not set.</returns>

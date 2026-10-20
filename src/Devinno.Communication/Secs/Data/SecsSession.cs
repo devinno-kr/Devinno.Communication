@@ -220,7 +220,8 @@ internal sealed class SecsSession(
         try { return (p, tx(wire, token)); }
         catch
         {
-            if (p != null) Take(p);
+            // ordered인데 이미 대기 표에서 빠졌으면(송신 함수 안에서 Disconnected·TransmitFailed가 completed를 넘김) 동기 예외를 던지지 않는다(completed는 정확히 한 번)
+            if (p != null && !Take(p) && p.Ordered != null) return (p, Task.CompletedTask);
             throw;
         }
     }
