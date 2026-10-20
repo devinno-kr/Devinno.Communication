@@ -8,7 +8,7 @@ public class ModbusRtuMasterTests
     [Fact]
     public void TakeNextWork_ManualFirst_ThenAutoInOrder_ThenRefill()
     {
-        var m = new ModbusRTUMaster();
+        var m = new ModbusRTUMaster { DiscardWritesWhileDisconnected = false };   // Start 안 한 객체에 쓰기를 넣어 순서를 본다
         m.AutoWordRead_FC3(1, 1, 0, 1);
         m.AutoWordRead_FC3(2, 1, 0, 1);
         m.ManualWordWrite_FC6(10, 1, 0, 5);
@@ -52,7 +52,7 @@ public class ModbusRtuMasterTests
     [Fact]
     public void ManualWrite_BroadcastAllowed()
     {
-        var m = new ModbusRTUMaster();
+        var m = new ModbusRTUMaster { DiscardWritesWhileDisconnected = false };   // Start 안 한 객체에 쓰기를 넣어 대기열을 본다
         m.ManualWordWrite_FC6(1, 0, 0, 1);
         Assert.Equal(0, m.TakeNextWork()!.Slave);
     }
@@ -73,7 +73,7 @@ public class ModbusRtuMasterTests
     [Fact]
     public void HandleResponse_MultiBitWrite_ReportsValues()
     {
-        var m = new ModbusRTUMaster();
+        var m = new ModbusRTUMaster { DiscardWritesWhileDisconnected = false };   // Start 안 한 객체에 쓰기를 넣어 대기열을 본다
         ModbusRTUMaster.MultiBitWriteEventArgs? got = null;
         m.MultiBitWriteReceived += (s, e) => got = e;
         m.ManualMultiBitWrite_FC15(1, 1, 0, new[] { true, false, true });

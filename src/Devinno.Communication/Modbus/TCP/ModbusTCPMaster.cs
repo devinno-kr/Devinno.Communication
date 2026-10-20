@@ -520,9 +520,10 @@ public class ModbusTCPMaster : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="slave">Unit ID 0~255</param>
     /// <param name="startAddr">Address.</param>
-    /// <param name="value">The value to write (only the low 16 bits are sent).</param>
+    /// <param name="value">The value to write (-32768 to 65535; a negative value is sent as two's complement).</param>
     /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
+    /// <exception cref="ArgumentOutOfRangeException">A value is outside -32768 to 65535.</exception>
     public void ManualWordWrite_FC6(int id, int slave, int startAddr, int value, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteSingleRegister(startAddr, value), repeatCount, timeout);
 
@@ -540,9 +541,10 @@ public class ModbusTCPMaster : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="slave">Unit ID 0~255</param>
     /// <param name="startAddr">Start address.</param>
-    /// <param name="values">The values to write (1 to 123; only the low 16 bits of each are sent).</param>
+    /// <param name="values">The values to write (1 to 123, each -32768 to 65535; a negative value is sent as two's complement).</param>
     /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
+    /// <exception cref="ArgumentOutOfRangeException">A value is outside -32768 to 65535.</exception>
     public void ManualMultiWordWrite_FC16(int id, int slave, int startAddr, int[] values, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteMultipleRegisters(startAddr, values), repeatCount, timeout);
 

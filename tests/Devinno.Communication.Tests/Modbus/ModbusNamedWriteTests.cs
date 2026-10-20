@@ -18,6 +18,7 @@ public class ModbusNamedWriteTests
     {
         var m = new ModbusRTUMaster();
         m.FromXml(XElement.Parse(xml));
+        m.DiscardWritesWhileDisconnected = false;   // Start 안 한 객체에 쓰기를 넣어 대기열을 본다
         return m;
     }
 

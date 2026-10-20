@@ -12,15 +12,20 @@ namespace Devinno.Communication.Modbus.RTU;
 /// <para>Manual jobs are processed before Auto jobs. After one pass through the Auto list, polling starts again from the beginning.</para>
 /// <para>Responses arrive through the individual Received events, and the id given at registration is returned as <c>MessageID</c>.</para>
 /// <para>The communication loop runs on a dedicated background thread, and all events are raised on that thread. To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF). A synchronous Invoke prolongs the wait when Stop() is called from the UI thread. Exceptions thrown in a handler are ignored and the loop continues.</para>
+/// <para>Write safety: with <see cref="DiscardWritesWhileDisconnected"/> true (the default), a Manual write (FC5/FC6/FC15/FC16/FC26, including broadcast and <see cref="NamedWrite(string, long, int?, int?)"/>) requested while the port is not open is not queued, and writes still queued when the port is lost are discarded right after <see cref="DeviceClosed"/>; both are reported through <see cref="WriteDiscarded"/>, which may also be raised on the calling thread. <see cref="Stop"/> always discards pending Manual writes. Manual reads and Auto jobs are never discarded. Each write ends with exactly one of: its success event, <see cref="ExceptionReceived"/>, a <see cref="TimeoutReceived"/> or <see cref="CRCErrorReceived"/> with IsFinal true, or <see cref="WriteDiscarded"/> (jobs removed with <see cref="ClearManual"/> or <see cref="RemoveManual"/> are not reported). A broadcast write has no response, so it ends when it is sent.</para>
 /// </remarks>
 /// <example>
 /// <code>
 /// var mb = new ModbusRTUMaster { Port = "COM3", Baudrate = 115200, AutoReconnect = true };
 /// mb.AutoWordRead_FC3(1, 1, 0, 10);
 /// mb.WordReadReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.ReceiveData)); };
+/// mb.DeviceOpened += (s, e) =&gt;
+/// {
+///     // writes are accepted only while the port is open (otherwise WriteDiscarded, NotConnected)
+///     mb.ManualWordWrite_FC6(10, 1, 100, 1234);
+///     mb.NamedWrite("Recipe", [1, 2, 3]);   // calls the XML &lt;Write Name="Recipe" Id="30" Func="FC16" Slave="1" Start="10" /&gt; by name
+/// };
 /// mb.Start();
-/// mb.ManualWordWrite_FC6(10, 1, 100, 1234);
-/// mb.NamedWrite("Recipe", [1, 2, 3]);   // calls the XML &lt;Write Name="Recipe" Id="30" Func="FC16" Slave="1" Start="10" /&gt; by name
 /// </code>
 /// </example>
 public class ModbusRTUMaster : IDisposable
@@ -35,11 +40,14 @@ public class ModbusRTUMaster : IDisposable
         public int? Timeout { get; } = timeout;
         public ModbusFunction Function => (ModbusFunction)Pdu[0];
         public int StartAddress => ModbusPdu.Word(Pdu, 1);
+        // 연결이 끊긴 동안 버리는 대상(물리 동작이 있는 쓰기)
+        public bool IsWrite => Function is ModbusFunction.BITWRITE_F5 or ModbusFunction.WORDWRITE_F6
+            or ModbusFunction.MULTIBITWRITE_F15 or ModbusFunction.MULTIWORDWRITE_F16 or ModbusFunction.WORDBITSET_F26;
     }
     #endregion
 
     #region class : EventArgs
-    /// <summary>Common event arguments for request result events. Timeout and CRC error events use this type as-is.</summary>
+    /// <summary>Common event arguments for request result events.</summary>
     /// <param name="messageId">The message ID given at registration.</param>
     /// <param name="slave">Slave address.</param>
     /// <param name="function">Function code.</param>
@@ -54,6 +62,25 @@ public class ModbusRTUMaster : IDisposable
         public ModbusFunction Function { get; } = function;
         /// <summary>Start address.</summary>
         public int StartAddress { get; } = startAddress;
+    }
+
+    /// <summary>Event arguments for a failed attempt (<see cref="TimeoutReceived"/>, <see cref="CRCErrorReceived"/>).</summary>
+    /// <param name="messageId">The message ID given at registration.</param>
+    /// <param name="slave">Slave address.</param>
+    /// <param name="function">Function code.</param>
+    /// <param name="startAddress">Start address.</param>
+    /// <param name="attempt">Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</param>
+    /// <param name="isFinal">Whether this job will not be attempted again (retries used up or the port was lost).</param>
+    /// <param name="requestSent">Whether the request of this attempt was handed to the send function.</param>
+    public class AttemptFailedEventArgs(int messageId, int slave, ModbusFunction function, int startAddress, int attempt, bool isFinal, bool requestSent)
+        : ResultEventArgs(messageId, slave, function, startAddress)
+    {
+        /// <summary>Attempt number, starting at 1 (1 = first attempt, 2 = first retry, ...).</summary>
+        public int Attempt { get; } = attempt;
+        /// <summary>Whether this job will not be attempted again (retries used up or the port was lost).</summary>
+        public bool IsFinal { get; } = isFinal;
+        /// <summary>Whether the request of this attempt was handed to the send function. If false, the device did not receive this attempt; if true, the result is unknown and the device may have executed it.</summary>
+        public bool RequestSent { get; } = requestSent;
     }
 
     /// <summary>Event arguments for a bit read (FC1/FC2) response.</summary>
@@ -182,6 +209,8 @@ public class ModbusRTUMaster : IDisposable
     public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port at 1-second intervals when it could not be opened or was lost (default: false).</summary>
     public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). When true, a Manual write or named write requested while the port is not open raises <see cref="WriteDiscarded"/> (NotConnected) instead of being queued, and writes still queued when the port is lost are discarded (Disconnected). When false, they stay queued and are sent after the port is opened. Manual reads and Auto jobs are not affected, and <see cref="Stop"/> discards pending writes regardless of this setting.</summary>
+    public bool DiscardWritesWhileDisconnected { get; set; } = true;
 
     /// <summary>Gets whether the serial port is open.</summary>
     public bool IsOpen => Volatile.Read(ref port)?.IsOpen ?? false;
@@ -204,6 +233,12 @@ public class ModbusRTUMaster : IDisposable
     CancellationTokenSource? cts;
     // 이름 있는 쓰기 표. NamedWrite는 실행 중에도 불리므로 통째로 바꾸는 참조(volatile)로 둔다. ApplyConfig에서만 교체한다.
     volatile NamedWriteTable<ModbusWriteConfig> namedWrites = NamedWriteTable<ModbusWriteConfig>.Empty;
+    // 포트가 열려 있는지(workLock 보호). 설정이 true면 쓰기는 이것이 true일 때만 대기열에 들어간다
+    bool linkUp;
+    // linkUp을 올린 루프 스레드(workLock 보호). 핸들러 안 Stop→Start로 새 루프가 뜬 뒤 옛 루프의 SetLinkDown이 새 연결 상태를 덮지 않게 한다
+    Thread? linkThread;
+    // 이번 시도의 요청을 송신 함수에 넘겼는지(통신 스레드 전용)
+    bool requestSent;
     #endregion
 
     #region Event
@@ -223,10 +258,12 @@ public class ModbusRTUMaster : IDisposable
     public event EventHandler<WordBitSetEventArgs>? WordBitSetReceived;
     /// <summary>Raised when the slave sends an exception response.</summary>
     public event EventHandler<ExceptionEventArgs>? ExceptionReceived;
-    /// <summary>Raised when there is no response, the response is malformed, or the port connection fails during a request. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? TimeoutReceived;
-    /// <summary>Raised when the CRC of a response is wrong. Raised on every retry.</summary>
-    public event EventHandler<ResultEventArgs>? CRCErrorReceived;
+    /// <summary>Raised when there is no response, the response is malformed, or the port connection fails during a request. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? TimeoutReceived;
+    /// <summary>Raised when the CRC of a response is wrong. Raised on every retry; IsFinal tells whether the job will be attempted again. If RequestSent is true, the device may have executed the request — read it back before resending.</summary>
+    public event EventHandler<AttemptFailedEventArgs>? CRCErrorReceived;
+    /// <summary>Raised when a Manual write is discarded without being sent (see <see cref="DiscardWritesWhileDisconnected"/>). May be raised on the calling thread: NotConnected inside the Manual/NamedWrite call, Stopped inside Stop(); otherwise on the communication thread.</summary>
+    public event EventHandler<WriteDiscardedEventArgs>? WriteDiscarded;
     /// <summary>Raised when the serial port is opened.</summary>
     public event EventHandler? DeviceOpened;
     /// <summary>Raised when the serial port is closed.</summary>
@@ -250,7 +287,7 @@ public class ModbusRTUMaster : IDisposable
         }
     }
 
-    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end.</summary>
+    /// <summary>Stops the communication loop and closes the port. Waits up to (Timeout + 1000) ms for the loop to end. Pending Manual writes are discarded (WriteDiscarded, Stopped).</summary>
     /// <remarks>May be called from inside an event handler; in that case it does not wait and returns immediately. Events that were already in progress may still be raised briefly right after Stop() returns.</remarks>
     public void Stop()
     {
@@ -266,6 +303,8 @@ public class ModbusRTUMaster : IDisposable
         ClosePort(Volatile.Read(ref port));
         if (t != null && t != Thread.CurrentThread) t.Join(Timeout + 1000);
         c?.Dispose();
+        // 설정과 무관하게 남은 쓰기를 비운다(재시작 때 늦게 실행되지 않게)
+        DiscardWrites(WriteDiscardReason.Stopped);
     }
 
     /// <summary>Stops communication and releases its resources.</summary>
@@ -325,7 +364,52 @@ public class ModbusRTUMaster : IDisposable
     void AddManual(int id, int slave, byte[] pdu, int? repeatCount, int? timeout, bool allowBroadcast)
     {
         CheckSlave(slave, allowBroadcast);
-        lock (workLock) manualWorks.Add(new Work(id, slave, pdu, repeatCount, timeout));
+        var w = new Work(id, slave, pdu, repeatCount, timeout);
+        bool discard = false;
+        lock (workLock)
+        {
+            if (w.IsWrite && DiscardWritesWhileDisconnected && !linkUp) discard = true;
+            else manualWorks.Add(w);
+        }
+        if (discard) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, WriteDiscardReason.NotConnected));
+    }
+
+    // 포트를 열었다. port를 공개하기 전에 부른다(IsOpen이 true면 이미 linkUp)
+    internal void SetLinkUp()
+    {
+        lock (workLock)
+        {
+            linkUp = true;
+            linkThread = Thread.CurrentThread;
+        }
+    }
+
+    // 포트를 잃었다. DeviceClosed 다음에 부른다. stopping이면 Stop으로 닫힌 것
+    internal void SetLinkDown(bool stopping)
+    {
+        bool discard;
+        lock (workLock)
+        {
+            // 다른(새) 루프가 연결을 올렸으면 옛 루프는 건드리지 않는다
+            if (linkThread != null && linkThread != Thread.CurrentThread) return;
+            linkUp = false;
+            linkThread = null;
+            discard = DiscardWritesWhileDisconnected;
+        }
+        if (discard) DiscardWrites(stopping ? WriteDiscardReason.Stopped : WriteDiscardReason.Disconnected);
+    }
+
+    // 대기 중인 Manual 쓰기를 순서대로 꺼내(읽기는 남김) lock 밖에서 하나씩 알린다. 꺼내기는 workLock 안이라 쓰기 하나당 알림은 한 번
+    internal void DiscardWrites(WriteDiscardReason reason)
+    {
+        List<Work> dropped;
+        lock (workLock)
+        {
+            dropped = manualWorks.FindAll(x => x.IsWrite);
+            if (dropped.Count == 0) return;
+            manualWorks.RemoveAll(x => x.IsWrite);
+        }
+        foreach (var w in dropped) Raise(WriteDiscarded, new WriteDiscardedEventArgs(w.MessageID, reason));
     }
 
     /// <summary>Checks whether the Auto list contains the given message ID.</summary>
@@ -435,7 +519,7 @@ public class ModbusRTUMaster : IDisposable
     /// <param name="slave">Slave address, 0 to 247 (0 is broadcast; no response).</param>
     /// <param name="startAddr">Address.</param>
     /// <param name="value">The value to write.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualBitWrite_FC5(int id, int slave, int startAddr, bool value, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteSingleCoil(startAddr, value), repeatCount, timeout, true);
@@ -444,9 +528,10 @@ public class ModbusRTUMaster : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="slave">Slave address, 0 to 247 (0 is broadcast; no response).</param>
     /// <param name="startAddr">Address.</param>
-    /// <param name="value">The value to write (only the low 16 bits are sent).</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="value">The value to write (-32768 to 65535; a negative value is sent as two's complement).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
+    /// <exception cref="ArgumentOutOfRangeException">A value is outside -32768 to 65535.</exception>
     public void ManualWordWrite_FC6(int id, int slave, int startAddr, int value, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteSingleRegister(startAddr, value), repeatCount, timeout, true);
 
@@ -455,7 +540,7 @@ public class ModbusRTUMaster : IDisposable
     /// <param name="slave">Slave address, 0 to 247 (0 is broadcast; no response).</param>
     /// <param name="startAddr">Start address.</param>
     /// <param name="values">The values to write (1 to 1968).</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualMultiBitWrite_FC15(int id, int slave, int startAddr, bool[] values, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteMultipleCoils(startAddr, values), repeatCount, timeout, true);
@@ -464,9 +549,10 @@ public class ModbusRTUMaster : IDisposable
     /// <param name="id">Message ID.</param>
     /// <param name="slave">Slave address, 0 to 247 (0 is broadcast; no response).</param>
     /// <param name="startAddr">Start address.</param>
-    /// <param name="values">The values to write (1 to 123; only the low 16 bits of each are sent).</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="values">The values to write (1 to 123, each -32768 to 65535; a negative value is sent as two's complement).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
+    /// <exception cref="ArgumentOutOfRangeException">A value is outside -32768 to 65535.</exception>
     public void ManualMultiWordWrite_FC16(int id, int slave, int startAddr, int[] values, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WriteMultipleRegisters(startAddr, values), repeatCount, timeout, true);
 
@@ -476,7 +562,7 @@ public class ModbusRTUMaster : IDisposable
     /// <param name="startAddr">Register address.</param>
     /// <param name="bitIndex">Bit index, 0 to 15.</param>
     /// <param name="value">The value to set.</param>
-    /// <param name="repeatCount">Retry count when there is no response (null for no retries).</param>
+    /// <param name="repeatCount">Retry count when there is no response (null for no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout of this job in ms (if null, <see cref="Timeout"/>).</param>
     public void ManualWordBitSet_FC26(int id, int slave, int startAddr, int bitIndex, bool value, int? repeatCount = null, int? timeout = null)
         => AddManual(id, slave, ModbusPdu.WordBitSet(startAddr, bitIndex, value), repeatCount, timeout, true);
@@ -484,7 +570,7 @@ public class ModbusRTUMaster : IDisposable
     /// <summary>Registers a write of one value by the name defined in the XML &lt;Write&gt; element. FC5 takes 0/1 and FC6 takes -32768 to 65535; FC15/FC16 send it as a one-element array.</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="value">The value to write (depending on the function: 0 or 1 for FC5/FC15, -32768 to 65535 for FC6/FC16).</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, or a value is out of range.</exception>
     public void NamedWrite(string name, long value, int? repeatCount = null, int? timeout = null)
@@ -493,7 +579,7 @@ public class ModbusRTUMaster : IDisposable
     /// <summary>Registers a write of several values by the name defined in the XML &lt;Write&gt; element. FC5/FC6 accept only one value.</summary>
     /// <param name="name">The Name of the &lt;Write&gt; element.</param>
     /// <param name="values">The values to write (each 0 or 1 for FC15, each -32768 to 65535 for FC16).</param>
-    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries).</param>
+    /// <param name="repeatCount">Retry count (if null, the RepeatCount in the XML; if that is absent too, no retries). A retry resends a write the device may already have executed; do not use it for pulse, counter or incremental writes.</param>
     /// <param name="timeout">Timeout in ms (if null, the Timeout in the XML; if that is absent too, <see cref="Timeout"/>).</param>
     /// <exception cref="ArgumentException">The name does not exist, a value is out of range, or more than one value is given for FC5/FC6.</exception>
     public void NamedWrite(string name, IReadOnlyList<long> values, int? repeatCount = null, int? timeout = null)
@@ -534,6 +620,7 @@ public class ModbusRTUMaster : IDisposable
         Timeout = Timeout,
         Interval = Interval,
         AutoReconnect = AutoReconnect,
+        DiscardWritesWhileDisconnected = DiscardWritesWhileDisconnected,
         Autos = [.. AutoWorksSnapshot().Select(w => ModbusAutoConfig.FromWork(w.MessageID, w.Slave, w.Pdu, w.Timeout))],
         Writes = namedWrites.Snapshot(),
     };
@@ -564,6 +651,7 @@ public class ModbusRTUMaster : IDisposable
         Timeout = config.Timeout;
         Interval = config.Interval;
         AutoReconnect = config.AutoReconnect;
+        DiscardWritesWhileDisconnected = config.DiscardWritesWhileDisconnected;
         namedWrites = table;
         ReplaceAutoWorks(works);
     }
@@ -607,6 +695,7 @@ public class ModbusRTUMaster : IDisposable
                 var sp = TryOpen();
                 if (sp != null)
                 {
+                    SetLinkUp();
                     Volatile.Write(ref port, sp);
                     try
                     {
@@ -627,6 +716,7 @@ public class ModbusRTUMaster : IDisposable
                     {
                         ClosePort(sp);
                         Raise(DeviceClosed);
+                        SetLinkDown(token.IsCancellationRequested);
                     }
                 }
                 if (!AutoReconnect || token.IsCancellationRequested) break;
@@ -668,30 +758,47 @@ public class ModbusRTUMaster : IDisposable
     }
 
     void ProcessWork(SerialPort sp, Work w)
+        => Process(w,
+            request =>
+            {
+                sp.DiscardInBuffer();
+                sp.Write(request, 0, request.Length);
+            },
+            timeout => ReadResponse(sp, w, timeout));
+
+    // 작업 하나의 송수신·재시도·이벤트. send = 요청 송신, receive(타임아웃) = 응답 프레임(없으면 null).
+    // send가 예외 없이 돌아오면 requestSent. 브로드캐스트는 보낸 뒤 바로 끝난다
+    internal void Process(Work w, Action<byte[]> send, Func<int, byte[]?> receive)
     {
+        int attempt = 0;
         try
         {
             int timeout = w.Timeout ?? Timeout;
             var request = ModbusRtuFrame.Build(w.Slave, w.Pdu);
-            for (int attempt = 0; ; attempt++)
+            for (; ; attempt++)
             {
-                sp.DiscardInBuffer();
-                sp.Write(request, 0, request.Length);
+                requestSent = false;
+                send(request);
+                requestSent = true;
                 if (w.Slave == 0) return; // 브로드캐스트는 응답 없음
 
-                var frame = ReadResponse(sp, w, timeout);
-                if (frame == null) Raise(TimeoutReceived, Result(w));
-                else if (!ModbusCRC.Check(frame)) Raise(CRCErrorReceived, Result(w));
-                else if (frame[0] == w.Slave && HandleResponse(w, frame.AsSpan(1, frame.Length - 3))) return;
-                else Raise(TimeoutReceived, Result(w));
+                var frame = receive(timeout);
+                bool crcError = false;
+                if (frame != null)
+                {
+                    if (!ModbusCRC.Check(frame)) crcError = true;
+                    else if (frame[0] == w.Slave && HandleResponse(w, frame.AsSpan(1, frame.Length - 3))) return;
+                }
 
-                if (attempt >= (w.RepeatCount ?? 0)) return;
+                bool isFinal = attempt >= (w.RepeatCount ?? 0);
+                Raise(crcError ? CRCErrorReceived : TimeoutReceived, Failed(w, attempt + 1, isFinal));
+                if (isFinal) return;
             }
         }
         catch
         {
-            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤, 재접속 경로가 돌도록 다시 던진다
-            Raise(TimeoutReceived, Result(w));
+            // 포트 오류로 작업이 중단되면 조용히 사라지지 않게 알린 뒤(더 시도하지 않으므로 최종), 재접속 경로가 돌도록 다시 던진다
+            Raise(TimeoutReceived, Failed(w, attempt + 1, true));
             throw;
         }
     }
@@ -714,7 +821,8 @@ public class ModbusRTUMaster : IDisposable
         return buf.AsSpan(0, expected).ToArray();
     }
 
-    static ResultEventArgs Result(Work w) => new(w.MessageID, w.Slave, w.Function, w.StartAddress);
+    AttemptFailedEventArgs Failed(Work w, int attempt, bool isFinal)
+        => new(w.MessageID, w.Slave, w.Function, w.StartAddress, attempt, isFinal, requestSent);
 
     internal bool HandleResponse(Work w, ReadOnlySpan<byte> pdu)
     {

@@ -1733,7 +1733,7 @@
         
         
         
-        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster" en-hash="869af1084cb9c7a2">
+        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster" en-hash="0f6bfe85cd32d13e">
             <summary>
             시리얼(RS-232/485) Modbus RTU 마스터입니다. Auto(반복)/Manual(1회) 작업 큐로 폴링합니다.
             </summary>
@@ -1741,27 +1741,32 @@
             <para>Manual 작업은 Auto보다 먼저 처리됩니다. Auto 목록을 한 바퀴 돈 뒤 다시 처음부터 반복합니다.</para>
             <para>응답은 각 Received 이벤트로 오며, 등록할 때 준 id가 <c>MessageID</c>로 돌아옵니다.</para>
             <para>통신 루프는 전용 백그라운드 스레드에서 돌고 모든 이벤트도 그 스레드에서 발생합니다. UI 갱신은 BeginInvoke(WinForms) / Dispatcher.BeginInvoke(WPF)처럼 비동기로 넘기세요. 동기 Invoke는 UI 스레드에서 Stop()을 부를 때 대기를 길게 만듭니다. 핸들러에서 난 예외는 무시되고 루프는 계속 돕니다.</para>
+            <para>쓰기 안전: <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DiscardWritesWhileDisconnected" />가 true(기본값)이면 포트가 열려 있지 않을 때 요청한 Manual 쓰기(FC5/FC6/FC15/FC16/FC26, 브로드캐스트와 <see cref="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" /> 포함)는 대기열에 넣지 않고, 포트를 잃을 때 대기열에 남아 있던 쓰기는 <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DeviceClosed" /> 바로 다음에 버립니다. 둘 다 <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.WriteDiscarded" />로 알리며, 이 이벤트는 호출한 스레드에서도 발생할 수 있습니다. <see cref="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Stop" />은 대기 중인 Manual 쓰기를 항상 비웁니다. Manual 읽기와 Auto 작업은 버리지 않습니다. 쓰기 하나는 성공 이벤트, <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ExceptionReceived" />, IsFinal이 true인 <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.TimeoutReceived" /> 또는 <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.CRCErrorReceived" />, <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.WriteDiscarded" /> 중 정확히 하나로 끝납니다(<see cref="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ClearManual" />나 <see cref="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.RemoveManual(System.Int32)" />로 지운 작업은 알리지 않음). 브로드캐스트 쓰기는 응답이 없으므로 보내는 것으로 끝납니다.</para>
             </remarks>
             <example>
             <code>
             var mb = new ModbusRTUMaster { Port = "COM3", Baudrate = 115200, AutoReconnect = true };
             mb.AutoWordRead_FC3(1, 1, 0, 10);
             mb.WordReadReceived += (s, e) =&gt; { if (e.MessageID == 1) Console.WriteLine(string.Join(",", e.ReceiveData)); };
+            mb.DeviceOpened += (s, e) =&gt;
+            {
+                // 쓰기는 포트가 열린 동안에만 받습니다 (아니면 WriteDiscarded, NotConnected)
+                mb.ManualWordWrite_FC6(10, 1, 100, 1234);
+                mb.NamedWrite("레시피", [1, 2, 3]);   // XML의 &lt;Write Name="레시피" Id="30" Func="FC16" Slave="1" Start="10" /&gt;를 이름으로 호출
+            };
             mb.Start();
-            mb.ManualWordWrite_FC6(10, 1, 100, 1234);
-            mb.NamedWrite("레시피", [1, 2, 3]);   // XML의 &lt;Write Name="레시피" Id="30" Func="FC16" Slave="1" Start="10" /&gt;를 이름으로 호출
             </code>
             </example>
         </member>
-        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ResultEventArgs" en-hash="154b48215f861ba7">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 타임아웃·CRC 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ResultEventArgs" en-hash="479ce29764af13c9">
+            <summary>요청 결과 이벤트의 공통 인자입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">슬레이브 주소</param>
             <param name="function">함수 코드</param>
             <param name="startAddress">시작 주소</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Modbus.ModbusFunction,System.Int32)" en-hash="154b48215f861ba7">
-            <summary>요청 결과 이벤트의 공통 인자입니다. 타임아웃·CRC 오류 이벤트에는 이 형식이 그대로 쓰입니다.</summary>
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ResultEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Modbus.ModbusFunction,System.Int32)" en-hash="479ce29764af13c9">
+            <summary>요청 결과 이벤트의 공통 인자입니다.</summary>
             <param name="messageId">등록할 때 준 메시지 ID</param>
             <param name="slave">슬레이브 주소</param>
             <param name="function">함수 코드</param>
@@ -1778,6 +1783,35 @@
         </member>
         <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ResultEventArgs.StartAddress" en-hash="28cf6ef1fafe3c7e">
             <summary>시작 주소</summary>
+        </member>
+        <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AttemptFailedEventArgs" en-hash="fec3388864748a3a">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.TimeoutReceived" />, <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.CRCErrorReceived" />) 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">슬레이브 주소</param>
+            <param name="function">함수 코드</param>
+            <param name="startAddress">시작 주소</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AttemptFailedEventArgs.#ctor(System.Int32,System.Int32,Devinno.Communication.Modbus.ModbusFunction,System.Int32,System.Int32,System.Boolean,System.Boolean)" en-hash="fec3388864748a3a">
+            <summary>시도 실패(<see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.TimeoutReceived" />, <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.CRCErrorReceived" />) 이벤트 인자입니다.</summary>
+            <param name="messageId">등록할 때 준 메시지 ID</param>
+            <param name="slave">슬레이브 주소</param>
+            <param name="function">함수 코드</param>
+            <param name="startAddress">시작 주소</param>
+            <param name="attempt">시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</param>
+            <param name="isFinal">이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</param>
+            <param name="requestSent">이 시도의 요청을 송신 함수에 넘겼는지</param>
+        </member>
+        <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AttemptFailedEventArgs.Attempt" en-hash="74b6a0d14793627c">
+            <summary>시도 번호, 1부터 (1 = 첫 시도, 2 = 첫 재시도, ...)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AttemptFailedEventArgs.IsFinal" en-hash="281de11855fb176b">
+            <summary>이 작업을 더 시도하지 않는지 (재시도를 다 썼거나 포트가 끊김)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AttemptFailedEventArgs.RequestSent" en-hash="49f4d0cd1b0c2002">
+            <summary>이 시도의 요청을 송신 함수에 넘겼는지. false면 장비는 이 시도를 받지 않았고, true면 결과를 알 수 없으며 장비가 실행했을 수 있습니다.</summary>
         </member>
         <member name="T:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.BitReadEventArgs" en-hash="ccd4f44351fb180d">
             <summary>비트 읽기(FC1/FC2) 응답 인자입니다.</summary>
@@ -1960,6 +1994,9 @@
         <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AutoReconnect" en-hash="298f43f13e92cc03">
             <summary>포트를 열지 못했거나 끊겼을 때 1초 간격으로 다시 열지 여부 (기본값: false)</summary>
         </member>
+        <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DiscardWritesWhileDisconnected" en-hash="e7f0cf4746e1e3b5">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). true면 포트가 열려 있지 않을 때 요청한 Manual 쓰기·이름 쓰기는 대기열에 넣지 않고 <see cref="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.WriteDiscarded" />(NotConnected)를 발생시키며, 포트를 잃을 때 대기열에 남아 있던 쓰기도 버립니다(Disconnected). false면 대기열에 남겨 두었다가 포트가 열린 뒤 보냅니다. Manual 읽기와 Auto 작업은 영향이 없고, <see cref="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Stop" />은 이 설정과 상관없이 대기 중인 쓰기를 버립니다.</summary>
+        </member>
         <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.IsOpen" en-hash="986269974d476df3">
             <summary>시리얼 포트가 열려 있는지 여부</summary>
         </member>
@@ -1996,11 +2033,14 @@
         <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ExceptionReceived" en-hash="90a80e443cb8f867">
             <summary>슬레이브가 예외 응답을 보냈을 때 발생합니다.</summary>
         </member>
-        <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.TimeoutReceived" en-hash="40af98748ed7dd61">
-            <summary>응답이 없거나 형식이 맞지 않을 때, 또는 요청 도중 포트 연결이 실패했을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.TimeoutReceived" en-hash="e3c689abd8deac1a">
+            <summary>응답이 없거나 형식이 맞지 않을 때, 또는 요청 도중 포트 연결이 실패했을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
         </member>
-        <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.CRCErrorReceived" en-hash="b2e1e8192584d64b">
-            <summary>응답의 CRC가 맞지 않을 때 발생합니다. 재시도할 때마다 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.CRCErrorReceived" en-hash="7f7deeeb13b6b879">
+            <summary>응답의 CRC가 맞지 않을 때 발생합니다. 재시도할 때마다 발생하며, IsFinal로 이 작업을 다시 시도하는지 알 수 있습니다. RequestSent가 true면 장비가 요청을 실행했을 수 있으니 다시 보내기 전에 읽어서 확인하세요.</summary>
+        </member>
+        <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.WriteDiscarded" en-hash="105e8d16bc44b6bd">
+            <summary>Manual 쓰기를 보내지 않고 버렸을 때 발생합니다(<see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DiscardWritesWhileDisconnected" /> 참고). 호출한 스레드에서 발생할 수 있습니다: NotConnected는 Manual/NamedWrite 호출 안에서, Stopped는 Stop() 안에서. 그 밖에는 통신 스레드에서 발생합니다.</summary>
         </member>
         <member name="E:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DeviceOpened" en-hash="91fbc6395e188e0f">
             <summary>시리얼 포트가 열렸을 때 발생합니다.</summary>
@@ -2012,8 +2052,8 @@
             <summary>시리얼 포트를 열고 통신 루프를 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <remarks>포트를 열지 못하면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.AutoReconnect" />가 false일 때 루프가 끝나고 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.IsStart" />가 false가 됩니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Stop" en-hash="114f7ece6019bd7e">
-            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다.</summary>
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Stop" en-hash="21e45c2f73d54a68">
+            <summary>통신 루프를 멈추고 포트를 닫습니다. 루프가 끝날 때까지 최대 (Timeout + 1000)ms 기다립니다. 대기 중인 Manual 쓰기는 버립니다(WriteDiscarded, Stopped).</summary>
             <remarks>이벤트 핸들러 안에서 호출해도 됩니다. 이 경우 기다리지 않고 바로 돌아옵니다. Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
         </member>
         <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Dispose" en-hash="fbd8ccbde6fa6716">
@@ -2111,65 +2151,67 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualBitWrite_FC5(System.Int32,System.Int32,System.Int32,System.Boolean,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="a21f9ecbb0f47907">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualBitWrite_FC5(System.Int32,System.Int32,System.Int32,System.Boolean,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e262c04e5dc28237">
             <summary>FC5 단일 코일 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">슬레이브 주소 0~247 (0은 브로드캐스트, 응답 없음)</param>
             <param name="startAddr">주소</param>
             <param name="value">쓸 값</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualWordWrite_FC6(System.Int32,System.Int32,System.Int32,System.Int32,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="4235504e187223fd">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualWordWrite_FC6(System.Int32,System.Int32,System.Int32,System.Int32,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="20d1f7bec40530bf">
             <summary>FC6 단일 레지스터 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">슬레이브 주소 0~247 (0은 브로드캐스트, 응답 없음)</param>
             <param name="startAddr">주소</param>
-            <param name="value">쓸 값 (하위 16비트만 전송)</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="value">쓸 값 (-32768~65535, 음수는 2의 보수로 전송)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">값이 -32768~65535를 벗어난 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualMultiBitWrite_FC15(System.Int32,System.Int32,System.Int32,System.Boolean[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="9a6ee7ccbb367cca">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualMultiBitWrite_FC15(System.Int32,System.Int32,System.Int32,System.Boolean[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="54433b599fa68074">
             <summary>FC15 다중 코일 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">슬레이브 주소 0~247 (0은 브로드캐스트, 응답 없음)</param>
             <param name="startAddr">시작 주소</param>
             <param name="values">쓸 값들 (1~1968개)</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualMultiWordWrite_FC16(System.Int32,System.Int32,System.Int32,System.Int32[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e211fca0545d83db">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualMultiWordWrite_FC16(System.Int32,System.Int32,System.Int32,System.Int32[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="653aeee8b7bbbbb0">
             <summary>FC16 다중 레지스터 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">슬레이브 주소 0~247 (0은 브로드캐스트, 응답 없음)</param>
             <param name="startAddr">시작 주소</param>
-            <param name="values">쓸 값들 (1~123개, 각 하위 16비트만 전송)</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="values">쓸 값들 (1~123개, 각 -32768~65535, 음수는 2의 보수로 전송)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">값이 -32768~65535를 벗어난 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualWordBitSet_FC26(System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="a00420bec1dc6431">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.ManualWordBitSet_FC26(System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="7a352d96a9047646">
             <summary>FC26 레지스터 내 비트 설정을 등록합니다 (Devinno 확장 함수).</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">슬레이브 주소 0~247 (0은 브로드캐스트, 응답 없음)</param>
             <param name="startAddr">레지스터 주소</param>
             <param name="bitIndex">비트 인덱스 0~15</param>
             <param name="value">설정할 값</param>
-            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함)</param>
+            <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="15324ed417a5f87d">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.NamedWrite(System.String,System.Int64,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="1b3b55946b107abf">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 하나를 쓰도록 등록합니다. FC5는 0/1, FC6은 -32768~65535, FC15/FC16은 값 하나짜리 배열로 보냅니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="value">쓸 값 (함수에 따라 FC5/FC15는 0 또는 1, FC6/FC16은 -32768~65535)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나 값이 범위를 벗어난 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="2a1deb62533d6a36">
+        <member name="M:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.NamedWrite(System.String,System.Collections.Generic.IReadOnlyList{System.Int64},System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="5ef8b784d75de082">
             <summary>XML의 &lt;Write&gt;에 정의한 이름으로 값 여러 개를 쓰도록 등록합니다. FC5/FC6은 값을 하나만 받습니다.</summary>
             <param name="name">&lt;Write&gt;의 Name</param>
             <param name="values">쓸 값 (FC15는 각각 0 또는 1, FC16은 각각 -32768~65535)</param>
-            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함)</param>
+            <param name="repeatCount">재시도 횟수 (null이면 XML의 RepeatCount, 그것도 없으면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">타임아웃 ms (null이면 XML의 Timeout, 그것도 없으면 <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.Timeout" />)</param>
             <exception cref="T:System.ArgumentException">이름이 없거나, 값이 범위를 벗어났거나, FC5/FC6에 값을 둘 이상 준 경우</exception>
         </member>
@@ -2252,6 +2294,9 @@
         </member>
         <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMasterConfig.AutoReconnect" en-hash="c30f907e6e186110">
             <summary>끊겼을 때 다시 열지 여부 (기본값: false)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMasterConfig.DiscardWritesWhileDisconnected" en-hash="1b726b2befa3a5bc">
+            <summary>연결이 없는 동안 쓰기를 버릴지 여부 (기본값: true). <see cref="P:Devinno.Communication.Modbus.RTU.ModbusRTUMaster.DiscardWritesWhileDisconnected" /> 참고.</summary>
         </member>
         <member name="P:Devinno.Communication.Modbus.RTU.ModbusRTUMasterConfig.Autos" en-hash="525df7c2b5967ded">
             <summary>Auto(반복) 읽기 목록. 슬레이브 주소 1~247.</summary>
@@ -2859,14 +2904,15 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualWordWrite_FC6(System.Int32,System.Int32,System.Int32,System.Int32,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="1c1f1ed050b5096a">
+        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualWordWrite_FC6(System.Int32,System.Int32,System.Int32,System.Int32,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e2c3328ea6dc48b4">
             <summary>FC6 단일 레지스터 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">Unit ID 0~255</param>
             <param name="startAddr">주소</param>
-            <param name="value">쓸 값 (하위 16비트만 전송)</param>
+            <param name="value">쓸 값 (-32768~65535, 음수는 2의 보수로 전송)</param>
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.Timeout" />)</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">값이 -32768~65535를 벗어난 경우</exception>
         </member>
         <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualMultiBitWrite_FC15(System.Int32,System.Int32,System.Int32,System.Boolean[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="a9a1dde70d8cda86">
             <summary>FC15 다중 코일 쓰기를 등록합니다.</summary>
@@ -2877,14 +2923,15 @@
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.Timeout" />)</param>
         </member>
-        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualMultiWordWrite_FC16(System.Int32,System.Int32,System.Int32,System.Int32[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="372844c44f485cae">
+        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualMultiWordWrite_FC16(System.Int32,System.Int32,System.Int32,System.Int32[],System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="e2e1110ee5851f65">
             <summary>FC16 다중 레지스터 쓰기를 등록합니다.</summary>
             <param name="id">메시지 ID</param>
             <param name="slave">Unit ID 0~255</param>
             <param name="startAddr">시작 주소</param>
-            <param name="values">쓸 값들 (1~123개, 각 하위 16비트만 전송)</param>
+            <param name="values">쓸 값들 (1~123개, 각 -32768~65535, 음수는 2의 보수로 전송)</param>
             <param name="repeatCount">응답이 없을 때 재시도 횟수 (null이면 재시도 안 함). 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다. 펄스·카운터·증가형 쓰기에는 쓰지 마세요.</param>
             <param name="timeout">이 작업의 타임아웃 ms (null이면 <see cref="P:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.Timeout" />)</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">값이 -32768~65535를 벗어난 경우</exception>
         </member>
         <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPMaster.ManualWordBitSet_FC26(System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Nullable{System.Int32},System.Nullable{System.Int32})" en-hash="068a579437baba9d">
             <summary>FC26 레지스터 내 비트 설정을 등록합니다 (Devinno 확장 함수).</summary>

@@ -38,6 +38,8 @@ public class ModbusRTUMasterConfig
     [XmlAttribute] public int Interval { get; set; } = 10;
     /// <summary>Whether to reopen the port when it is lost (default: false).</summary>
     [XmlAttribute] public bool AutoReconnect { get; set; } = false;
+    /// <summary>Whether to discard writes while there is no connection (default: true). See <see cref="ModbusRTUMaster.DiscardWritesWhileDisconnected"/>.</summary>
+    [XmlAttribute] public bool DiscardWritesWhileDisconnected { get; set; } = true;
     /// <summary>Auto (polling) read list. Slave address 1 to 247.</summary>
     [XmlElement("Auto")] public List<ModbusAutoConfig> Autos { get; set; } = [];
     /// <summary>Named write list. These are &lt;Write&gt; elements, invoked by name through <see cref="ModbusRTUMaster.NamedWrite(string, long, int?, int?)"/>. Slave address 0 to 247 (0 is broadcast).</summary>

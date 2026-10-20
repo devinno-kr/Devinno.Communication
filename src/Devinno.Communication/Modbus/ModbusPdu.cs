@@ -20,6 +20,13 @@ internal static partial class ModbusPdu
             throw new ArgumentOutOfRangeException(paramName, "주소 범위는 0~65535 입니다.");
     }
 
+    // 워드 값은 -32768~65535 (음수는 2의 보수로 전송). 그 밖은 하위 16비트만 보내 다른 값이 써지므로 예외
+    static void CheckWord(int value, string paramName)
+    {
+        if (value < -32768 || value > 65535)
+            throw new ArgumentOutOfRangeException(paramName, value, "워드 값은 -32768~65535여야 합니다.");
+    }
+
     public static byte[] ReadRequest(ModbusFunction fn, int start, int length)
     {
         int max = fn switch
@@ -42,6 +49,7 @@ internal static partial class ModbusPdu
     public static byte[] WriteSingleRegister(int address, int value)
     {
         CheckAddress(address, 1, nameof(address));
+        CheckWord(value, nameof(value));
         return [6, Hi(address), Lo(address), Hi(value), Lo(value)];
     }
 
@@ -61,6 +69,7 @@ internal static partial class ModbusPdu
         if (values.Length < 1 || values.Length > MaxWriteWords)
             throw new ArgumentOutOfRangeException(nameof(values), $"개수는 1~{MaxWriteWords} 입니다.");
         CheckAddress(start, values.Length, nameof(start));
+        foreach (var v in values) CheckWord(v, nameof(values));
         var ret = new byte[6 + values.Length * 2];
         ret[0] = 16;
         ret[1] = Hi(start); ret[2] = Lo(start);

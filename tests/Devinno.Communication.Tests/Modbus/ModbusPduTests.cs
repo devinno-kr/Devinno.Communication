@@ -49,6 +49,40 @@ public class ModbusPduTests
         Assert.Equal(new byte[] { 26, 0x00, 0x05, 3, 0xFF, 0x00 }, ModbusPdu.WordBitSet(5, 3, true));
     }
 
+    [Theory]
+    [InlineData(65536)]
+    [InlineData(-32769)]
+    public void WriteSingleRegister_OutOfRange_Throws(int value)
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ModbusPdu.WriteSingleRegister(0, value));
+        Assert.Equal("value", ex.ParamName);
+    }
+
+    [Fact]
+    public void WriteSingleRegister_Boundary_Passes()
+    {
+        Assert.Equal(new byte[] { 6, 0, 0, 0xFF, 0xFF }, ModbusPdu.WriteSingleRegister(0, 65535));
+        Assert.Equal(new byte[] { 6, 0, 0, 0xFF, 0xFF }, ModbusPdu.WriteSingleRegister(0, -1));
+        Assert.Equal(new byte[] { 6, 0, 0, 0x80, 0x00 }, ModbusPdu.WriteSingleRegister(0, -32768));
+    }
+
+    [Theory]
+    [InlineData(70000)]
+    [InlineData(-32769)]
+    public void WriteMultipleRegisters_OutOfRange_Throws(int bad)
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ModbusPdu.WriteMultipleRegisters(0, [1, bad]));
+        Assert.Equal("values", ex.ParamName);
+    }
+
+    [Fact]
+    public void Masters_OutOfRangeWord_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Devinno.Communication.Modbus.TCP.ModbusTCPMaster().ManualWordWrite_FC6(1, 1, 0, 70000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Devinno.Communication.Modbus.RTU.ModbusRTUMaster().ManualWordWrite_FC6(1, 1, 0, 70000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Devinno.Communication.Modbus.TCP.ModbusTCPMaster().ManualMultiWordWrite_FC16(1, 1, 0, [1, 70000]));
+    }
+
     [Fact]
     public void WordBitSet_BitIndexOver15_Throws()
     {
