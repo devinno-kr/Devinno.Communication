@@ -20,6 +20,26 @@ public class MQClientTests
     }
 
     [Fact]
+    public void Publish_NotConnected_RaisesPublishDiscardedSync()
+    {
+        using var mq = new MQClient();
+        var got = new List<(string, MQQos, int)>();
+        mq.PublishDiscarded += (s, e) => got.Add((e.Topic, e.Qos, Environment.CurrentManagedThreadId));
+        mq.Publish("a/b", "x", MQQos.LeastOnce);
+        Assert.Equal([("a/b", MQQos.LeastOnce, Environment.CurrentManagedThreadId)], got);
+    }
+
+    [Fact]
+    public void Publish_InvalidTopic_ThrowsNoEvent()
+    {
+        using var mq = new MQClient();
+        var n = 0;
+        mq.PublishDiscarded += (s, e) => n++;
+        Assert.Throws<ArgumentException>(() => mq.Publish("a/#", "x"));
+        Assert.Equal(0, n);
+    }
+
+    [Fact]
     public void Settings_Validation()
     {
         using var mq = new MQClient();

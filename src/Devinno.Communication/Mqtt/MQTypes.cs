@@ -70,6 +70,19 @@ public class MQReceiveArgs(string Topic, byte[] Datas) : EventArgs
     public byte[] Datas { get; } = Datas;
 }
 
+/// <summary>
+/// Data of the event raised when a Publish is not sent because the client is not connected.
+/// </summary>
+/// <param name="Topic">Topic of the message that was not sent.</param>
+/// <param name="Qos">QoS of the message that was not sent.</param>
+public class MQPublishDiscardedEventArgs(string Topic, MQQos Qos) : EventArgs
+{
+    /// <summary>Topic of the message that was not sent.</summary>
+    public string Topic { get; } = Topic;
+    /// <summary>QoS of the message that was not sent.</summary>
+    public MQQos Qos { get; } = Qos;
+}
+
 // MQTT 토픽·QoS 검사. 잘못된 값은 MQTTnet에 넘기기 전에 호출한 곳에서 ArgumentException으로 막는다(규격보다 느슨한 MQTTnet 검사에 기대지 않음).
 internal static class MQTopic
 {

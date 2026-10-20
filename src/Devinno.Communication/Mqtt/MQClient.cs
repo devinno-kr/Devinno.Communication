@@ -28,7 +28,7 @@ namespace Devinno.Communication.Mqtt;
 /// <para><see cref="Connected"/> and <see cref="Disconnected"/> are raised as a pair, once per connection, on the dedicated MQClient thread ("MQClient") (also when disconnecting through <see cref="Stop"/>).
 /// Exceptions thrown in any event handler are ignored (the loop and the dispatcher keep running). To update the UI, marshal asynchronously, as with BeginInvoke (WinForms) or Dispatcher.BeginInvoke (WPF).</para>
 /// <para><see cref="Publish(string, byte[], MQQos, bool)"/>, <see cref="Subscribe(MQSubscribe)"/>, and <see cref="Unsubscribe"/> return immediately without waiting for a response (they give up after at most 10 seconds, and failures are ignored).
-/// A Publish while not connected is discarded without being sent. The topic and QoS are validated at call time and throw exceptions.</para>
+/// A Publish while not connected is discarded without being sent and <see cref="PublishDiscarded"/> is raised on the calling thread. The topic and QoS are validated at call time and throw exceptions.</para>
 /// <para>If two clients connect with the same ClientID, the broker disconnects the one that connected first, so they keep disconnecting each other and reconnecting. Give each client a different ClientID.</para>
 /// <para>The password is received only through <see cref="Start(string, string, string)"/> and is kept internally only for use in reconnection. It cannot be read as a property and is not saved to XML.</para>
 /// </remarks>
@@ -185,6 +185,8 @@ public class MQClient : IDisposable
     public event EventHandler? Disconnected;
     /// <summary>Raised in the order received when a message of a subscribed topic is received. Raised on the dispatcher thread ("MQClient.Received").</summary>
     public event EventHandler<MQReceiveArgs>? Received;
+    /// <summary>Raised on the calling thread, inside <see cref="Publish(string, byte[], MQQos, bool)"/>, when a message is not sent because the client is not connected. Not raised for invalid arguments, which throw instead.</summary>
+    public event EventHandler<MQPublishDiscardedEventArgs>? PublishDiscarded;
     #endregion
 
     #region Start / Stop
@@ -280,12 +282,12 @@ public class MQClient : IDisposable
     #endregion
 
     #region Publish
-    /// <summary>Publishes a byte array message to the specified topic. If not connected, it returns without sending.</summary>
-    /// <remarks>The data is copied and sent, and the call does not wait for the send or for the QoS 1/2 acknowledgment (messages go out in the order called from the same thread). Failures, or no confirmation within 10 seconds, are not reported.</remarks>
+    /// <summary>Publishes a byte array message to the specified topic. If not connected, it is not sent and <see cref="PublishDiscarded"/> is raised on the calling thread.</summary>
+    /// <remarks>The data is copied and sent, and the call does not wait for the send or for the QoS 1/2 acknowledgment (messages go out in the order called from the same thread). Failures after it is handed to the client, or no confirmation within 10 seconds, are not reported.</remarks>
     /// <param name="Topic">Topic to publish to (wildcards not allowed).</param>
     /// <param name="Data">Message byte array.</param>
     /// <param name="qos">QoS (default: MostOnce).</param>
-    /// <param name="retain">Whether the broker retains it as the last message.</param>
+    /// <param name="retain">Whether the broker retains it as the last message. Do not retain command topics: every new subscriber receives the retained message again.</param>
     /// <exception cref="ArgumentNullException">Topic or Data is null.</exception>
     /// <exception cref="ArgumentException">The topic is empty, contains a wildcard (#, +) or a NUL character, or exceeds 65535 bytes in UTF-8.</exception>
     /// <exception cref="ArgumentOutOfRangeException">qos is not MostOnce, LeastOnce, or ExactlyOnce.</exception>
@@ -295,7 +297,11 @@ public class MQClient : IDisposable
         ArgumentNullException.ThrowIfNull(Data);
         MQTopic.CheckQos(qos, nameof(qos));
         var c = Volatile.Read(ref current);
-        if (c == null || !c.IsConnected) return;
+        if (c == null || !c.IsConnected)
+        {
+            Raise(PublishDiscarded, new MQPublishDiscardedEventArgs(Topic, qos));
+            return;
+        }
         var message = new MqttApplicationMessageBuilder()
             .WithTopic(Topic)
             .WithPayload((byte[])Data.Clone())
@@ -305,11 +311,11 @@ public class MQClient : IDisposable
         Forget(token => c.PublishAsync(message, token));
     }
 
-    /// <summary>Publishes a string message, converted to UTF-8, to the specified topic. If not connected, it returns without sending.</summary>
+    /// <summary>Publishes a string message, converted to UTF-8, to the specified topic. If not connected, it is not sent and <see cref="PublishDiscarded"/> is raised on the calling thread.</summary>
     /// <param name="Topic">Topic to publish to (wildcards not allowed).</param>
     /// <param name="Data">Message string.</param>
     /// <param name="qos">QoS (default: MostOnce).</param>
-    /// <param name="retain">Whether the broker retains it as the last message.</param>
+    /// <param name="retain">Whether the broker retains it as the last message. Do not retain command topics: every new subscriber receives the retained message again.</param>
     /// <exception cref="ArgumentNullException">Topic or Data is null.</exception>
     /// <exception cref="ArgumentException">The topic is empty, contains a wildcard (#, +) or a NUL character, or exceeds 65535 bytes in UTF-8.</exception>
     /// <exception cref="ArgumentOutOfRangeException">qos is not MostOnce, LeastOnce, or ExactlyOnce.</exception>
