@@ -258,6 +258,10 @@ public class GemHostConnectTests
             host.Start();
             fake.Next(1, 13, 5000);
             fake.Hsms.Stop();                                                               // 끊고 다시 받지 않음(재시도 S1F13은 연결 없이 보내짐)
+            // H2: 끊김 실패는 GemHost가 DeviceClosed를 처리할 때(CommunicationStateChanged 뒤) 알린다 → 붙잡은 동안에는 오지 않는다.
+            // 재시도(3초 뒤)가 붙잡은 동안 나가도록 넉넉히 기다린 뒤 풀어 준다
+            Assert.False(results.TryTake(out _, 6000));
+            release.Set();
             var r = await Next(results, 10000);
             Assert.Equal(GemConnectStep.EstablishCommunication, r.FailedStep);
             var ex = Assert.IsType<SecsDisconnectedException>(r.Exception);

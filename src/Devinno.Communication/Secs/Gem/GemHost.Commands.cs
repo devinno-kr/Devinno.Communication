@@ -65,25 +65,40 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public byte EstablishCommunication() => EstablishReply(Ask(EstablishRequest()));
+    public byte EstablishCommunication()
+    {
+        int epoch = SendEpoch();
+        return EstablishReply(Ask(EstablishRequest()), epoch);
+    }
 
     /// <summary>Requests that communications be established (S1F13). The rules and exceptions are the same as for <see cref="EstablishCommunication"/>.</summary>
     /// <param name="cancellationToken">Cancels waiting for the reply.</param>
     /// <returns>COMMACK.</returns>
     public async Task<byte> EstablishCommunicationAsync(CancellationToken cancellationToken = default)
-        => EstablishReply(await AskAsync(EstablishRequest(), cancellationToken).ConfigureAwait(false));
+    {
+        int epoch = SendEpoch();
+        return EstablishReply(await AskAsync(EstablishRequest(), cancellationToken).ConfigureAwait(false), epoch);
+    }
 
     static SecsMessage EstablishRequest() => new(1, 13, true, SecsItem.L());
 
-    byte EstablishReply(SecsMessage reply)
+    // sendEpoch = 보내기 직전에 캡처한 SendEpoch(). 응답 처리 때 그 연결이 아직 열려 있을 때만 장비 이름·통신 수립을 반영한다(H1).
+    // 끊긴 연결의 늦은 응답이면 COMMACK만 돌려준다
+    byte EstablishReply(SecsMessage reply, int sendEpoch)
     {
         const string expected = "<L COMMACK <L MDLN SOFTREV>>";
         if (reply.Item is not { Format: SecsFormat.List, Count: 2 } body) throw Unexpected(reply, expected);
         byte ack = AckOf(body.Items[0], reply, expected);
         if (ack == GemAck.CommackAccepted)
         {
-            StoreModel(body.Items[1]);
-            SetCommunicating(true);
+            lock (gate)
+            {
+                if (running && linkUp && linkEpoch == sendEpoch)
+                {
+                    StoreModel(body.Items[1]);
+                    SetCommunicatingLocked(true);
+                }
+            }
         }
         return ack;
     }

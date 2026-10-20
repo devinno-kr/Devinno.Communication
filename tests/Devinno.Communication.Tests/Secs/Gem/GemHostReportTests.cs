@@ -52,16 +52,16 @@ public class GemHostReportTests
         using var _ = fake;
         using var __ = host;
         await host.DefineReportsAsync([(1000, [2001, 3001]), (1001, [2002])]);
-        Assert.Equal([new GemId(2001), new GemId(3001)], host.KnownReport(1000));
+        await TestUtil.Until(() => host.KnownReport(1000) is [var a, var b] && a == new GemId(2001) && b == new GemId(3001));   // 표 갱신은 디스패처에서(P10)
         fake.Reply(2, 33, "<B 3>");
         Assert.Equal(3, await host.DefineReportsAsync([(1002, [2001])]));
         Assert.Null(host.KnownReport(1002));                                                // 거절되면 표를 바꾸지 않음
         fake.Reply(2, 33, "<B 0>");
         await host.DefineReportsAsync([(1001, [])]);                                       // 그 리포트 지우기
-        Assert.Null(host.KnownReport(1001));
-        Assert.NotNull(host.KnownReport(1000));
+        await TestUtil.Until(() => host.KnownReport(1001) == null);
+        await TestUtil.Until(() => host.KnownReport(1000) != null);
         await host.DefineReportsAsync([]);                                                 // 모두 지우기
-        Assert.Null(host.KnownReport(1000));
+        await TestUtil.Until(() => host.KnownReport(1000) == null);
     }
 
     [Fact]
@@ -73,14 +73,14 @@ public class GemHostReportTests
         using var __ = host;
         Assert.Equal(0, await host.DefineReportsAsync([(1000, [2001])]));                  // 숫자 RPTID → A "1000"
         Assert.Equal("S2F33 W <L [2] <U4 1> <L [1] <L [2] <A \"1000\"> <L [1] <U4 2001>>>>>", fake.Next(2, 33).ToSml());
-        Assert.Equal([new GemId(2001)], host.KnownReport("1000"));
+        await TestUtil.Until(() => host.KnownReport("1000") is [var t] && t == new GemId(2001));                       // 표 갱신은 디스패처에서(P10)
         Assert.Equal([new GemId(2001)], host.KnownReport(1000));
         Assert.Equal("S6F12 <B 0x00>", await fake.Ask("S6F11 W <L <U4 1> <A \"5001\"> <L <L <A \"1000\"> <L <F4 1.5>>>>>"));
         Assert.True(events.TryTake(out var report, 3000));
         Assert.Equal(new GemId(2001), report!.Reports.Single().Values.Single().Vid);       // 텍스트로 돌아온 RPTID도 해석
         Assert.Equal(new GemId("5001"), report.Ceid);                                       // A로 받은 CEID는 텍스트 ID
         Assert.Equal(0, host.DefineReports([("1000", [])]));                               // 텍스트로 지워도 같은 리포트
-        Assert.Null(host.KnownReport(1000));
+        await TestUtil.Until(() => host.KnownReport(1000) == null);
     }
 
     [Fact]

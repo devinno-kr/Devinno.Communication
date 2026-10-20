@@ -83,6 +83,9 @@ public partial class GemHost : IDisposable
     int run;                            // gate: 실행 번호(Start마다 1 늘림). 앱 스레드에서 늦게 돌아온 이전 실행의 결과를 가려낸다
     readonly List<Deferred> deferreds = [];       // gate
     bool communicating;                 // gate
+    bool linkUp;                        // gate: GEM이 아는 연결 상태(디스패처의 DeviceOpened/DeviceClosed로 바뀜)
+    int linkEpoch;                      // gate: 연결 세대(열림·닫힘마다 1 늘림). 끊긴 연결의 늦은 S1F14를 가려낸다
+    GemConnectResult? pendingSequenceResult;   // gate: 자동 시퀀스의 끊김 실패(그 연결이 아직 열려 있을 때). DeviceClosed가 상태 이벤트 뒤에 알린다
     string modelName = "", softwareRevision = "";   // gate: 장비가 알려 준 MDLN·SOFTREV
 
     SecsFormat vidFormat = SecsFormat.U4, ceidFormat = SecsFormat.U4, rptidFormat = SecsFormat.U4, alidFormat = SecsFormat.U4, dataidFormat = SecsFormat.U4;
@@ -96,7 +99,7 @@ public partial class GemHost : IDisposable
     // Start 때 상태 초기화(gate 안, 전송 시작 전)
     partial void ResetReports();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드, 실행 중일 때만)
-    partial void OnTransportOpened();
+    partial void OnTransportOpened(int epoch);
     partial void OnTransportClosed();
     // 통신 수립 여부가 바뀜(gate 안). Start 때도 false로 부른다
     partial void OnCommunicatingChangedLocked(bool value);
@@ -121,11 +124,32 @@ public partial class GemHost : IDisposable
     {
         this.transport = transport;
         onPrimary = OnPrimary;
-        onOpened = (_, _) => { if (IsRunning) OnTransportOpened(); };
+        onOpened = (_, _) =>
+        {
+            int epoch;
+            lock (gate)
+            {
+                if (!running) return;
+                linkUp = true;
+                epoch = ++linkEpoch;
+            }
+            OnTransportOpened(epoch);
+        };
         onClosed = (_, _) =>
         {
-            if (!IsRunning) return;
-            SetCommunicating(false);
+            lock (gate)
+            {
+                if (!running) return;
+                linkUp = false;
+                ++linkEpoch;
+                SetCommunicatingLocked(false);
+                // 보류된 자동 시퀀스 실패는 CommunicationStateChanged 다음에(H2)
+                if (pendingSequenceResult is { } pending)
+                {
+                    pendingSequenceResult = null;
+                    Raise(ConnectSequenceCompleted, pending);
+                }
+            }
             OnTransportClosed();
         };
         handlers[S1F1] = e => Respond(e, SecsItem.L());
@@ -220,6 +244,9 @@ public partial class GemHost : IDisposable
 
     bool IsRunning { get { lock (gate) return running; } }
 
+    // 테스트 전용: GEM이 연결을 아는가(디스패처가 DeviceOpened를 처리한 뒤 true, DeviceClosed 뒤 false)
+    internal bool LinkUp { get { lock (gate) return linkUp; } }
+
     void Setting(Action set)
     {
         lock (lifeLock)
@@ -268,6 +295,8 @@ public partial class GemHost : IDisposable
                 run++;
                 deferreds.Clear();
                 communicating = false;
+                linkUp = false;
+                pendingSequenceResult = null;
                 OnCommunicatingChangedLocked(false);
                 modelName = softwareRevision = "";
                 ResetReports();
@@ -311,6 +340,7 @@ public partial class GemHost : IDisposable
         lock (gate)
         {
             running = false;
+            pendingSequenceResult = null;                // Stop 뒤 이벤트 없음
             deferreds.Clear();
             w = worker;
             a = app;
@@ -393,15 +423,23 @@ public partial class GemHost : IDisposable
 
     void SetCommunicating(bool value)
     {
-        lock (gate)
-        {
-            if (!running || communicating == value) return;
-            communicating = value;
-            OnCommunicatingChangedLocked(value);
-            Raise(CommunicationStateChanged, value
-                ? new GemCommunicationStateEventArgs(GemCommunicationState.NotCommunicating, GemCommunicationState.Communicating)
-                : new GemCommunicationStateEventArgs(GemCommunicationState.Communicating, GemCommunicationState.NotCommunicating));
-        }
+        lock (gate) SetCommunicatingLocked(value);
+    }
+
+    void SetCommunicatingLocked(bool value)
+    {
+        if (!running || communicating == value) return;
+        communicating = value;
+        OnCommunicatingChangedLocked(value);
+        Raise(CommunicationStateChanged, value
+            ? new GemCommunicationStateEventArgs(GemCommunicationState.NotCommunicating, GemCommunicationState.Communicating)
+            : new GemCommunicationStateEventArgs(GemCommunicationState.Communicating, GemCommunicationState.NotCommunicating));
+    }
+
+    // 지금 보내는 메시지가 속할 연결 세대(D1): GEM이 링크 없음으로 아는데 전송이 열려 있으면 그 송신은 GEM이 다음에 열 연결의 것
+    int SendEpoch()
+    {
+        lock (gate) return linkUp ? linkEpoch : linkEpoch + 1;
     }
     #endregion
 

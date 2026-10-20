@@ -166,13 +166,22 @@ public partial class GemHost
         return new SecsMessage(2, 33, true, SecsItem.L(NextDataId(), SecsItem.L([.. items])));
     }
 
-    // DRACK 0이면 해석 표에 반영(열쇠는 보낸 포맷 기준: A면 숫자 RPTID도 텍스트)
+    // DRACK 0이면 해석 표 갱신을 디스패처 대기열에 넣는다(기다리지 않음, H3): S2F34보다 먼저 받은 S6F11은 옛 표로, 그 뒤에 받은 것은 새 표로 해석된다.
+    // 디스패처가 멈춰 있으면 버려진다(Start가 표를 비움). transport.Post는 GEM gate 밖에서
     byte DefineReportsReply(SecsMessage reply, IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
     {
         byte ack = AckOf(reply.Item, reply, "DRACK");
         if (ack != GemAck.DrackAccepted) return ack;
+        transport.Post(() => ApplyReportTable(reports));
+        return ack;
+    }
+
+    // 해석 표에 반영(디스패처, 또는 전송 Stop 스레드). 열쇠는 보낸 포맷 기준: A면 숫자 RPTID도 텍스트
+    void ApplyReportTable(IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
+    {
         lock (gate)
         {
+            if (!running) return;
             if (reports.Count == 0) reportTable.Clear();
             foreach (var (rptid, vids) in reports)
             {
@@ -181,7 +190,6 @@ public partial class GemHost
                 else reportTable[key] = [.. vids];
             }
         }
-        return ack;
     }
 
     /// <summary>Links reports to CEs (S2F35 &lt;L DATAID &lt;L &lt;L CEID &lt;L RPTID…&gt;&gt;…&gt;&gt;). An entry with an empty RPTID list unlinks everything from that CE.</summary>

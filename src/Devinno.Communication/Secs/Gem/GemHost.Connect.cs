@@ -85,7 +85,7 @@ public partial class GemHost
         else if (communicated.Task.IsCompleted) communicated = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    partial void OnTransportOpened()
+    partial void OnTransportOpened(int epoch)
     {
         if (!autoConnectSequence) return;
         CancellationTokenSource cts;
@@ -99,7 +99,7 @@ public partial class GemHost
             w = worker;
         }
         previous?.Cancel();
-        w?.Post(() => StartAutoSequence(cts.Token));          // 작업 스레드에서 시작만 한다(응답은 기다리지 않음)
+        w?.Post(() => StartAutoSequence(cts.Token, epoch));   // 작업 스레드에서 시작만 한다(응답은 기다리지 않음)
     }
 
     partial void OnTransportClosed() => CancelLink();
@@ -120,7 +120,8 @@ public partial class GemHost
 
     #region 실행
     // 자동 시퀀스를 시작한다(작업 스레드). 이전 시퀀스(끊긴 연결의 것)가 끝나기를 기다린 뒤 실행한다
-    void StartAutoSequence(CancellationToken token)
+    // startEpoch = 이 시퀀스를 시작한 연결의 세대
+    void StartAutoSequence(CancellationToken token, int startEpoch)
     {
         Task previous;
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -132,18 +133,18 @@ public partial class GemHost
             sequence = done.Task;
             r = run;
         }
-        _ = AutoSequenceAsync(previous, token, done, r);
+        _ = AutoSequenceAsync(previous, token, done, r, startEpoch);
     }
 
-    async Task AutoSequenceAsync(Task previous, CancellationToken token, TaskCompletionSource done, int r)
+    async Task AutoSequenceAsync(Task previous, CancellationToken token, TaskCompletionSource done, int r, int startEpoch)
     {
         try
         {
             try { await previous.ConfigureAwait(false); } catch (Exception) { }
             // 기다리는 사이 이 연결도 끊김(빠른 재접속 반복): 시작하지 않고 알리지도 않는다. 끊긴 연결마다 실패가 쌓여 마지막 연결의 결과 뒤에 오지 않게
             if (token.IsCancellationRequested) return;
-            var result = await SequenceAsync(AsyncAsker(token), sync: false, auto: true, r, token).ConfigureAwait(false);
-            Publish(result, r);
+            var result = await SequenceAsync(AsyncAsker(token), sync: false, auto: true, r, startEpoch, token).ConfigureAwait(false);
+            PublishAuto(result, r, startEpoch);
         }
         catch (Exception) { }
         finally { done.TrySetResult(); }
@@ -180,7 +181,7 @@ public partial class GemHost
         }
         try
         {
-            var result = await SequenceAsync(ask, sync, auto: false, r, cancellationToken).ConfigureAwait(false);
+            var result = await SequenceAsync(ask, sync, auto: false, r, startEpoch: 0, cancellationToken).ConfigureAwait(false);   // 수동: startEpoch는 쓰지 않음
             Publish(result, r);
             return result;
         }
@@ -195,8 +196,26 @@ public partial class GemHost
         }
     }
 
-    // ask = 묻기 방법(sync면 동기 Send: 모든 await가 이미 끝나 호출 스레드에서 실행), r = 시작한 실행 번호(경고는 그 실행일 때만 알림). 재시도 대기는 자동(비동기)만
-    async Task<GemConnectResult> SequenceAsync(Asker ask, bool sync, bool auto, int r, CancellationToken token)
+    // 자동 실행의 알림(H2): 끊김 실패인데 GEM이 아직 그 연결을 열린 것으로 알면 보류하고, DeviceClosed가 CommunicationStateChanged 다음에 알린다
+    void PublishAuto(GemConnectResult result, int r, int startEpoch)
+    {
+        lock (gate)
+        {
+            if (!running || run != r) return;
+            if (result.Exception is SecsDisconnectedException && linkUp && linkEpoch == startEpoch) pendingSequenceResult = result;
+            else Raise(ConnectSequenceCompleted, result);
+        }
+    }
+
+    // 시작한 연결이 끝났는가(GEM이 그 연결의 DeviceClosed를 처리했거나 다른 연결로 바뀜)
+    bool LinkEnded(int startEpoch)
+    {
+        lock (gate) return linkEpoch != startEpoch || !linkUp;
+    }
+
+    // ask = 묻기 방법(sync면 동기 Send: 모든 await가 이미 끝나 호출 스레드에서 실행), r = 시작한 실행 번호(경고는 그 실행일 때만 알림),
+    // startEpoch = 자동 실행을 시작한 연결 세대(끊김 판정). 재시도 대기는 자동(비동기)만
+    async Task<GemConnectResult> SequenceAsync(Asker ask, bool sync, bool auto, int r, int startEpoch, CancellationToken token)
     {
         var step = GemConnectStep.EstablishCommunication;
         GemReportSetupResult? reports = null;
@@ -210,7 +229,8 @@ public partial class GemHost
                 Exception? failure = null;
                 try
                 {
-                    ack = EstablishReply(await ask(EstablishRequest()).ConfigureAwait(false));
+                    int epoch = SendEpoch();
+                    ack = EstablishReply(await ask(EstablishRequest()).ConfigureAwait(false), epoch);
                     if (ack == GemAck.CommackAccepted) break;
                 }
                 catch (Exception ex) when (ex is SecsTimeoutException or SecsAbortException or SecsErrorException or FormatException) { failure = ex; }
@@ -256,8 +276,9 @@ public partial class GemHost
         catch (Exception ex)
         {
             // 자동 실행: 끊김이 원인인 실패는 SecsDisconnectedException으로 알린다(원래 예외는 InnerException). 끊긴 직후 GemHost가 DeviceClosed를 처리해
-            // 시퀀스를 취소하기 전에 다음 단계를 보내면 전송이 InvalidOperationException("연결되어 있지 않습니다")을 던지므로 그것도 끊김으로 본다
-            if (auto && (token.IsCancellationRequested || SecsSession.IsNotConnected(ex) || ex is not SecsDisconnectedException && !transport.IsOpen()))
+            // 시퀀스를 취소하기 전에 다음 단계를 보내면 전송이 InvalidOperationException("연결되어 있지 않습니다")을 던지므로 그것도 끊김으로 본다.
+            // 다른 실패(T3 등)는 시작한 연결이 끝났으면(GEM의 연결 세대 기준) 끊김으로 본다
+            if (auto && (token.IsCancellationRequested || SecsSession.IsNotConnected(ex) || ex is not SecsDisconnectedException && LinkEnded(startEpoch)))
                 ex = new SecsDisconnectedException("연결이 끊겨 접속 시퀀스를 멈췄습니다. 다음 연결 때 처음부터 다시 실행합니다.", ex);
             return new GemConnectResult(step, null, ex, reports);
         }
