@@ -243,3 +243,30 @@ public class SecsSerialTests
         Assert.Equal("DeviceID", Assert.Throws<ArgumentOutOfRangeException>(() => x.DeviceID = -1).ParamName);
     }
 }
+
+/// 스레드풀을 일부러 꽉 채우므로 다른 테스트와 함께 돌리지 않는다
+[CollectionDefinition(nameof(SecsSerialThreadPoolTests), DisableParallelization = true)]
+public class SecsSerialThreadPoolCollection { }
+
+[Collection(nameof(SecsSerialThreadPoolTests))]
+public class SecsSerialThreadPoolTests
+{
+    // 스레드풀이 바빠 SendAsync의 이어 실행이 응답보다 늦게 돌아도 T3는 마지막 블록의 ACK부터 잰다
+    [Fact]
+    public async Task T3_StartsAtLastAck_EvenWhenThreadPoolIsBusy()
+    {
+        var (a, b) = MemoryLine.Pair();
+        using var eq = SecsSerialTests.Make(SecsRole.Equipment, a);
+        using var host = SecsSerialTests.Make(SecsRole.Host, b);
+        eq.PrimaryReceived += (s, e) => { if (e.Message.Stream == 5) Thread.Sleep(600); SecsSerialTests.Echo(s, e); };
+        host.T3 = 300;
+        eq.Start();
+        host.Start();
+        await TestUtil.Until(() => eq.IsOpen && host.IsOpen);
+        // 응답(ACK + 600ms)이 올 때까지 스레드풀 작업자가 모두 막혀 있게 한다
+        ThreadPool.GetMinThreads(out var workers, out _);
+        for (int i = 0; i < workers * 4; i++) ThreadPool.UnsafeQueueUserWorkItem(_ => Thread.Sleep(400), null);
+        await Assert.ThrowsAsync<SecsTimeoutException>(() => host.SendAsync(new SecsMessage(5, 5, true)));
+        Assert.True(host.IsOpen);
+    }
+}

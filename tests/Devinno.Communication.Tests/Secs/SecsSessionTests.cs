@@ -263,6 +263,36 @@ public class SecsSessionTests
     }
 
     [Fact]
+    public async Task T3_StartsAtTransmitCompleted_EvenIfSendContinuationIsLate()
+    {
+        // 전송 계층이 보내기를 끝냈다고 알렸지만(TransmitCompleted) 송신 Task의 이어 실행(Sent)은 아직 돌지 않은 상태 = 스레드풀이 바쁠 때
+        using var h = new Harness(connect: false) { T3 = 200 };
+        var sent = new TaskCompletionSource();
+        h.Session.Connected((w, t) => { h.Session.TransmitCompleted(w); return sent.Task; });
+        var task = h.Session.SendAsync(S1F1, default);
+        await TestUtil.Until(() => h.Session.PendingCount == 0, 2000);   // 이어 실행 없이도 T3로 끝난다
+        sent.SetResult();
+        await Assert.ThrowsAsync<SecsTimeoutException>(() => task);
+    }
+
+    [Fact]
+    public async Task TransmitCompleted_OfReplyWithSameSystemBytes_DoesNotStartT3()
+    {
+        // 응답(상대의 System Bytes)이 우연히 대기 중인 1차 메시지와 System Bytes가 같아도 그 T3를 시작하지 않는다
+        using var h = new Harness(connect: false) { T3 = 200 };
+        var sent = new TaskCompletionSource();
+        SecsMessage? wire = null;
+        h.Session.Connected((w, t) => { wire = w; return sent.Task; });
+        var task = h.Session.SendAsync(S1F1, default);
+        h.Session.TransmitCompleted(S1F2.WithHeader(wire!.SystemBytes, 1));
+        await Task.Delay(500);
+        Assert.Equal(1, h.Session.PendingCount);
+        sent.SetResult();
+        h.Receive(S1F2, wire.SystemBytes);
+        Assert.NotNull(await task);
+    }
+
+    [Fact]
     public async Task ReplyStarted_StopsT3_ReplyAbandoned_TimesOut()
     {
         using var h = new Harness { T3 = 500, Role = SecsRole.Equipment };

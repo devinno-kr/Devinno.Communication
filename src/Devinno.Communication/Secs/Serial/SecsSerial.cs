@@ -483,6 +483,7 @@ public class SecsSerial : IDisposable
                 }
                 if (++cur.Next == cur.Blocks.Count)
                 {
+                    session.TransmitCompleted(cur.Wire);   // T3는 여기(마지막 ACK)부터: Done의 이어 실행은 스레드풀에서 늦게 돌 수 있다
                     cur.Done.TrySetResult();
                     cur = null;
                     ClearInFlight();

@@ -8,6 +8,7 @@ namespace Devinno.Communication.Secs.Data;
 // - Equipment만: 장치 ID 불일치 S9F1, 해석 실패 S9F7, 자기 T3 초과 S9F9, 크기 초과 S9F11.
 // - 1차 메시지 핸들러가 응답하지 않으면 SxF0.
 // 전송 계층은 연결되면 Connected(송신 함수), 끊기면 Disconnected()를 부르고, I/O 스레드에서 주기적으로 CheckTimeouts()를 부른다.
+// 송신 Task를 비동기로 끝내는 전송 계층(SECS-I)은 보내기를 끝낸 I/O 스레드에서 TransmitCompleted(wire)를 불러 T3를 그 순간부터 재게 한다.
 internal sealed class SecsSession(
     Func<SecsRole> role,
     Func<int> deviceId,
@@ -188,7 +189,20 @@ internal sealed class SecsSession(
         if (p == null) return;
         lock (gate)
         {
-            if (pending.ContainsKey(p.Primary.SystemBytes)) p.Deadline = Environment.TickCount64 + t3();
+            // 전송 계층이 TransmitCompleted로 이미 T3를 시작했으면 그대로 둔다
+            if (pending.ContainsKey(p.Primary.SystemBytes) && p.Deadline == long.MaxValue) p.Deadline = Environment.TickCount64 + t3();
+        }
+    }
+
+    // 전송 계층(I/O 스레드)이 보내기를 끝낸 순간에 T3를 시작한다(SECS-I: 마지막 블록의 ACK).
+    // 송신 Task가 비동기로 끝나면 Sent는 스레드풀에서 늦게 돌 수 있어(스레드풀이 바쁘면 응답보다 늦게) 그때부터 재면 T3가 늦게 시작되거나 아예 시작되지 않는다.
+    // wire는 송신 함수가 받은 바로 그 객체(응답·S9는 대기 표의 1차 메시지와 System Bytes가 겹칠 수 있어 참조로 확인)
+    public void TransmitCompleted(SecsMessage wire)
+    {
+        lock (gate)
+        {
+            if (pending.TryGetValue(wire.SystemBytes, out var p) && ReferenceEquals(p.Primary, wire) && p.Deadline == long.MaxValue)
+                p.Deadline = Environment.TickCount64 + t3();
         }
     }
 
