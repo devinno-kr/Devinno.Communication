@@ -918,6 +918,8 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `CommandReplyTimeout` | int | no | `10000` | 1000 – 110000 ms |
 | `MaxPendingSends` | int | no | `1000` | 1 – 100000 |
 | `MaxPendingEvents` | int | no | `10000` | 1 – 1000000 |
+| `SpoolDirectory` | string | no | — | folder for spooled messages; omitted = spooling off (otherwise the standard spool SV/EC/CE exist and S2F43/S6F23 are handled by GEM) |
+| `MaxSpoolMessages` | int | no | `1000` | 1 – 1000000 |
 
 ### `<SecsHsms>` / `<SecsSerial>` (child)
 
@@ -937,8 +939,15 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `AlarmsSet` | string | no | — | SV, 1006 |
 | `ProcessState` | string | no | — | SV, 1007 |
 | `PreviousProcessState` | string | no | — | SV, 1008 |
+| `SpoolCountActual` | string | no | — | SV, 1009 (only when `SpoolDirectory` is set) |
+| `SpoolCountTotal` | string | no | — | SV, 1010 (spooling on) |
+| `SpoolFullTime` | string | no | — | SV, 1011 (spooling on) |
+| `SpoolStartTime` | string | no | — | SV, 1012 (spooling on) |
 | `EstablishCommunicationsTimeout` | string | no | — | EC, 1101 |
 | `TimeFormat` | string | no | — | EC, 1102 |
+| `EnableSpooling` | string | no | — | EC, 1103 (spooling on) |
+| `MaxSpoolTransmit` | string | no | — | EC, 1104 (spooling on) |
+| `OverWriteSpool` | string | no | — | EC, 1105 (spooling on) |
 | `AlarmID` | string | no | — | DV, 1201 |
 | `EquipmentOffline` | string | no | — | CE, 1301 |
 | `ControlStateLocal` | string | no | — | CE, 1302 |
@@ -946,6 +955,9 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `ProcessStateChange` | string | no | — | CE, 1304 |
 | `OperatorEquipmentConstantChange` | string | no | — | CE, 1305 |
 | `MessageRecognition` | string | no | — | CE, 1306 |
+| `SpoolingActivated` | string | no | — | CE, 1307 (spooling on) |
+| `SpoolingDeactivated` | string | no | — | CE, 1308 (spooling on) |
+| `SpoolTransmitFailure` | string | no | — | CE, 1309 (spooling on) |
 
 (With `VidFormat="A"`/`CeidFormat="A"` the default IDs are the attribute names as text.)
 

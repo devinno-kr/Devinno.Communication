@@ -48,3 +48,20 @@ public class GemProtocolErrorEventArgs(string reason) : EventArgs
     /// <summary>What happened (a diagnostic sentence)</summary>
     public string Reason { get; } = reason;
 }
+
+/// <summary>Arguments for when the spooling state changed.</summary>
+/// <param name="previous">State before the change</param>
+/// <param name="current">State after the change</param>
+/// <param name="isFull">Whether the spool is full</param>
+/// <param name="count">The number of messages in the spool</param>
+public class GemSpoolStateEventArgs(GemSpoolState previous, GemSpoolState current, bool isFull, int count) : EventArgs
+{
+    /// <summary>State before the change</summary>
+    public GemSpoolState Previous { get; } = previous;
+    /// <summary>State after the change</summary>
+    public GemSpoolState Current { get; } = current;
+    /// <summary>Whether the spool is full</summary>
+    public bool IsFull { get; } = isFull;
+    /// <summary>The number of messages in the spool</summary>
+    public int Count { get; } = count;
+}

@@ -33,6 +33,8 @@
     <xs:attribute default="10000" name="CommandReplyTimeout" type="xs:int" use="optional" />
     <xs:attribute default="1000" name="MaxPendingSends" type="xs:int" use="optional" />
     <xs:attribute default="10000" name="MaxPendingEvents" type="xs:int" use="optional" />
+    <xs:attribute name="SpoolDirectory" type="xs:string" use="optional" />
+    <xs:attribute default="1000" name="MaxSpoolMessages" type="xs:int" use="optional" />
   </xs:complexType>
   <xs:complexType name="SecsHsmsConfig">
     <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />
@@ -106,8 +108,15 @@
     <xs:attribute name="AlarmsSet" type="xs:string" use="optional" />
     <xs:attribute name="ProcessState" type="xs:string" use="optional" />
     <xs:attribute name="PreviousProcessState" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolCountActual" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolCountTotal" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolFullTime" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolStartTime" type="xs:string" use="optional" />
     <xs:attribute name="EstablishCommunicationsTimeout" type="xs:string" use="optional" />
     <xs:attribute name="TimeFormat" type="xs:string" use="optional" />
+    <xs:attribute name="EnableSpooling" type="xs:string" use="optional" />
+    <xs:attribute name="MaxSpoolTransmit" type="xs:string" use="optional" />
+    <xs:attribute name="OverWriteSpool" type="xs:string" use="optional" />
     <xs:attribute name="AlarmID" type="xs:string" use="optional" />
     <xs:attribute name="EquipmentOffline" type="xs:string" use="optional" />
     <xs:attribute name="ControlStateLocal" type="xs:string" use="optional" />
@@ -115,6 +124,9 @@
     <xs:attribute name="ProcessStateChange" type="xs:string" use="optional" />
     <xs:attribute name="OperatorEquipmentConstantChange" type="xs:string" use="optional" />
     <xs:attribute name="MessageRecognition" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolingActivated" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolingDeactivated" type="xs:string" use="optional" />
+    <xs:attribute name="SpoolTransmitFailure" type="xs:string" use="optional" />
   </xs:complexType>
   <xs:complexType name="GemStatusVariableConfig">
     <xs:attribute name="Id" type="xs:string" use="required" />

@@ -67,6 +67,10 @@ public class GemEquipmentConfig
     [XmlAttribute] public int MaxPendingSends { get; set; } = 1000;
     /// <summary>Upper limit of the application event queue, 1 to 1000000 (default: 10000). When exceeded, the oldest events are discarded.</summary>
     [XmlAttribute] public int MaxPendingEvents { get; set; } = 10000;
+    /// <summary>Folder where spooled messages are kept (omitted = spooling off).</summary>
+    [XmlAttribute] public string? SpoolDirectory { get; set; }
+    /// <summary>Upper limit of the number of spooled messages, 1 to 1000000 (default: 1000).</summary>
+    [XmlAttribute] public int MaxSpoolMessages { get; set; } = 1000;
 
     /// <summary>HSMS transport settings (&lt;SecsHsms&gt;; if omitted the transport settings are not changed). Only Equipment is allowed for Role.</summary>
     [XmlElement("SecsHsms")] public SecsHsmsConfig? Hsms { get; set; }
@@ -109,10 +113,24 @@ public class GemStandardIdsConfig
     [XmlAttribute] public string? ProcessState { get; set; }
     /// <summary>SV PreviousProcessState</summary>
     [XmlAttribute] public string? PreviousProcessState { get; set; }
+    /// <summary>SV SpoolCountActual</summary>
+    [XmlAttribute] public string? SpoolCountActual { get; set; }
+    /// <summary>SV SpoolCountTotal</summary>
+    [XmlAttribute] public string? SpoolCountTotal { get; set; }
+    /// <summary>SV SpoolFullTime</summary>
+    [XmlAttribute] public string? SpoolFullTime { get; set; }
+    /// <summary>SV SpoolStartTime</summary>
+    [XmlAttribute] public string? SpoolStartTime { get; set; }
     /// <summary>EC EstablishCommunicationsTimeout</summary>
     [XmlAttribute] public string? EstablishCommunicationsTimeout { get; set; }
     /// <summary>EC TimeFormat</summary>
     [XmlAttribute] public string? TimeFormat { get; set; }
+    /// <summary>EC EnableSpooling</summary>
+    [XmlAttribute] public string? EnableSpooling { get; set; }
+    /// <summary>EC MaxSpoolTransmit</summary>
+    [XmlAttribute] public string? MaxSpoolTransmit { get; set; }
+    /// <summary>EC OverWriteSpool</summary>
+    [XmlAttribute] public string? OverWriteSpool { get; set; }
     /// <summary>DV AlarmID</summary>
     [XmlAttribute] public string? AlarmID { get; set; }
     /// <summary>CE EquipmentOffline</summary>
@@ -127,6 +145,12 @@ public class GemStandardIdsConfig
     [XmlAttribute] public string? OperatorEquipmentConstantChange { get; set; }
     /// <summary>CE MessageRecognition</summary>
     [XmlAttribute] public string? MessageRecognition { get; set; }
+    /// <summary>CE SpoolingActivated</summary>
+    [XmlAttribute] public string? SpoolingActivated { get; set; }
+    /// <summary>CE SpoolingDeactivated</summary>
+    [XmlAttribute] public string? SpoolingDeactivated { get; set; }
+    /// <summary>CE SpoolTransmitFailure</summary>
+    [XmlAttribute] public string? SpoolTransmitFailure { get; set; }
 
     internal string? Get(GemStandard s) => (string?)GetType().GetProperty(s.ToString())!.GetValue(this);
     internal void Set(GemStandard s, string? value) => GetType().GetProperty(s.ToString())!.SetValue(this, value);

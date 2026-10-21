@@ -40,6 +40,8 @@ public partial class GemEquipment
                 CommandReplyTimeout = commandReplyTimeout,
                 MaxPendingSends = maxPendingSends,
                 MaxPendingEvents = maxPendingEvents,
+                SpoolDirectory = spoolDirectory,
+                MaxSpoolMessages = maxSpoolMessages,
             };
             if (transport.Target is SecsHsms h) c.Hsms = h.ToConfig();
             else c.Serial = ((SecsSerial)transport.Target).ToConfig();
@@ -110,6 +112,8 @@ public partial class GemEquipment
             XmlConfig.Range(Root, nameof(config.CommandReplyTimeout), config.CommandReplyTimeout, 1000, 110000);
             XmlConfig.Range(Root, nameof(config.MaxPendingSends), config.MaxPendingSends, 1, 100000);
             XmlConfig.Range(Root, nameof(config.MaxPendingEvents), config.MaxPendingEvents, 1, 1000000);
+            XmlConfig.Range(Root, nameof(config.MaxSpoolMessages), config.MaxSpoolMessages, 1, 1000000);
+            if (config.SpoolDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.SpoolDirectory), "", "a folder path (omit to turn spooling off)");
 
             var ids = new GemStandardIds();
             foreach (var s in Enum.GetValues<GemStandard>())
@@ -118,7 +122,7 @@ public partial class GemEquipment
                 if (text != null) ids.Set(s, ParseId("Standard", s.ToString(), text, s >= GemStandard.EquipmentOffline ? ceid : vid));
             }
             var defs = BuildDefinitions(config, vid, ceid, alid);
-            try { GemCatalog.Build(defs, ids, vid, ceid, rptid, alid, dataid); }
+            try { GemCatalog.Build(defs, ids, vid, ceid, rptid, alid, dataid, config.SpoolDirectory != null); }
             catch (InvalidOperationException ex) { throw new FormatException($"<{Root}> 정의 오류: {ex.Message}", ex); }
 
             // 2. 적용
@@ -147,6 +151,8 @@ public partial class GemEquipment
             commandReplyTimeout = config.CommandReplyTimeout;
             maxPendingSends = config.MaxPendingSends;
             maxPendingEvents = config.MaxPendingEvents;
+            spoolDirectory = config.SpoolDirectory;
+            maxSpoolMessages = config.MaxSpoolMessages;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();
             definitions.StatusVariables.AddRange(defs.StatusVariables);

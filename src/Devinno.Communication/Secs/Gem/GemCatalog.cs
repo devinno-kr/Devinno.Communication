@@ -117,6 +117,9 @@ internal sealed class GemCatalog
 
     public static bool IsGemMessage(int stream, int function) => GemMessages.Contains(stream * 256 + function);
 
+    // 스풀링을 켰을 때만 GEM이 처리하는 Host 메시지(S2F43, S6F23). 꺼져 있으면 앱이 등록할 수 있어 IsGemMessage에는 넣지 않는다
+    public static bool IsSpoolingMessage(int key) => key == 2 * 256 + 43 || key == 6 * 256 + 23;
+
     public required SecsFormat VidFormat { get; init; }
     public required SecsFormat CeidFormat { get; init; }
     public required SecsFormat RptidFormat { get; init; }
@@ -139,8 +142,13 @@ internal sealed class GemCatalog
     // 표준 변수·이벤트의 열쇠
     public GemId Std(GemStandard s) => standardKeys[s];
 
-    public static GemCatalog Build(GemDefinitionSet defs, GemStandardIds ids, SecsFormat vid, SecsFormat ceid, SecsFormat rptid, SecsFormat alid, SecsFormat dataid)
+    public static GemCatalog Build(GemDefinitionSet defs, GemStandardIds ids, SecsFormat vid, SecsFormat ceid, SecsFormat rptid, SecsFormat alid, SecsFormat dataid, bool spooling = false)
     {
+        if (spooling)
+        {
+            foreach (var (st, fn) in defs.Messages)
+                if (IsSpoolingMessage(st * 256 + fn)) throw new InvalidOperationException($"스풀링을 켜면(SpoolDirectory) S{st}F{fn}은(는) GEM이 처리하므로 RegisterMessage로 등록할 수 없습니다.");
+        }
         var c = new GemCatalog { VidFormat = vid, CeidFormat = ceid, RptidFormat = rptid, AlidFormat = alid, DataidFormat = dataid };
         bool vidA = vid == SecsFormat.ASCII, ceidA = ceid == SecsFormat.ASCII;
         GemId StdId(GemStandard s, bool ascii) => ids.Get(s) ?? GemStandardIds.Default(s, ascii);
@@ -157,6 +165,13 @@ internal sealed class GemCatalog
         AddStd(GemVarKind.Status, GemStandard.AlarmsSet, listFormat(alid), GemItems.Empty(listFormat(alid)));
         AddStd(GemVarKind.Status, GemStandard.ProcessState, SecsFormat.U1, SecsItem.U1(0));
         AddStd(GemVarKind.Status, GemStandard.PreviousProcessState, SecsFormat.U1, SecsItem.U1(0));
+        if (spooling)
+        {
+            AddStd(GemVarKind.Status, GemStandard.SpoolCountActual, SecsFormat.U4, SecsItem.U4(0));
+            AddStd(GemVarKind.Status, GemStandard.SpoolCountTotal, SecsFormat.U4, SecsItem.U4(0));
+            AddStd(GemVarKind.Status, GemStandard.SpoolFullTime, SecsFormat.ASCII, SecsItem.A(""));
+            AddStd(GemVarKind.Status, GemStandard.SpoolStartTime, SecsFormat.ASCII, SecsItem.A(""));
+        }
         foreach (var sv in defs.StatusVariables)
             c.AddVar(new GemVar(GemVarKind.Status, sv.Id, c.VidKey(sv.Id, $"SV {sv.Id}"), sv.Name, sv.Units, sv.Format, sv.InitialValue), null);
         AddStd(GemVarKind.Data, GemStandard.AlarmID, alid, GemItems.Empty(alid));
@@ -164,6 +179,12 @@ internal sealed class GemCatalog
             c.AddVar(new GemVar(GemVarKind.Data, dv.Id, c.VidKey(dv.Id, $"DV {dv.Id}"), dv.Name, dv.Units, dv.Format, dv.InitialValue), null);
         AddStd(GemVarKind.Constant, GemStandard.EstablishCommunicationsTimeout, SecsFormat.U2, SecsItem.U2(10), "s", SecsItem.U2(1), SecsItem.U2(3600));
         AddStd(GemVarKind.Constant, GemStandard.TimeFormat, SecsFormat.U1, SecsItem.U1(1), "", SecsItem.U1(0), SecsItem.U1(2));
+        if (spooling)
+        {
+            AddStd(GemVarKind.Constant, GemStandard.EnableSpooling, SecsFormat.Boolean, SecsItem.Boolean(true));
+            AddStd(GemVarKind.Constant, GemStandard.MaxSpoolTransmit, SecsFormat.U4, SecsItem.U4(0), "", SecsItem.U4(0), SecsItem.U4(1000000));
+            AddStd(GemVarKind.Constant, GemStandard.OverWriteSpool, SecsFormat.Boolean, SecsItem.Boolean(false));
+        }
         foreach (var ec in defs.Constants)
             c.AddVar(new GemVar(GemVarKind.Constant, ec.Id, c.VidKey(ec.Id, $"EC {ec.Id}"), ec.Name, ec.Units, ec.Format, ec.Default, null, ec.Min, ec.Max), null);
 
@@ -179,6 +200,12 @@ internal sealed class GemCatalog
         AddStdEvent(GemStandard.ProcessStateChange, GemStandard.ProcessState, GemStandard.PreviousProcessState);
         AddStdEvent(GemStandard.OperatorEquipmentConstantChange);
         AddStdEvent(GemStandard.MessageRecognition);
+        if (spooling)
+        {
+            AddStdEvent(GemStandard.SpoolingActivated, GemStandard.SpoolStartTime);
+            AddStdEvent(GemStandard.SpoolingDeactivated, GemStandard.SpoolCountTotal);
+            AddStdEvent(GemStandard.SpoolTransmitFailure, GemStandard.SpoolCountActual, GemStandard.SpoolCountTotal);
+        }
         foreach (var ce in defs.Events)
         {
             var vids = new List<GemId>();

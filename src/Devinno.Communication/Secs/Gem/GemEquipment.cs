@@ -121,12 +121,14 @@ public partial class GemEquipment : IDisposable
     partial void AddConstantHandlers();
     partial void AddCommandHandlers();
     partial void AddClockHandlers();
+    partial void AddSpoolingHandlers();
     // Start 때 상태 초기화(gate 안, 정의 표가 만들어진 뒤, 전송 시작 전)
     partial void ResetCommunication();
     partial void ResetControl();
     partial void ResetReports();
     partial void ResetAlarms();
     partial void ResetClock();
+    partial void ResetSpooling();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드)
     partial void OnTransportOpened();
     partial void OnTransportClosed();
@@ -167,6 +169,7 @@ public partial class GemEquipment : IDisposable
         AddConstantHandlers();
         AddCommandHandlers();
         AddClockHandlers();
+        AddSpoolingHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -384,7 +387,10 @@ public partial class GemEquipment : IDisposable
             ObjectDisposedException.ThrowIf(IsDisposed, this);
             if (IsStart) return;
             if (transport.IsStart()) throw new InvalidOperationException("전송 객체가 이미 시작되어 있습니다. 전송의 Start/Stop은 GEM이 맡습니다.");
-            var c = GemCatalog.Build(definitions, StandardIds, vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat);
+            bool sp = spoolDirectory != null;
+            var c = GemCatalog.Build(definitions, StandardIds, vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat, sp);
+            // 스풀 저장소는 gate 밖에서, 스레드·전송을 시작하기 전에 연다(실패하면 예외를 그대로 던지고 아무것도 시작하지 않는다)
+            var store = sp ? GemSpoolStore.Open(spoolDirectory!) : null;
             var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick);
             var a = new GemLoop(nameof(GemEquipment) + ".Events", maxPending: maxPendingEvents);
             lock (gate)
@@ -393,6 +399,8 @@ public partial class GemEquipment : IDisposable
                 formats = GemFormats.Of(vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat);
                 worker = w;
                 app = lastApp = a;
+                spooling = sp;
+                spoolStore = store;
                 running = true;
                 run++;
                 sendQueue.Clear();
@@ -408,6 +416,7 @@ public partial class GemEquipment : IDisposable
                 ResetReports();
                 ResetAlarms();
                 ResetClock();
+                ResetSpooling();
             }
             w.Start();
             a.Start();
@@ -415,9 +424,10 @@ public partial class GemEquipment : IDisposable
             try { transport.Start(); }
             catch
             {
-                StopLocked(out var w2, out var a2);
+                StopLocked(out var w2, out var a2, out var s2);
                 w2?.Stop(StopWait);
                 a2?.Stop(StopWait);
+                s2?.Close(StopWait);
                 throw;
             }
         }
@@ -428,17 +438,19 @@ public partial class GemEquipment : IDisposable
     public void Stop()
     {
         GemLoop? w, a;
+        GemSpoolStore? st;
         lock (lifeLock)
         {
             if (!IsStart) return;
-            StopLocked(out w, out a);          // running = false를 먼저: 아래 전송 Stop의 DeviceClosed·송신 실패가 대기열을 SendFailed로 알리지 않는다(알림 없이 버림)
+            StopLocked(out w, out a, out st);          // running = false를 먼저: 아래 전송 Stop의 DeviceClosed·송신 실패가 대기열을 SendFailed로 알리지 않는다(알림 없이 버림)
             transport.Stop();
         }
         w?.Stop(StopWait);
         a?.Stop(StopWait);
+        st?.Close(StopWait);       // 남은 쓰기를 마치고 디렉터리 잠금을 푼다
     }
 
-    void StopLocked(out GemLoop? w, out GemLoop? a)
+    void StopLocked(out GemLoop? w, out GemLoop? a, out GemSpoolStore? st)
     {
         IsStart = false;
         lock (gate)
@@ -449,8 +461,10 @@ public partial class GemEquipment : IDisposable
             deferreds.Clear();
             w = worker;
             a = app;
+            st = spoolStore;
             worker = null;
             app = null;
+            spoolStore = null;
         }
     }
 

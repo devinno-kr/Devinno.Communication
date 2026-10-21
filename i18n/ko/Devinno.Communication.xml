@@ -6438,6 +6438,29 @@
             <exception cref="T:System.ArgumentException">정의되지 않은 CEID이거나, dataValues에 DV가 아닌 VID나 포맷이 다른 값이 있는 경우</exception>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolDirectory" en-hash="476cf63d7167e565">
+            <summary>스풀한 메시지를 보관하는 폴더(기본: null = 스풀링 끔). 지정하면 다음 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start"></see>부터 스풀링을 켭니다.</summary>
+            <remarks><para>null이면 GEM은 이전과 똑같이 동작합니다. 지정하면 표준 스풀 변수·상수·이벤트(SpoolCountActual 등)가 정의되고 S2F43·S6F23을 GEM이 처리하므로 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.RegisterMessage(System.Int32,System.Int32)"></see>로 등록할 수 없습니다.</para><para>폴더가 없으면 만들며, 한 번에 장비 하나만 잠글 수 있습니다. 다른 장비(또는 프로세스)가 쓰고 있으면 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start"></see>가 <see cref="T:System.IO.IOException"></see>을 던집니다.</para></remarks>
+            <exception cref="T:System.ArgumentException">빈 문자열</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MaxSpoolMessages" en-hash="1e69145c540e0a71">
+            <summary>스풀할 메시지 수의 상한, 1~1000000(기본: 1000). <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolDirectory"></see>를 지정했을 때만 적용됩니다.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolState" en-hash="e91ff8a0cae53403">
+            <summary>현재 스풀링 상태를 가져옵니다(스풀링을 끄면 <see cref="F:Devinno.Communication.Secs.Gem.GemSpoolState.Inactive"></see>)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.IsSpoolFull" en-hash="34e82841e5fefd5b">
+            <summary>스풀이 가득 찼는지 가져옵니다(스풀링을 끄면 false)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolCount" en-hash="c19f72282c4eaf1e">
+            <summary>스풀에 있는 메시지 수를 가져옵니다(스풀링을 끄면 0)</summary>
+        </member>
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SpoolStateChanged" en-hash="aa14e80d5140ae16">
+            <summary>스풀링 상태·가득 참 여부·메시지 수가 바뀌었을 때 앱 이벤트 스레드에서 발생합니다.</summary>
+        </member>
         
         <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.ToConfig" en-hash="e41ae2619d6378f3">
             <summary>현재 설정(전송 설정, GEM 설정, 장비 정의)을 설정 객체로 만듭니다.</summary>
@@ -6648,6 +6671,12 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxPendingEvents" en-hash="2a223de659bb9321">
             <summary>앱 이벤트 대기열 상한 1~1000000 (기본값: 10000). 넘으면 가장 오래된 이벤트부터 버림</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.SpoolDirectory" en-hash="1366f865774246db">
+            <summary>스풀한 메시지를 보관하는 폴더(생략 = 스풀링 끔).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxSpoolMessages" en-hash="5fd3d7a3b57e76d4">
+            <summary>스풀할 메시지 수의 상한, 1~1000000(기본: 1000).</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.Hsms" en-hash="d4e2da6323e65a03">
             <summary>HSMS 전송 설정 (&lt;SecsHsms&gt;, 생략하면 전송 설정을 바꾸지 않음). Role은 Equipment만 됩니다.</summary>
         </member>
@@ -6705,11 +6734,32 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PreviousProcessState" en-hash="963a996fc1eef1d2">
             <summary>SV PreviousProcessState</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolCountActual" en-hash="6593475e7cd8ba52">
+            <summary>SV SpoolCountActual</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolCountTotal" en-hash="a685253e31d661e6">
+            <summary>SV SpoolCountTotal</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolFullTime" en-hash="2c9822f9fe0405ae">
+            <summary>SV SpoolFullTime</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolStartTime" en-hash="e05044b87d570eda">
+            <summary>SV SpoolStartTime</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.EstablishCommunicationsTimeout" en-hash="60cf354548fd9b76">
             <summary>EC EstablishCommunicationsTimeout</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.TimeFormat" en-hash="34358e36d1b1e2e1">
             <summary>EC TimeFormat</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.EnableSpooling" en-hash="8b46c23f6dc5700f">
+            <summary>EC EnableSpooling</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.MaxSpoolTransmit" en-hash="4bc6ea5abf10e74e">
+            <summary>EC MaxSpoolTransmit</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.OverWriteSpool" en-hash="ac91d8f3066a3d87">
+            <summary>EC OverWriteSpool</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.AlarmID" en-hash="e0a22ea98059d841">
             <summary>DV AlarmID</summary>
@@ -6731,6 +6781,15 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.MessageRecognition" en-hash="c0e8c4d22e8f0cfa">
             <summary>CE MessageRecognition</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolingActivated" en-hash="7497236d14ea01a6">
+            <summary>CE SpoolingActivated</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolingDeactivated" en-hash="255f055abb436b60">
+            <summary>CE SpoolingDeactivated</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolTransmitFailure" en-hash="39e255bc57278e3a">
+            <summary>CE SpoolTransmitFailure</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemStatusVariableConfig" en-hash="7624fc4a2482b355">
             <summary>&lt;SV&gt;: 상태 변수 정의 (필수: Id, Name, Format)</summary>
@@ -6917,6 +6976,32 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemProtocolErrorEventArgs.Reason" en-hash="2ccab268a55ecb5b">
             <summary>무슨 일이 있었는지 (진단용 문장)</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs" en-hash="872a4ec731374fb2">
+            <summary>스풀링 상태가 바뀌었을 때의 인수입니다.</summary>
+            <param name="previous">바뀌기 전 상태</param>
+            <param name="current">바뀐 뒤 상태</param>
+            <param name="isFull">스풀이 가득 찼는지</param>
+            <param name="count">스풀에 있는 메시지 수</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.#ctor(Devinno.Communication.Secs.Gem.GemSpoolState,Devinno.Communication.Secs.Gem.GemSpoolState,System.Boolean,System.Int32)" en-hash="872a4ec731374fb2">
+            <summary>스풀링 상태가 바뀌었을 때의 인수입니다.</summary>
+            <param name="previous">바뀌기 전 상태</param>
+            <param name="current">바뀐 뒤 상태</param>
+            <param name="isFull">스풀이 가득 찼는지</param>
+            <param name="count">스풀에 있는 메시지 수</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.Previous" en-hash="fccfbac84ff78af3">
+            <summary>바뀌기 전 상태</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.Current" en-hash="773ec8034f08943d">
+            <summary>바뀐 뒤 상태</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.IsFull" en-hash="d1a533401eb7abb7">
+            <summary>스풀이 가득 찼는지</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.Count" en-hash="0b4c5a113a929315">
+            <summary>스풀에 있는 메시지 수</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemFormats" en-hash="0d0cbc4c7d3d925d">
             <summary><see cref="T:Devinno.Communication.Secs.Gem.GemMessages" /> 빌더가 GEM ID를 보낼 때 쓰는 아이템 포맷입니다.</summary>
@@ -9006,17 +9091,9 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="19472022bc52f922">
-            <summary>
-            라이브러리가 값을 관리하는 표준 변수·이벤트(E30 이름)의 ID입니다. 속성이 null이면 기본 ID를 씁니다.
-            </summary>
-            <remarks>
-            <para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006,
-            ProcessState 1007, PreviousProcessState 1008 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102 / DV AlarmID 1201 /
-            CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306.
-            VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para>
-            <para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para>
-            </remarks>
+        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="0281c53d4f3f4f38">
+            <summary>라이브러리가 값을 관리하는 표준 변수·이벤트(E30 이름)의 ID입니다. 속성이 null이면 기본 ID를 씁니다.</summary>
+            <remarks><para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006, ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102, EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201 / CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309. 스풀 변수·상수·이벤트(SpoolCountActual~SpoolStartTime, EnableSpooling~OverWriteSpool, SpoolingActivated~SpoolTransmitFailure)는 <c>GemEquipment.SpoolDirectory</c>를 지정했을 때만 있습니다. VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para><para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para></remarks>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.Clock" en-hash="585a0d30214f8f57">
             <summary>SV Clock (GEM 시계, TimeFormat 형식의 A). null = 1001</summary>
@@ -9042,11 +9119,32 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PreviousProcessState" en-hash="f81100d009fce6cf">
             <summary>SV PreviousProcessState (U1). null = 1008</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolCountActual" en-hash="f45083c86c6ed268">
+            <summary>SV SpoolCountActual (U4, 지금 스풀에 있는 메시지 수). null = 1009</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolCountTotal" en-hash="278d2ee97879f7b3">
+            <summary>SV SpoolCountTotal (U4, 스풀링을 시작한 뒤 스풀한 메시지 누적 수). null = 1010</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolFullTime" en-hash="a0b7f79aaac6e2a6">
+            <summary>SV SpoolFullTime (TimeFormat 형식의 A, 스풀이 가득 찬 적이 없으면 빈 문자열). null = 1011</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolStartTime" en-hash="9f3c45c9f7fcc670">
+            <summary>SV SpoolStartTime (TimeFormat 형식의 A, 스풀링을 시작하지 않았으면 빈 문자열). null = 1012</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EstablishCommunicationsTimeout" en-hash="6a8c22419f4b6b4a">
             <summary>EC EstablishCommunicationsTimeout (U2 초, 기본 10, 1~3600). null = 1101</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.TimeFormat" en-hash="ab25d2463498476e">
             <summary>EC TimeFormat (U1, 기본 1, 0~2). null = 1102</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EnableSpooling" en-hash="7a7c370d5961fdf2">
+            <summary>EC EnableSpooling (BOOLEAN, 기본 true). null = 1103</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.MaxSpoolTransmit" en-hash="cc2b93b22e8346fd">
+            <summary>EC MaxSpoolTransmit (U4, 기본 0 = 제한 없음, 0~1000000). null = 1104</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.OverWriteSpool" en-hash="a25824f10af4fc4e">
+            <summary>EC OverWriteSpool (BOOLEAN, 기본 false). null = 1105</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.AlarmID" en-hash="eb59f4135610856c">
             <summary>DV AlarmID (알람 이벤트의 ALID). null = 1201</summary>
@@ -9068,6 +9166,15 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.MessageRecognition" en-hash="c5efdeda670c37fb">
             <summary>CE MessageRecognition (운전자가 Host 터미널 메시지를 확인함). null = 1306</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolingActivated" en-hash="be6f62cfc76fb531">
+            <summary>CE SpoolingActivated (스풀링 시작). null = 1307</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolingDeactivated" en-hash="b3bb239a237309b3">
+            <summary>CE SpoolingDeactivated (스풀링 종료). null = 1308</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolTransmitFailure" en-hash="7fa127eaa32f864f">
+            <summary>CE SpoolTransmitFailure (스풀 전송 실패). null = 1309</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemTime" en-hash="4833bdabe845e24e">
             <summary>GEM TIME 텍스트(TimeFormat EC)와 로컬 <see cref="T:System.DateTime" /> 값을 서로 바꿉니다.</summary>
@@ -9225,6 +9332,21 @@
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.Disabled" en-hash="4dbb6c28c1200ec7">
             <summary>통신을 끄면서(DISABLED) 대기열을 비워 버림</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.SpoolFull" en-hash="0cabca9a0206b0d7">
+            <summary>스풀이 가득 차서 버림(OverWriteSpool이 false이면 새 메시지, true이면 가장 오래된 메시지)</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemSpoolState" en-hash="1aea40e861f771fb">
+            <summary>스풀링 상태(E30 스풀링 상태 모델, 장비 쪽).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSpoolState.Inactive" en-hash="94c55149b1a07451">
+            <summary>스풀링을 끈 상태(<c>SpoolDirectory</c>를 지정하지 않음), 또는 켰지만 스풀 중인 메시지도 대기 중인 메시지도 없는 상태</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSpoolState.NoOutput" en-hash="d4e0130575b0baa3">
+            <summary>스풀링 중이며 메시지를 보내지 않고 저장만 하는 상태(SPOOL ACTIVE, NO OUTPUT)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSpoolState.Transmit" en-hash="4e066a1e00473d72">
+            <summary>스풀한 메시지를 Host로 보내는 중인 상태(SPOOL ACTIVE, TRANSMIT)</summary>
         </member>
         
         

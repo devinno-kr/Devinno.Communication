@@ -76,4 +76,19 @@ public enum GemSendFailure
     NotCommunicating,
     /// <summary>Dropped because the queue was flushed when communication was turned off (DISABLED).</summary>
     Disabled,
+    /// <summary>Dropped because the spool was full (a new message when OverWriteSpool is false, or the oldest one when it is true).</summary>
+    SpoolFull,
+}
+
+/// <summary>
+/// The spooling state (E30 spooling state model, equipment side).
+/// </summary>
+public enum GemSpoolState
+{
+    /// <summary>Spooling is off (<c>SpoolDirectory</c> is not set), or it is on but no message is being spooled and none is waiting.</summary>
+    Inactive,
+    /// <summary>Spooling is active and messages are being stored without being sent (SPOOL ACTIVE, NO OUTPUT).</summary>
+    NoOutput,
+    /// <summary>Spooled messages are being sent to the Host (SPOOL ACTIVE, TRANSMIT).</summary>
+    Transmit,
 }
