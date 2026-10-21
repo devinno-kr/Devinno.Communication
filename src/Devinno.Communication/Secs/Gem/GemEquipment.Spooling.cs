@@ -154,6 +154,8 @@ public partial class GemEquipment
     internal GemSpoolStore? SpoolStoreForTest { get { lock (gate) return spoolStore; } }
     internal bool GateHeldByCurrentThread => Monitor.IsEntered(gate);
     internal bool OnTransportDispatcherThread => transport.IsDispatcherThread();
+    // 테스트용: OnS6F23이 S6F24를 보낸 뒤 두 번째 gate 블록 전에 부른다(디스패처 스레드, gate 밖)
+    internal Action? AfterS6F24ForTest;
 
     #region 모으기 (gate 안)
     // 전이 1의 조건: 스풀링 켬 + INACTIVE + EnableSpooling 참(끄면 새 활성화만 막는다)
@@ -299,10 +301,12 @@ public partial class GemEquipment
         }
         Respond(e, GemMessages.S6F24(rsda));
         if (rsda == GemAck.RsdaBusy) return;
+        AfterS6F24ForTest?.Invoke();
         lock (gate)
         {
-            // 응답하는 사이 상태가 바뀌었으면(끊김·Stop·다른 요청) 아무것도 하지 않는다
-            if (!running || spoolState != GemSpoolState.NoOutput) return;
+            // 응답한 뒤 gate 밖에 있던 사이 앱 스레드의 GoOffline·DisableCommunication이나 끊김·Stop이 끼어들 수 있다. 이들은 NO OUTPUT의
+            // spoolState를 바꾸지 않으므로 통신·제어 상태도 다시 본다: COMMUNICATING + ON-LINE이 아니면 아무것도 하지 않는다(보낸 S6F24는 그대로, NO OUTPUT 유지)
+            if (!running || spoolState != GemSpoolState.NoOutput || commState != GemCommunicationState.Communicating || IsOffline(control)) return;
             if (rsdc == GemAck.RsdcPurge)
             {
                 // 전이 4 → 3: 전부 지움(지운 메시지마다 알리지 않음 — Host가 요청함). 스풀이 비어 있어도 INACTIVE로 끝냄

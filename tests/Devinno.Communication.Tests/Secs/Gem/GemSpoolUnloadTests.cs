@@ -578,6 +578,72 @@ public class GemSpoolUnloadTests
         finally { Delete(dir); }
     }
 
+    // S6F24를 보낸 뒤 동작하기 전에 운전자가 OFF-LINE으로: 내보내기를 시작하지 않고, ON-LINE으로 돌아와도 S6F23 없이 보내지 않는다
+    [Fact]
+    public async Task S6F23_GoOfflineBetweenReplyAndAction_NoUnload()
+    {
+        var dir = TempDir();
+        try
+        {
+            using var eq = Eq(dir);
+            using var host = await Spooled(eq, 3);
+            eq.AfterS6F24ForTest = () => { eq.AfterS6F24ForTest = null; eq.GoOffline(); };
+            Assert.Equal(Accepted, await host.Ask("S6F23 W <U1 0>"));
+            await TestUtil.Until(() => eq.ControlState == GemControlState.EquipmentOffline, 3000);   // 훅은 S6F24를 보낸 뒤 돈다
+            await Task.Delay(200);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+            Assert.True(eq.GoOnline());
+            await TestUtil.Until(() => eq.ControlState == GemControlState.OnlineRemote, 3000);
+            host.NoneOf(6, 500);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+        }
+        finally { Delete(dir); }
+    }
+
+    [Fact]
+    public async Task S6F23_DisableBetweenReplyAndAction_NoUnload()
+    {
+        var dir = TempDir();
+        try
+        {
+            using var eq = Eq(dir);
+            using var host = await Spooled(eq, 3);
+            eq.AfterS6F24ForTest = () => { eq.AfterS6F24ForTest = null; eq.DisableCommunication(); };
+            Assert.Equal(Accepted, await host.Ask("S6F23 W <U1 0>"));
+            await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.Disabled, 3000);
+            await Task.Delay(200);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+            Assert.True(eq.EnableCommunication());
+            host.NextOf(1, 13, 5000);
+            await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.Communicating, 5000);
+            host.NoneOf(6, 500);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+            Assert.Equal(3, eq.SpoolCount);
+        }
+        finally { Delete(dir); }
+    }
+
+    // ACTIVE + 빈 스풀 + RSDC 0인데 그 사이 OFF-LINE: 전이 3도 하지 않는다(SpoolingDeactivated를 실시간으로 보낼 수 없으므로)
+    [Fact]
+    public async Task S6F23_EmptyGoOfflineBetween_StaysActive()
+    {
+        var dir = TempDir();
+        try
+        {
+            using var eq = Eq(dir);
+            var host = await GemKit.Communicating(eq);
+            await SetTargets(host, 5);
+            await Disconnect(eq, host);
+            await TestUtil.Until(() => eq.SpoolState == GemSpoolState.NoOutput, 5000);
+            using var host2 = await Reconnect(eq);
+            eq.AfterS6F24ForTest = () => { eq.AfterS6F24ForTest = null; eq.GoOffline(); };
+            Assert.Equal(NoData, await host2.Ask("S6F23 W <U1 0>"));
+            await Task.Delay(200);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+        }
+        finally { Delete(dir); }
+    }
+
     // 스풀링 꺼짐: S6F23은 지금처럼 S9F5
     [Fact]
     public async Task Off_S6F23_S9F5()
