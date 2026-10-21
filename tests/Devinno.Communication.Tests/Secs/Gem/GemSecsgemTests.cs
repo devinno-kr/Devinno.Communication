@@ -123,4 +123,92 @@ public class GemSecsgemTests
         await TestUtil.Until(() => eq.ControlState == GemControlState.HostOffline);
         py.WaitLine("DONE");
     }
+
+    const string SpoolHostScript = """
+        import sys, time
+        import secsgem.common, secsgem.hsms, secsgem.gem
+
+        settings = secsgem.hsms.HsmsSettings(
+            address="127.0.0.1", port=int(sys.argv[1]),
+            connect_mode=secsgem.hsms.HsmsConnectMode.ACTIVE,
+            device_type=secsgem.common.DeviceType.HOST)
+        h = secsgem.gem.GemHostHandler(settings)
+        got = []
+
+        def on_s6f11(handler, message):                      # 보고서가 없는 S6F11(스풀된 이벤트)도 CEID만 모은다
+            f = h.settings.streams_functions.decode(message)
+            got.append(f.CEID.get())
+            return h.stream_function(6, 12)(0)
+
+        h.register_stream_function(6, 11, on_s6f11)
+
+        def say(*a):
+            print(*a, flush=True)
+
+        def val(x):
+            return x.get() if hasattr(x, "get") else x
+
+        def ask(s, f, data):
+            fn = h.stream_function(s, f)
+            return h.settings.streams_functions.decode(h.send_and_waitfor_response(fn(data)))
+
+        h.enable()
+        if not h.waitfor_communicating(30):
+            say("FAIL not communicating")
+            sys.exit(1)
+        say("COMMUNICATING")
+        say("S2F44", ask(2, 43, [{"STRID": 6, "FCNID": []}]).get())
+        sys.stdin.readline()
+        h.disable()
+        say("DROPPED")
+        sys.stdin.readline()
+        h.enable()
+        if not h.waitfor_communicating(30):
+            say("FAIL not communicating again")
+            sys.exit(1)
+        say("COMMUNICATING2")
+        sys.stdin.readline()
+        say("S6F24", ask(6, 23, 0).get())
+        for _ in range(100):
+            if len(got) >= 5:
+                break
+            time.sleep(0.05)
+        say("EVENTS", got)
+        sys.stdin.readline()
+        h.disable()
+        """;
+
+    [SecsgemFact]
+    public async Task OurEquipment_SecsgemGemHost_SpoolRequestAndTransmit()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "devinno-spool-" + Guid.NewGuid());
+        try
+        {
+            var transport = new SecsHsms { Mode = HsmsMode.Passive, LocalIP = "127.0.0.1", LocalPort = 0, DeviceID = 0, T3 = 10000 };
+            using var eq = new GemEquipment(transport) { ModelName = "DV-100", SoftwareRevision = "1.0.0", SpoolDirectory = dir, EventsEnabledByDefault = true, InitialControlState = GemControlState.OnlineRemote };
+            GemKit.Sample(eq);
+            eq.Start();
+            using var py = new SecsgemProcess(SpoolHostScript, transport.BoundPort.ToString());
+
+            py.WaitLine("COMMUNICATING");
+            await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.Communicating, 5000);
+            var s2f44 = py.WaitLine("S2F44");                                                  // S2F43 → RSPACK 0, 오류 없음
+            Assert.Contains("0", s2f44);
+
+            py.Send("drop");                                                                   // 연결을 끊어 스풀 활성화
+            py.WaitLine("DROPPED");
+            await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.NotCommunicating, 5000);
+            py.Send("back");
+            py.WaitLine("COMMUNICATING2");
+            await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.Communicating && eq.SpoolState == GemSpoolState.NoOutput, 5000);
+            for (int i = 0; i < 3; i++) Assert.True(eq.TriggerEvent(5002));
+
+            py.Send("transmit");                                                               // S6F23 RSDC 0 → RSDA 0, 스풀된 S6F11을 받음
+            Assert.Equal("S6F24 0", py.WaitLine("S6F24"));
+            Assert.Equal("EVENTS [1307, 5002, 5002, 5002, 1308]", py.WaitLine("EVENTS"));
+            await TestUtil.Until(() => eq.SpoolState == GemSpoolState.Inactive, 5000);
+            py.Send("end");
+        }
+        finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
+    }
 }

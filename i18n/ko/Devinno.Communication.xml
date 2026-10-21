@@ -7385,6 +7385,54 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>TIACK</returns>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SetSpoolStreams(System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}})" en-hash="26f7f2a3fe51ed03">
+            <summary>장비가 스풀할 스트림과 함수를 정합니다(S2F43, Reset Spooling Streams and Functions).</summary>
+            <param name="streams">스풀할 스트림과 각 스트림의 함수 (함수 목록이 비어 있으면 그 스트림의 모든 함수). 스트림 목록이 비어 있으면 어느 스트림도 스풀하지 않음</param>
+            <returns>RSPACK (0 = 받음, 1 = 허용되지 않는 스트림·함수가 있음)과, 거절된 항목마다 그 스트림·STRACK·함수</returns>
+            <exception cref="T:System.ArgumentException">스트림이나 함수 번호를 메시지로 나타낼 수 없는 경우</exception>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않은 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없는 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 응답한 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 응답한 경우(예: 장비에서 스풀링을 켜지 않은 경우)</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 중 연결이 끊긴 경우</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다른 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SetSpoolStreamsAsync(System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}},System.Threading.CancellationToken)" en-hash="14f9397feffd401f">
+            <summary>장비가 스풀할 스트림과 함수를 정합니다(S2F43). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.SetSpoolStreams(System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}})" />과 같습니다.</summary>
+            <param name="streams">스풀할 스트림과 각 스트림의 함수 (함수 목록이 비어 있으면 그 스트림의 모든 함수)</param>
+            <param name="cancellationToken">응답 기다리기 취소</param>
+            <returns>RSPACK과 거절된 항목</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.TransmitSpool" en-hash="1a66761750a9a207">
+            <summary>장비에 스풀된 메시지를 보내라고 요청합니다(S6F23, RSDC 0).</summary>
+            <returns>RSDA (0 = 받음, 장비가 보내기 시작함, 1 = 바쁨, 2 = 보낼 데이터 없음)</returns>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않은 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없는 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S6F0으로 응답한 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 응답한 경우(예: 장비에서 스풀링을 켜지 않은 경우)</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 중 연결이 끊긴 경우</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다른 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.TransmitSpoolAsync(System.Threading.CancellationToken)" en-hash="f9c12df6c6355049">
+            <summary>장비에 스풀된 메시지를 보내라고 요청합니다(S6F23, RSDC 0). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.TransmitSpool" />과 같습니다.</summary>
+            <param name="cancellationToken">응답 기다리기 취소</param>
+            <returns>RSDA</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.PurgeSpool" en-hash="a1fc4933010a370f">
+            <summary>장비에 스풀된 메시지를 지우라고 요청합니다(S6F23, RSDC 1).</summary>
+            <returns>RSDA (0 = 받음, 1 = 바쁨, 2 = 지울 데이터 없음)</returns>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않은 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없는 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S6F0으로 응답한 경우</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 응답한 경우(예: 장비에서 스풀링을 켜지 않은 경우)</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 중 연결이 끊긴 경우</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다른 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.PurgeSpoolAsync(System.Threading.CancellationToken)" en-hash="89f35ed70599b349">
+            <summary>장비에 스풀된 메시지를 지우라고 요청합니다(S6F23, RSDC 1). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.PurgeSpool" />과 같습니다.</summary>
+            <param name="cancellationToken">응답 기다리기 취소</param>
+            <returns>RSDA</returns>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemHost.AutoConnectSequence" en-hash="7fcbd7d7c7065edf">
             <summary>연결될 때마다 접속 시퀀스를 자동으로 실행할지 (기본값: true)</summary>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>

@@ -332,4 +332,58 @@ public partial class GemHost
     public async Task<byte> SetEquipmentTimeAsync(DateTime? time = null, CancellationToken cancellationToken = default)
         => GemMessages.ParseS2F32(await AskAsync(GemMessages.S2F31(time ?? DateTime.Now, timeFormat), cancellationToken).ConfigureAwait(false));
     #endregion
+
+    #region S2F43 / S6F23
+    /// <summary>Sets which streams and functions the equipment spools (S2F43, Reset Spooling Streams and Functions).</summary>
+    /// <param name="streams">The streams to spool and, for each, the functions (an empty list means all functions of the stream). An empty list of streams means no stream is spooled.</param>
+    /// <returns>RSPACK (0 = accepted, 1 = some streams or functions are not allowed) and, for each rejected entry, its stream, STRACK, and functions.</returns>
+    /// <exception cref="ArgumentException">A stream or function number cannot be represented in the message.</exception>
+    /// <exception cref="InvalidOperationException">Not connected.</exception>
+    /// <exception cref="SecsTimeoutException">No reply within T3.</exception>
+    /// <exception cref="SecsAbortException">The equipment replied with S2F0.</exception>
+    /// <exception cref="SecsErrorException">The equipment replied with S9Fx (for example, spooling is not enabled on the equipment).</exception>
+    /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
+    /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
+    public (byte Rspack, IReadOnlyList<(byte Stream, byte Strack, IReadOnlyList<byte> Functions)> Errors) SetSpoolStreams(IReadOnlyList<(byte Stream, IReadOnlyList<byte> Functions)> streams)
+        => GemMessages.ParseS2F44(Ask(GemMessages.S2F43(streams)));
+
+    /// <summary>Sets which streams and functions the equipment spools (S2F43). The rules and exceptions are the same as for <see cref="SetSpoolStreams"/>.</summary>
+    /// <param name="streams">The streams to spool and, for each, the functions (an empty list means all functions of the stream).</param>
+    /// <param name="cancellationToken">Cancels waiting for the reply.</param>
+    /// <returns>RSPACK and the rejected entries.</returns>
+    public async Task<(byte Rspack, IReadOnlyList<(byte Stream, byte Strack, IReadOnlyList<byte> Functions)> Errors)> SetSpoolStreamsAsync(IReadOnlyList<(byte Stream, IReadOnlyList<byte> Functions)> streams, CancellationToken cancellationToken = default)
+        => GemMessages.ParseS2F44(await AskAsync(GemMessages.S2F43(streams), cancellationToken).ConfigureAwait(false));
+
+    /// <summary>Asks the equipment to transmit its spooled messages (S6F23 with RSDC 0).</summary>
+    /// <returns>RSDA (0 = accepted, the equipment starts transmitting; 1 = busy; 2 = there is no data to transmit).</returns>
+    /// <exception cref="InvalidOperationException">Not connected.</exception>
+    /// <exception cref="SecsTimeoutException">No reply within T3.</exception>
+    /// <exception cref="SecsAbortException">The equipment replied with S6F0.</exception>
+    /// <exception cref="SecsErrorException">The equipment replied with S9Fx (for example, spooling is not enabled on the equipment).</exception>
+    /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
+    /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
+    public byte TransmitSpool() => GemMessages.ParseS6F24(Ask(GemMessages.S6F23(GemAck.RsdcTransmit)));
+
+    /// <summary>Asks the equipment to transmit its spooled messages (S6F23 with RSDC 0). The rules and exceptions are the same as for <see cref="TransmitSpool"/>.</summary>
+    /// <param name="cancellationToken">Cancels waiting for the reply.</param>
+    /// <returns>RSDA.</returns>
+    public async Task<byte> TransmitSpoolAsync(CancellationToken cancellationToken = default)
+        => GemMessages.ParseS6F24(await AskAsync(GemMessages.S6F23(GemAck.RsdcTransmit), cancellationToken).ConfigureAwait(false));
+
+    /// <summary>Asks the equipment to discard its spooled messages (S6F23 with RSDC 1).</summary>
+    /// <returns>RSDA (0 = accepted; 1 = busy; 2 = there is no data to discard).</returns>
+    /// <exception cref="InvalidOperationException">Not connected.</exception>
+    /// <exception cref="SecsTimeoutException">No reply within T3.</exception>
+    /// <exception cref="SecsAbortException">The equipment replied with S6F0.</exception>
+    /// <exception cref="SecsErrorException">The equipment replied with S9Fx (for example, spooling is not enabled on the equipment).</exception>
+    /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
+    /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
+    public byte PurgeSpool() => GemMessages.ParseS6F24(Ask(GemMessages.S6F23(GemAck.RsdcPurge)));
+
+    /// <summary>Asks the equipment to discard its spooled messages (S6F23 with RSDC 1). The rules and exceptions are the same as for <see cref="PurgeSpool"/>.</summary>
+    /// <param name="cancellationToken">Cancels waiting for the reply.</param>
+    /// <returns>RSDA.</returns>
+    public async Task<byte> PurgeSpoolAsync(CancellationToken cancellationToken = default)
+        => GemMessages.ParseS6F24(await AskAsync(GemMessages.S6F23(GemAck.RsdcPurge), cancellationToken).ConfigureAwait(false));
+    #endregion
 }
