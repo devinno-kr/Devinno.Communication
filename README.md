@@ -1,9 +1,43 @@
 # Devinno.Communication
 
+English | [한국어](https://github.com/devinno-kr/Devinno.Communication/blob/main/README.ko.md)
+
 One .NET 8 library for industrial PLC and device communication protocols
 (Modbus, LS Electric, Mitsubishi, Siemens, Omron, MQTT, SECS/GEM)
 
 > **Under development (0.x)**: the API may change between versions.
+
+## Design: a communication library that works well with AI
+
+Devinno.Communication assumes that device communication will be set up with AI (LLM) coding tools: the AI reads a PLC memory map, and the library is built so that its mistakes show up instead of passing silently. People writing the XML and code by hand get the same help.
+
+**Auto / Manual job model**
+- Register the reads once (the Auto list) and the library polls them over and over, with its own timeouts and reconnects. A write is queued as a one-shot Manual job and runs before the next Auto job. Results arrive as events carrying the message ID you gave the job.
+- From a memory map, the read areas become the Auto list and the write areas become named writes.
+
+![Auto / Manual job model](https://raw.githubusercontent.com/devinno-kr/Devinno.Communication/main/assets/auto-manual.png)
+
+**Memory map to XML**
+- The AI writes one XML file per device from the memory map: connection settings, the Auto (polling) list and the named writes.
+- Loading is strict. An unknown attribute or element is a load error, and the `FormatException` names the element and the attribute.
+- An XSD for every root element ships in the package (`docs/schemas/`). Tests keep the committed schemas in sync with the code.
+
+**Named write**
+- A write is defined once in the XML with `<Write Name="...">` and called from code with `NamedWrite("name", value)`. The names come from the memory map; addresses live only in the XML.
+
+**Docs that match the code**
+- `llms.txt`, `llm-rules.md` and `comm-xml-reference.md` ship inside the package. On build they are copied to `.devinno/Devinno.Communication/`, where AI tools can find them. `llms.txt` is the place to start.
+- The C# API has English IntelliSense (XML documentation comments on every public API) with Korean (ko) localization.
+
+**Evaluated with AI agents**
+- Fresh AI agents were given only the package docs and three vendor memory maps (Mitsubishi 3E, Modbus TCP, Siemens S7). Each turned its map into an XML file and C# code, and an automated grader passed all of them (every check, 100%; 55 to 58 checks per map). This was repeated in two rounds with two model sizes (Claude Sonnet, then Haiku); the gaps the agents reported were fixed in the docs between the rounds.
+- The evaluation is small: one agent per map per round, no real devices, and only these three maps. LS, Omron, serial, TextComm, MQTT and SECS/GEM were not evaluated. The method, scores and limits are in `tests/ai-eval/RESULTS.md` in the repository.
+
+**Mistakes show up**
+- A write made while there is no connection is discarded and reported through `WriteDiscarded`. Failure events carry `Attempt`, `IsFinal` and `RequestSent`. Modbus FC6 / FC16 writes throw `ArgumentOutOfRangeException` for a value out of range. See [Write safety](#write-safety).
+
+**SECS/GEM**
+- Three layers: transport (`SecsHsms` / `SecsSerial`), stateless messaging (`GemMessages`) and the GEM modules (`GemEquipment` / `GemHost`). The event order the app sees is documented as a contract, and spooling is optional (off by default).
 
 ## Install
 
@@ -85,6 +119,7 @@ SECS/GEM has three layers: transport (`SecsHsms`/`SecsSerial`), stateless messag
   * **Threading**: events are raised on the library's worker thread. Keep handlers short, and marshal UI updates yourself (WinForms `BeginInvoke`, WPF `Dispatcher.BeginInvoke`, and so on).
   * **Connection events**: the Master classes raise `DeviceOpened` / `DeviceClosed` (`MQClient`: `Connected` / `Disconnected`); reconnect is automatic unless turned off.
   * **XML configuration**: every class has `SaveXml` / `LoadXml` and a configuration object (`...Config`, for example `ModbusTCPMasterConfig`). `ConfigSchema.Get<T>()` returns the XSD. One instance is one XML file, and the root element name is the class name. Loading is strict mode: an unknown attribute or element throws `FormatException`. Load only while stopped.
+  * **Network security**: Modbus, S7, FINS, MC and HSMS have no authentication or encryption. Use them only on an isolated, trusted network.
 
 ### Write safety
 
@@ -164,9 +199,27 @@ Devinno library docs: read .devinno/*/llms.txt first.
   * Add `.devinno/` to your `.gitignore`.
   * Fallback location: `%UserProfile%\.nuget\packages\devinno.communication\<version>\docs\`.
 
+## Repository (repository only)
+
+This section describes files that are in the GitHub repository but not in the package.
+
+  * `guide/`: per-protocol guides (in Korean) and a common-concepts guide.
+  * `tests/Devinno.Communication.Tests`: xUnit tests. Run them with `dotnet test tests/Devinno.Communication.Tests`.
+  * `tests/ai-eval`: the AI evaluation kit (memory maps, grading data, the Grader console project, the prompt) and `RESULTS.md`.
+  * `schemas/`: the XSD files that ship in the package; a test keeps them in sync with the code.
+  * `i18n/ko`: the Korean IntelliSense translation. `tools/XmlDocI18n` maintains it and checks that `README.ko.md` follows this README.
+  * CI: `ci.yml` (build, test and pack; run it manually from the Actions tab) and `publish-nuget.yml` (publishes to nuget.org when a `v*.*.*` tag is pushed).
+
 ## Disclaimer
 
-Devinno.Communication is provided "as is", without warranty of any kind (see LICENSE). It is a communication library and is not designed or certified for safety functions. Emergency stops, interlocks and other safety functions must be implemented in safety-rated equipment, not through this library. Writing to a PLC or equipment changes the physical behaviour of a machine: validate addresses, values and timing on a simulator or test equipment before connecting to a live machine. You are responsible for testing and validating any system you build with it.
+Devinno.Communication is provided **"as is", without warranty of any kind**, and the authors accept no liability for damage arising from its use (see LICENSE).
+
+- It is not designed or certified for safety functions. Implement emergency stops, interlocks and other safety functions in safety-rated equipment and in the PLC program.
+- The protocols are implemented from public documentation and tested against simulated devices; they have not been verified on every model and firmware version.
+- Writing to a PLC moves a real machine. Test on a simulator or test equipment before connecting to live equipment, and check the result of every write (see "Write safety").
+- You are responsible for testing, validating and safely operating any system you build with it.
+
+Product names are trademarks of their respective owners; this project is not affiliated with them.
 
 ## License
 
