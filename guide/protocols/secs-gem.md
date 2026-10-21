@@ -24,8 +24,19 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 ## GEM 장비 (GemEquipment)
 `GemEquipment`에 SV·DV·EC·CE·알람·리모트 명령을 정의만 하면(코드 또는 XML) 통신 수립(S1F13), 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE), Host의 조회·설정(S1F3/11/21/23, S2F13/15/29, S2F33/35/37, S5F3/5/7, S6F15/19, S10F3/5, 시계)에 라이브러리가 자동으로 응답. 장비 쪽은 `TriggerEvent`·`SetAlarm`·`SendTerminalMessage`로 알리기만 하면 됨(값은 부른 순간 기준, 한 번에 하나씩 순서대로 보냄).
 
-* 스풀링·트레이스·리밋·레시피(S7)는 아직 없음(등록 메시지로 앱이 직접 처리 가능)
+* 트레이스·리밋·레시피(S7)는 아직 없음(등록 메시지로 앱이 직접 처리 가능)
 * E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함
+
+### 스풀링 (SEMI E30 7.12)
+기본은 꺼짐. `GemEquipment.SpoolDirectory`에 폴더를 정하면 켜짐(`MaxSpoolMessages` 1~1,000,000, 기본 1000). ON-LINE인데 통신이 끊기거나 수립되지 않았을 때 Host가 S2F43으로 고른 S5F1·S6F11·S10F1을 `SendFailed`로 버리는 대신 그 폴더에 쌓고, Host가 S6F23으로 되찾아 감(오래된 것부터 하나씩, 응답이 와야 다음). 켜면 표준 SV(SpoolCountActual 1009 · SpoolCountTotal 1010 · SpoolFullTime 1011 · SpoolStartTime 1012)·EC(EnableSpooling 1103 · MaxSpoolTransmit 1104 · OverWriteSpool 1105)·CE(SpoolingActivated 1307 · SpoolingDeactivated 1308 · SpoolTransmitFailure 1309)가 카탈로그에 들어가고 S2F43·S6F23을 GEM이 직접 처리함(`RegisterMessage`로 등록 불가). 상태는 `SpoolState`·`IsSpoolFull`·`SpoolCount`·`SpoolStateChanged`. 스풀이 가득 차 버려진 메시지는 `SendFailed(SpoolFull)`(`OverWriteSpool`이 true면 가장 오래된 것을 버림).
+Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F23)을 씀.
+
+* **Host가 S6F23을 보내야 함**: 스풀이 ACTIVE인 동안에는 통신이 다시 수립돼도 고른 메시지가 실시간으로 나가지 않고 스풀 끝에 쌓임. Host가 S6F23(전송 또는 지우기)을 보내기 전에는 다시 실시간으로 돌아오지 않음
+* **최소 한 번 전달**: 비정상 종료나, 스풀에서 꺼내 보내는 중에 `DisableCommunication`이 끼면 그 메시지가 나중에 다시 나갈 수 있음(Host는 중복을 견뎌야 함)
+* **폴더 하나 = 장비 하나**: 같은 폴더로 두 번째 `Start`를 하면 `IOException`
+* **정전**: 쓰기는 비동기라 마지막 몇 개는 사라질 수 있음. 비정상 종료로 상태 파일을 잃으면 SpoolStartTime이 비어 있을 수 있음
+* 스풀한 값은 부른 순간 기준이라 Host가 받을 때는 현재 장비 상태와 다를 수 있음
+* 이벤트 순서(스풀을 켰을 때): 끊김의 스풀한 메시지는 `SendFailed`를 내지 않음. 순서는 ① 스풀하지 못한 것의 `SendFailed` → ② `CommunicationStateChanged` → ③ (전이 4의 `ControlStateChanged`) → ④ `SpoolStateChanged`(활성화). 꺼져 있으면 아래 표 그대로
 
 ## GEM Host (GemHost)
 `GemHost.Subscribe(ceid, vids…)`로 받을 값을 정해 두면 연결될 때마다 접속 시퀀스(S1F13 → S1F17 → 리포트 정의·연결·켜기 → 알람 켜기)를 자동으로 실행하고, 장비의 이벤트 리포트(S6F11)를 VID별 값으로 해석해 `EventReceived`로 줌. 알람(S5F1)·터미널(S10F1)도 자동으로 응답하고 이벤트로 알림. SV·EC 읽기·쓰기, 이름 목록, 시계, 리모트 명령(S2F41), 알람 목록 등은 동기·비동기(`…Async`) 메서드 짝이고 0이 아닌 ack는 예외가 아니라 반환값. 장비마다 다른 ID 포맷(U1~U8, I1~I8, A)을 받아들임.

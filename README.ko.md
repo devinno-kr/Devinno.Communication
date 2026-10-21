@@ -143,11 +143,11 @@ string xsd = ConfigSchema.Get<ModbusTCPMasterConfig>();
 자세한 내용 → [공통 개념](guide/concepts.md)
 
 ## 제약 사항 / 검증 상태
-<!-- en-hash: d7350b4b2a9c5588 -->
+<!-- en-hash: 27265551e8fb6bb7 -->
 
   * Siemens S7 : 절대 주소만 지원. 심볼·최적화 DB·타이머/카운터 미지원
   * Omron FINS : C-mode Host Link, CIP 태그, 타이머/카운터 미지원
-  * GEM 장비 : 스풀링·트레이스·리밋·레시피(S7) 아직 없음
+  * GEM 장비 : 트레이스·리밋·레시피(S7) 아직 없음. 스풀링(SEMI E30 7.12)은 있고 기본은 꺼짐(`GemEquipment.SpoolDirectory`)
   * GEM 장비·Host : E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함. 실제 MES·장비와는 확인하지 못함
 
 ## 요구 사항
@@ -191,6 +191,7 @@ Devinno.Communication은 "있는 그대로" 제공되며 어떠한 보증도 하
 <!-- en-hash: b46496942cf1e813 -->
 
 MIT. 저장소 루트의 `LICENSE` 파일 참고.
+
 
 
 

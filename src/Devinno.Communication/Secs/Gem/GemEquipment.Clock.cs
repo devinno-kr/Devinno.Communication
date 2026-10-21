@@ -186,7 +186,7 @@ public partial class GemEquipment
     }
 
     /// <summary>The operator sends a terminal message to the Host (S10F1 &lt;L TID TEXT&gt;).</summary>
-    /// <remarks>The conditions under which nothing is sent are the same as for <see cref="TriggerEvent"/> (false for DISABLED or OFF-LINE; false plus <see cref="SendFailed"/> for ON-LINE without communication). If ACKC10 is not 0, <see cref="SendFailed"/> (NotAcknowledged) is raised.</remarks>
+    /// <remarks>The conditions under which nothing is sent are the same as for <see cref="TriggerEvent"/> (false for DISABLED or OFF-LINE; false plus <see cref="SendFailed"/> for ON-LINE without communication, unless the message is put in the spool, see <see cref="SpoolDirectory"/>). If ACKC10 is not 0, <see cref="SendFailed"/> (NotAcknowledged) is raised.</remarks>
     /// <param name="tid">Terminal number</param>
     /// <param name="text">Text (ASCII)</param>
     /// <returns>true if it was put in the send queue or the spool</returns>

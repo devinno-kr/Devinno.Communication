@@ -25,6 +25,7 @@ public partial class GemEquipment
 
     /// <summary>Raised on the application event thread when the communication state changed.</summary>
     /// <remarks>The GEM states change in wire order: the handling of the Host's primary messages and the results of GEM sends (S1F14 → this event, S1F2 → <see cref="ControlStateChanged"/>, S2F18 → <see cref="ClockSet"/>, <see cref="SendFailed"/>) happen, and their events are raised, in the order the equipment received those messages.
+    /// With spooling on (<see cref="SpoolDirectory"/>), the order on a disconnection is: <see cref="SendFailed"/> for the messages that could not be spooled, then this event, then the transition 4 <see cref="ControlStateChanged"/>, then <see cref="SpoolStateChanged"/> (activated). Spooled messages raise no <see cref="SendFailed"/>.
     /// A disconnection changes Communicating → NotCommunicating at most once per connection, and no event about that connection follows it. After reconnecting, S5/S6/S10 are not sent until communication is established again with S1F13, provided no application handler of the transport events (<c>DeviceOpened</c>, <c>DeviceClosed</c>, <c>ProtocolError</c>) holds the transport dispatcher across the reconnection.</remarks>
     public event EventHandler<GemCommunicationStateEventArgs>? CommunicationStateChanged;
 

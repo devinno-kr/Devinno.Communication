@@ -134,7 +134,7 @@ Named write is available on the 10 PLC masters: `ModbusRTUMaster`, `ModbusTCPMas
 
   * Siemens S7: absolute addresses only. Symbols, optimized DBs, timers and counters are not supported.
   * Omron FINS: C-mode Host Link, CIP tags, timers and counters are not supported.
-  * GEM equipment: spooling, trace, limits and recipes (S7) are not implemented yet.
+  * GEM equipment: trace, limits and recipes (S7) are not implemented yet. Spooling (SEMI E30 7.12) is available but off by default (`GemEquipment.SpoolDirectory`).
   * GEM equipment and host: not checked against the original SEMI E30 text; only interoperability with secsgem was verified. Not tested with a real MES or equipment.
 
 ## Requirements

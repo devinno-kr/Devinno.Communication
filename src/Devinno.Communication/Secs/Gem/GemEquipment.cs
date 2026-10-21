@@ -20,7 +20,8 @@ namespace Devinno.Communication.Secs.Gem;
 /// The GEM worker thread sends them one at a time in the order they were queued, and a failure or a nonzero ack is reported through <see cref="SendFailed"/>.</para>
 /// <para><b>Threads</b>: Besides the transport threads, one GEM worker thread (send queue, timers, deadlines) and one application event thread are used. All public events are raised on the application event thread in the order they occurred, and exceptions thrown by handlers are ignored.
 /// A slow handler does not block automatic replies. To update the UI, marshal with BeginInvoke (WinForms) / Dispatcher.BeginInvoke (WPF).</para>
-/// <para>The E30 original has not been checked against, so do not use this as evidence for a GEM Compliance Statement. Spooling, trace, limits, recipes (S7), and S2F49 are not supported.</para>
+/// <para>The E30 original has not been checked against, so do not use this as evidence for a GEM Compliance Statement. Trace, limits, recipes (S7), and S2F49 are not supported.</para>
+/// <para><b>Spooling</b> (SEMI E30 7.12) is off by default. Set <see cref="SpoolDirectory"/> to turn it on: while ON-LINE but not communicating, the S5F1, S6F11, and S10F1 messages the Host selected with S2F43 are stored in that folder instead of being reported through <see cref="SendFailed"/>, and the Host gets them back with S6F23. The Host must send S6F23, or the selected messages are never sent live again while the spool is ACTIVE. Delivery is at least once: after a crash, or when <see cref="DisableCommunication"/> interrupts a spooled message that is on the wire, that message can be sent again later. One folder belongs to one equipment (a second <see cref="Start"/> on it throws <see cref="IOException"/>). Writes are asynchronous, so the last few spooled messages can be lost on a power failure, and a state file lost in a crash can leave SpoolStartTime empty. Spooled data are values from the moment of the call and can be stale compared with the current equipment state when the Host receives them.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -369,6 +370,7 @@ public partial class GemEquipment : IDisposable
     /// On T3 of the S1F1 of <see cref="GoOnline"/>: this event (Timeout), <see cref="ControlStateChanged"/> (to <see cref="OnlineFailedState"/>), this event (NotCommunicating) for the rest of the queue, then <see cref="CommunicationStateChanged"/>.
     /// A failure of the equipment's S1F13 is reported only through <see cref="ProtocolError"/>.
     /// Because this event comes before <see cref="CommunicationStateChanged"/> in the orders above, <see cref="CommunicationState"/> may still be Communicating inside this handler.</para>
+    /// <para>With spooling on (<see cref="SpoolDirectory"/>), a message that enters the spool raises no notification from this event; the "discarded message" notifications above cover only messages that were not spooled. A message dropped because the spool is full raises this event with <see cref="GemSendFailure.SpoolFull"/>.</para>
     /// <para>A disconnection does not end a GEM message with Disconnected (it is reported as NotCommunicating as above); Disconnected remains only for a SECS-I send that exceeded the retry limit (the line is kept).</para>
     /// </remarks>
     public event EventHandler<GemSendFailedEventArgs>? SendFailed;
