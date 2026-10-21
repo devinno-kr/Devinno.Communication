@@ -145,7 +145,9 @@ public static class XmlDocI18n
     {
         var sections = new List<string> { "" };
         var fence = false;
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        // A trailing newline leaves an empty last piece; adding it as a line would grow the file by one "\n" on every md-stamp.
+        foreach (var line in text.EndsWith('\n') ? lines[..^1] : lines)
         {
             if (line.StartsWith("```", StringComparison.Ordinal))
                 fence = !fence;

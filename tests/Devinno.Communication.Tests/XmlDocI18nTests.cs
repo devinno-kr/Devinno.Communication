@@ -31,4 +31,15 @@ public class XmlDocI18nTests
             File.ReadAllText(Path.Combine(RepoRoot(), "README.ko.md")));
         Assert.True(problems.Count == 0, "README.ko.md out of sync:\n" + string.Join("\n", problems));
     }
+
+    [Fact]
+    public void MdStamp_twice_gives_the_same_file()
+    {
+        const string en = "# Title\n\nIntro.\n\n## Usage\n\nText.\n";
+        const string ko = "# 제목\n\n소개.\n\n## 사용법\n\n본문.\n";
+        var once = XmlDocI18n.MdStamp(en, ko);
+        Assert.EndsWith("본문.\n", once);
+        Assert.False(once.EndsWith("\n\n"), "md-stamp added a blank line at the end");
+        Assert.Equal(once, XmlDocI18n.MdStamp(en, once));
+    }
 }
