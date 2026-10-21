@@ -14,6 +14,14 @@ public class GemTimeTests
     }
 
     [Fact]
+    public void Format_UtcKind_IsConvertedToLocalFirst()
+    {
+        var utc = new DateTime(2026, 10, 14, 0, 5, 7, 345, DateTimeKind.Utc);
+        foreach (var form in new[] { 0, 1, 2 })
+            Assert.Equal(GemTime.Format(utc.ToLocalTime(), form), GemTime.Format(utc, form));
+    }
+
+    [Fact]
     public void Format_ThreeForms()
     {
         Assert.Equal("261014090507", GemTime.Format(T, 0));

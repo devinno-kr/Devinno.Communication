@@ -110,14 +110,14 @@ public partial class GemHost
         dataId = 0;
     }
 
-    // 알고 있는 리포트의 VID 목록(없으면 null). 이벤트 해석과 테스트가 쓴다. RptidFormat이 A면 숫자 RPTID도 10진 텍스트로 맞춰 찾는다
+    // 알고 있는 리포트의 VID 목록(없으면 null). 지금은 테스트만 쓴다(이벤트 해석은 reportTable을 직접 쓴다). RptidFormat이 A면 숫자 RPTID도 10진 텍스트로 맞춰 찾는다
     internal IReadOnlyList<GemId>? KnownReport(GemId rptid)
     {
         lock (gate) return reportTable.GetValueOrDefault(GemItems.Key(rptid, rptidFormat));
     }
 
     // DATAID: Start마다 1부터, DataidFormat의 최댓값을 넘으면 1로(빌더가 formats.Dataid로 만듦, A면 10진 문자열).
-    // build가 예외를 던지면(인자 오류) 번호를 쓰지 않는다. 번호 매기기와 만들기를 gate 안에서 함께 해 동시에 불러도 번호가 겹치지 않는다(gate 안: 메시지 만들기만, 전송 없음)
+    // build가 예외를 던지면(인자 오류) 번호를 쓰지 않는다. 번호 매기기와 만들기를 gate 안에서 함께 해 동시에 불러도 번호가 겹치지 않는다(gate 안: 메시지 만들기만, 전송 없음. 빌더가 호출자의 목록을 gate 안에서 열거하기도 한다)
     SecsMessage WithNextDataId(Func<GemId, SecsMessage> build)
     {
         lock (gate)

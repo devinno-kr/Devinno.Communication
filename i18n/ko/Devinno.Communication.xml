@@ -8692,8 +8692,9 @@
             <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없거나 <paramref name="text" />에 255를 넘는 문자가 있는 경우</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
         </member>
-<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="9a70d94b507a02ac">
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="28bea78dae74e1a9">
             <summary>S5F1 Alarm Report Send를 해석합니다.</summary>
+            <remarks>ALCD 길이가 0이면 <see cref="T:System.FormatException" />이 납니다. <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F6(Devinno.Communication.Secs.Data.SecsMessage)" />·<see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F8(Devinno.Communication.Secs.Data.SecsMessage)" />에서는 0으로 읽는 것과 다릅니다.</remarks>
             <param name="message">받은 S5F1</param>
             <returns>알람 (ALID는 정수 포맷 무엇이든 또는 A, ALCD는 숫자 포맷 무엇이든)</returns>
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
@@ -8813,10 +8814,10 @@
             <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
         </member>
-<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="9c3dd838db1fd128">
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="763fdba6ace62453">
             <summary>S6F11 Event Report Send를 해석합니다.</summary>
             <remarks>DATAID는 장비가 보낸 아이템 그대로 둡니다. <paramref name="reportVids" />를 주면 RPTID가 표에 있고 값 개수가 VID 개수와 같은 리포트에만 VID를 붙이고, 나머지 리포트는 <see cref="P:Devinno.Communication.Secs.Gem.GemReportValue.Vid" /> = null입니다.
-            표의 열쇠와 받은 RPTID는 <paramref name="formats" />의 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 기준으로 같은 정규화를 거쳐 맞추므로, 표도 같은 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />로 만드십시오. A면 1000 같은 숫자 ID를 텍스트 "1000"으로 보므로 표 열쇠 1000이 장비가 A "1000"으로 보낸 RPTID와 맞습니다. 숫자 포맷이면 열쇠를 숫자로 비교하고 문자열 RPTID는 맞지 않습니다. 먼저 텍스트 열쇠로 찾고, 숫자 열쇠(RPTID가 평범한 10진 정수일 때만)는 그 첫 조회가 빗나갔을 때만 시도합니다.</remarks>
+            표의 열쇠와 받은 RPTID는 <paramref name="formats" />의 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 기준으로 같은 정규화를 거쳐 맞추므로, 표도 같은 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />로 만드십시오. A면 1000 같은 숫자 ID를 텍스트 "1000"으로 보므로 표 열쇠 1000이 장비가 A "1000"으로 보낸 RPTID와 맞습니다. 숫자 포맷이면 열쇠를 숫자로 비교하고 문자열 RPTID는 텍스트 열쇠에만 맞습니다. 먼저 텍스트 열쇠로 찾고, 숫자 열쇠(RPTID가 평범한 10진 정수일 때만)는 그 첫 조회가 빗나갔을 때만 시도합니다.</remarks>
             <param name="message">받은 S6F11</param>
             <param name="reportVids">리포트 정의별 VID (null = 아는 것 없음)</param>
             <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). 표를 찾을 때 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />만 씁니다</param>
@@ -9025,9 +9026,9 @@
             </code>
             </remarks>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemTime.Format(System.DateTime,System.Int32)" en-hash="6354602e547bcc81">
+        <member name="M:Devinno.Communication.Secs.Gem.GemTime.Format(System.DateTime,System.Int32)" en-hash="7889217587f22c96">
             <summary>로컬 시각을 GEM TIME 텍스트로 만듭니다.</summary>
-            <param name="local">로컬 시각</param>
+            <param name="local">로컬 시각. <see cref="P:System.DateTime.Kind" />가 <see cref="F:System.DateTimeKind.Utc" />이면 먼저 로컬 시각으로 바꿉니다</param>
             <param name="timeFormat">TimeFormat 값: 0(12자리), 1(16자리), 2(시간대가 있는 확장 형식)</param>
             <returns>TIME 텍스트 (예: 형식 0이면 <c>261021090807</c>)</returns>
             <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="timeFormat" />이 0, 1, 2가 아닌 경우</exception>

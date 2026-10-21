@@ -20,6 +20,7 @@ public static partial class GemMessages
         => new(5, 1, replyExpected, AlarmItem(alcd, alid.ToItem(F(formats).Alid), GemDefinitionCheck.Ascii(text, nameof(text))));
 
     /// <summary>Reads S5F1 Alarm Report Send.</summary>
+    /// <remarks>A zero-length ALCD throws <see cref="FormatException"/>, unlike <see cref="ParseS5F6"/> and <see cref="ParseS5F8"/>, where it reads as 0.</remarks>
     /// <param name="message">The received S5F1.</param>
     /// <returns>The alarm (ALID in any integer format or A, ALCD in any numeric format).</returns>
     /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>

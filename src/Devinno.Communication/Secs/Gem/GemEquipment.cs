@@ -711,7 +711,8 @@ public partial class GemEquipment : IDisposable
             {
                 5 => GemMessages.ParseS5F2(t.Result),
                 6 => GemMessages.ParseS6F12(t.Result),
-                _ => GemMessages.ParseS10F2(t.Result),
+                10 => GemMessages.ParseS10F2(t.Result),
+                _ => GemItems.ReadAck(t.Result.Item),
             };
         }
         catch (FormatException ex)

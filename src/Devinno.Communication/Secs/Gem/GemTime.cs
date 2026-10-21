@@ -14,17 +14,21 @@ public static partial class GemTime
     private static partial Regex Extended();
 
     /// <summary>Formats a local time as GEM TIME text.</summary>
-    /// <param name="local">The local time.</param>
+    /// <param name="local">The local time. A value whose <see cref="DateTime.Kind"/> is <see cref="DateTimeKind.Utc"/> is converted to local time first.</param>
     /// <param name="timeFormat">The TimeFormat value: 0 (12 digits), 1 (16 digits), or 2 (extended form with time zone).</param>
     /// <returns>The TIME text, for example <c>261021090807</c> for form 0.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeFormat"/> is not 0, 1, or 2.</exception>
-    public static string Format(DateTime local, int timeFormat) => timeFormat switch
+    public static string Format(DateTime local, int timeFormat)
     {
-        0 => local.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture),
-        1 => local.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + (local.Millisecond / 10).ToString("00", CultureInfo.InvariantCulture),
-        2 => local.ToString("yyyy-MM-dd'T'HH:mm:ss.ff", CultureInfo.InvariantCulture) + Zone(TimeZoneInfo.Local.GetUtcOffset(local)),
-        _ => throw new ArgumentOutOfRangeException(nameof(timeFormat), timeFormat, "TimeFormat은 0~2 입니다."),
-    };
+        if (local.Kind == DateTimeKind.Utc) local = local.ToLocalTime();
+        return timeFormat switch
+        {
+            0 => local.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture),
+            1 => local.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + (local.Millisecond / 10).ToString("00", CultureInfo.InvariantCulture),
+            2 => local.ToString("yyyy-MM-dd'T'HH:mm:ss.ff", CultureInfo.InvariantCulture) + Zone(TimeZoneInfo.Local.GetUtcOffset(local)),
+            _ => throw new ArgumentOutOfRangeException(nameof(timeFormat), timeFormat, "TimeFormat은 0~2 입니다."),
+        };
+    }
 
     static string Zone(TimeSpan offset)
     {

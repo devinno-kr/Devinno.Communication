@@ -24,4 +24,22 @@ public class GemEquipmentMessagingTests
         // S2F35: 숫자 포맷(CeidFormat U4)에 A CEID → LRACK 형식 오류
         Assert.Equal($"S2F36 <B 0x{GemAck.LrackInvalidFormat:X2}>", await host.Ask("S2F35 W <L <U4 1> <L <L <A \"5001\"> <L>>>>"));
     }
+
+    // D2 보강: 2층이 받는 모양이라도 장비는 S9F7
+    [Theory]
+    [InlineData("S5F5 W <U4 1 2>", SecsFormat.ASCII, "alid")]
+    [InlineData("S5F3 W <L <B 0x80> <A \"1\">>", SecsFormat.U4, "alid")]
+    [InlineData("S2F37 W <L <BOOLEAN T> <U4 5001 5002>>", SecsFormat.U4, "none")]
+    [InlineData("S6F19 W <A \"1000\">", SecsFormat.U4, "none")]
+    public async Task Equipment_AnswersS9F7_ForShapesTheMessagingLayerAccepts(string sml, SecsFormat alidFormat, string kind)
+    {
+        using var eq = GemKit.Equipment(e =>
+        {
+            GemKit.Sample(e);
+            e.InitialControlState = GemControlState.OnlineRemote;
+            if (kind == "alid") e.AlidFormat = alidFormat;
+        });
+        using var host = await GemKit.Communicating(eq);
+        Assert.Equal(7, (await Assert.ThrowsAsync<SecsErrorException>(() => host.SendAsync(sml))).Function);
+    }
 }
