@@ -46,4 +46,10 @@ jobs:
           user: ${{ secrets.NUGET_USER }}   # nuget.org 프로필 이름(이메일 아님)
 
       - name: nuget.org 게시
-        run: dotnet nuget push out/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+        # 파일 경로로 push — Windows 의 dotnet nuget push 는 "out/*.nupkg"(슬래시) 와일드카드를 풀지 못한다("File does not exist")
+        run: |
+          $pkgs = @(Get-ChildItem out -Filter *.nupkg)
+          if ($pkgs.Count -ne 1) { throw "nupkg 가 1개가 아닙니다: $($pkgs.Name -join ', ')" }
+          dotnet nuget push $pkgs[0].FullName --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
