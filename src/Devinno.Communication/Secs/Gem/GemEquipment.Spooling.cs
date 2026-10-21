@@ -14,7 +14,7 @@ public partial class GemEquipment
     GemSpoolState spoolState;
     bool spoolFull;
     uint spoolTotal;
-    DateTime? spoolStartTime, spoolFullTime;        // UTC
+    DateTime? spoolStartTime, spoolFullTime;        // GEM 시계 시각(SpoolClockLocked)을 UTC로 저장. GemTime.Format이 로컬로 되돌린다. 값은 반드시 SpoolClockLocked로만 넣는다
     readonly LinkedList<(long Seq, SecsMessage Message)> spool = new();
 #pragma warning disable CS0414   // 스풀 동작을 구현하는 뒤 태스크에서 읽는다
     long nextSeq;
@@ -62,6 +62,10 @@ public partial class GemEquipment
         standardValues[GemStandard.SpoolFullTime] = () => SpoolTimeItem(spoolFullTime);
         standardValues[GemStandard.SpoolStartTime] = () => SpoolTimeItem(spoolStartTime);
     }
+
+    // GEM 시계(시스템 시각 + S2F31 오프셋)의 현재 시각을 UTC로(gate 안). 재시작 뒤에도 안전하게 저장된다
+    DateTime SpoolClockLocked() => (DateTime.Now + clockOffset).ToUniversalTime();
+    internal DateTime SpoolClock { get { lock (gate) return SpoolClockLocked(); } }
 
     SecsItem SpoolTimeItem(DateTime? t) => SecsItem.A(t is { } v ? GemTime.Format(v, TimeFormatLocked) : "");
 

@@ -199,4 +199,17 @@ public class GemSpoolSetupTests
         using var c = new GemEquipment(new SecsHsms());
         Assert.Null(c.ToXml().Attribute("SpoolDirectory"));
     }
+
+    [Fact]
+    public async Task SpoolClock_FollowsGemClockOffset()
+    {
+        using var eq = Eq();
+        using var host = await GemKit.Communicating(eq);
+        var before = eq.SpoolClock;
+        Assert.InRange((before - DateTime.UtcNow).TotalSeconds, -2, 2);
+        var t = DateTime.Now.AddHours(3).ToString("yyMMddHHmmss");
+        Assert.Equal("S2F32 <B 0x00>", await host.Ask($"S2F31 W <A \"{t}\">"));
+        Assert.InRange((eq.SpoolClock - eq.Now.ToUniversalTime()).TotalSeconds, -2, 2);
+        Assert.InRange((eq.SpoolClock - before).TotalHours, 2.9, 3.1);
+    }
 }
