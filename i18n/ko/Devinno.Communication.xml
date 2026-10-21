@@ -6019,9 +6019,9 @@
             <summary>S5F1에 W비트를 둘지 (기본값: true). true면 ACKC5 ≠ 0을 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />로 알립니다.</summary>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.SetAlarm(Devinno.Communication.Secs.Gem.GemId)" en-hash="aea2902c4d0c9545">
+        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.SetAlarm(Devinno.Communication.Secs.Gem.GemId)" en-hash="c904cfc64aa26883">
             <summary>알람이 발생했음을 알립니다. AlarmsSet을 갱신하고, 보고가 켜져 있고 ON-LINE이면 S5F1(ALCD = 0x80 | 분류)을 보낸 뒤 알람 Set CE를 보냅니다(DV AlarmID = ALID).</summary>
-            <remarks>알람 상태는 OFF-LINE·통신 없음에도 바뀝니다(보내지만 않음). ON-LINE인데 통신이 수립되지 않았으면 S5F1은 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotCommunicating)입니다.</remarks>
+            <remarks>알람 상태는 OFF-LINE·통신 없음에도 바뀝니다(보내지만 않음). ON-LINE인데 통신이 수립되지 않았으면 S5F1은 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotCommunicating)입니다. 단 스풀에 넣으면 알리지 않습니다(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolDirectory" /> 참고).</remarks>
             <param name="alid">ALID</param>
             <returns>상태가 바뀌었으면 true (이미 발생 중이면 false, 아무것도 보내지 않음)</returns>
             <exception cref="T:System.ArgumentException">정의되지 않은 ALID인 경우</exception>
@@ -6061,19 +6061,19 @@
             <param name="state">새 상태 값</param>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.SendTerminalMessage(System.Byte,System.String)" en-hash="ec6da92487974a9d">
+        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.SendTerminalMessage(System.Byte,System.String)" en-hash="5c8296e3655a11e2">
             <summary>운전자가 Host에게 터미널 메시지를 보냅니다(S10F1 &lt;L TID TEXT&gt;).</summary>
             <remarks>보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같습니다(DISABLED·OFF-LINE은 false, ON-LINE인데 통신 없음은 false + <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />). ACKC10 ≠ 0이면 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotAcknowledged)입니다.</remarks>
             <param name="tid">터미널 번호</param>
             <param name="text">문장 (ASCII)</param>
-            <returns>송신 대기열에 넣었으면 true</returns>
+            <returns>송신 대기열 또는 스풀에 넣었으면 true</returns>
             <exception cref="T:System.ArgumentNullException">text가 null인 경우</exception>
             <exception cref="T:System.ArgumentException">text에 ASCII(Latin-1) 밖의 문자가 있는 경우</exception>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.RecognizeTerminalMessage" en-hash="a59a27da127055bd">
+        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.RecognizeTerminalMessage" en-hash="5b8389a2c8f2fc9d">
             <summary>운전자가 Host의 터미널 메시지를 확인했음을 알립니다(MessageRecognition CE).</summary>
-            <returns>CE를 송신 대기열에 넣었으면 true (보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같음)</returns>
+            <returns>CE를 송신 대기열 또는 스풀에 넣었으면 true (보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같음)</returns>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="3c62f7eb59d7798c">
@@ -6425,16 +6425,17 @@
             <summary>S6F11에 W비트를 둘지 (기본값: true). true면 ACKC6 ≠ 0을 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />로 알립니다.</summary>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꾼 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" en-hash="d68cd0213c248d93">
+        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" en-hash="b698be6ac259a5c3">
             <summary>수집 이벤트가 생겼음을 알립니다. Host가 활성화했으면 링크된 리포트를 담아 S6F11을 보냅니다.</summary>
             <remarks>
             <para>값은 부른 순간에 찍습니다(본문을 이 스레드에서 만들어 대기열에 넣음). 보내는 시점이 늦어도 이벤트 당시 값입니다.</para>
-            <para>보내지 않는 경우(false): CE 비활성, 통신 DISABLED, 제어 OFF-LINE. ON-LINE인데 통신이 수립되지 않았으면 false와 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotCommunicating)입니다.</para>
+            <para>보내지 않는 경우(false): CE 비활성, 통신 DISABLED, 제어 OFF-LINE. ON-LINE인데 통신이 수립되지 않았으면 false와 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotCommunicating)입니다. 단 스풀에 넣으면 알리지 않습니다(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolDirectory" /> 참고).</para>
+            <para>스풀링이 ACTIVE인 동안 Host가 스풀 대상으로 정한(S2F43) S6F11은 통신이 수립돼 있어도 스풀 끝에 들어가고, Host가 S6F23으로 스풀을 요청하기 전에는 보내지 않습니다.</para>
             <para>S6F11은 넣은 순서대로 한 번에 하나씩 보내고, ACKC6 ≠ 0이면 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(NotAcknowledged)입니다. 다시 보내지 않습니다.</para>
             </remarks>
             <param name="ceid">CEID</param>
             <param name="dataValues">이번 리포트에만 쓰는 DV 값 (정의된 DV만, 포맷은 정의와 같게). 없으면 DV의 저장값</param>
-            <returns>송신 대기열에 넣었으면 true</returns>
+            <returns>송신 대기열 또는 스풀에 넣었으면 true</returns>
             <exception cref="T:System.ArgumentException">정의되지 않은 CEID이거나, dataValues에 DV가 아닌 VID나 포맷이 다른 값이 있는 경우</exception>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
@@ -6458,8 +6459,8 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolCount" en-hash="c19f72282c4eaf1e">
             <summary>스풀에 있는 메시지 수를 가져옵니다(스풀링을 끄면 0)</summary>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SpoolStateChanged" en-hash="aa14e80d5140ae16">
-            <summary>스풀링 상태·가득 참 여부·메시지 수가 바뀌었을 때 앱 이벤트 스레드에서 발생합니다.</summary>
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SpoolStateChanged" en-hash="1f89ad40ed5aad1f">
+            <summary>스풀링 상태나 가득 참 여부가 바뀌었을 때(예: 스풀링 활성화, 스풀이 가득 참) 앱 이벤트 스레드에서 발생합니다. 메시지 수만 바뀌면 발생하지 않습니다.</summary>
         </member>
         
         <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.ToConfig" en-hash="e41ae2619d6378f3">
@@ -9327,8 +9328,8 @@
         <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.QueueFull" en-hash="ceee80a8a34799c1">
             <summary>송신 대기열이 가득 차 버림(<c>MaxPendingSends</c>)</summary>
         </member>
-        <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.NotCommunicating" en-hash="10cbe04549fae17c">
-            <summary>ON-LINE인데 통신이 수립되지 않았거나 통신 실패로 대기열을 비워 버림(나중의 스풀링 대상 자리)</summary>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.NotCommunicating" en-hash="9bbdf6d9fc5c0a30">
+            <summary>ON-LINE인데 통신이 수립되지 않았거나 통신 실패로 대기열을 비워 버림. 스풀링이 켜져 ACTIVE이고 Host가 스풀 대상으로 정한(S2F43) 메시지는 버리지 않고 스풀에 넣으며 이것으로 알리지 않습니다.</summary>
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.Disabled" en-hash="4dbb6c28c1200ec7">
             <summary>통신을 끄면서(DISABLED) 대기열을 비워 버림</summary>

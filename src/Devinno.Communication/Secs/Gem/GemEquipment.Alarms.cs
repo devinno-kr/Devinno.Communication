@@ -36,7 +36,7 @@ public partial class GemEquipment
     }
 
     /// <summary>Reports that an alarm occurred. Updates AlarmsSet, and if reporting is enabled and the state is ON-LINE, sends S5F1 (ALCD = 0x80 | category) and then the alarm Set CE (DV AlarmID = ALID).</summary>
-    /// <remarks>The alarm state changes even while OFF-LINE or not communicating (only the sending is skipped). If ON-LINE but communication is not established, the S5F1 is reported as <see cref="SendFailed"/> (NotCommunicating).</remarks>
+    /// <remarks>The alarm state changes even while OFF-LINE or not communicating (only the sending is skipped). If ON-LINE but communication is not established, the S5F1 is reported as <see cref="SendFailed"/> (NotCommunicating), unless it is put in the spool (see <see cref="SpoolDirectory"/>).</remarks>
     /// <param name="alid">ALID</param>
     /// <returns>true if the state changed (false if the alarm was already set; nothing is sent)</returns>
     /// <exception cref="ArgumentException">The ALID is not defined</exception>
@@ -61,8 +61,7 @@ public partial class GemEquipment
             if (running && alarmsEnabled.Contains(a.Key) && commState != GemCommunicationState.Disabled && !IsOffline(control))
             {
                 var s5f1 = GemMessages.S5F1(Alcd(a, set), a.Key, a.Def.Text, formats, alarmReplyExpected);
-                if (commState == GemCommunicationState.Communicating) EnqueueLocked(s5f1);
-                else DiscardLocked(s5f1, GemSendFailure.NotCommunicating);
+                SendOrSpoolLocked(s5f1);
             }
             TriggerLocked(set ? a.SetEvent : a.ClearEvent, new Dictionary<GemId, SecsItem> { [catalog.Std(GemStandard.AlarmID)] = a.Key.ToItem(catalog.AlidFormat) });
             return true;

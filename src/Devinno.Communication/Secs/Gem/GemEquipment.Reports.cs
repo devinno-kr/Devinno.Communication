@@ -46,12 +46,13 @@ public partial class GemEquipment
     /// <summary>Reports that a collection event occurred. If the Host has enabled it, S6F11 is sent with the linked reports.</summary>
     /// <remarks>
     /// <para>Values are captured at the moment of the call (the body is built on this thread and put in the queue). Even if the send happens later, the values are those at the time of the event.</para>
-    /// <para>Cases where nothing is sent (false): CE disabled, communication DISABLED, control OFF-LINE. If ON-LINE but communication is not established, the result is false plus <see cref="SendFailed"/> (NotCommunicating).</para>
+    /// <para>Cases where nothing is sent (false): CE disabled, communication DISABLED, control OFF-LINE. If ON-LINE but communication is not established, the result is false plus <see cref="SendFailed"/> (NotCommunicating), unless the message is put in the spool (see <see cref="SpoolDirectory"/>).</para>
+    /// <para>While spooling is active, an S6F11 that the Host selected for spooling (S2F43) is put at the end of the spool even when communication is established, and it is not sent until the Host requests the spool with S6F23.</para>
     /// <para>S6F11 messages are sent one at a time in the order they were queued, and if ACKC6 is not 0, <see cref="SendFailed"/> (NotAcknowledged) is raised. They are not resent.</para>
     /// </remarks>
     /// <param name="ceid">CEID</param>
     /// <param name="dataValues">DV values used only for this report (defined DVs only, with the same format as the definition). If omitted, the stored value of the DV</param>
-    /// <returns>true if it was put in the send queue</returns>
+    /// <returns>true if it was put in the send queue or the spool</returns>
     /// <exception cref="ArgumentException">The CEID is not defined, or dataValues contains a VID that is not a DV or a value with a different format</exception>
     /// <exception cref="InvalidOperationException">Not started</exception>
     public bool TriggerEvent(GemId ceid, IReadOnlyDictionary<GemId, SecsItem>? dataValues = null)
@@ -84,12 +85,7 @@ public partial class GemEquipment
         if (!enabledEvents.Contains(ce.Key)) return false;
         var reps = ReportsLocked(ce, overrides);                 // 값을 먼저, DATAID는 그 뒤(지금 순서)
         var message = GemMessages.S6F11(NextDataIdLocked(), ce.Key, reps, formats, eventReplyExpected);
-        if (commState != GemCommunicationState.Communicating)
-        {
-            DiscardLocked(message, GemSendFailure.NotCommunicating);
-            return false;
-        }
-        return EnqueueLocked(message);
+        return SendOrSpoolLocked(message);
     }
 
     partial void TriggerStandardEventLocked(GemStandard ce)

@@ -57,6 +57,9 @@ public partial class GemEquipment : IDisposable
         public SecsMessage Message { get; } = message;
         public Action<Outgoing, Task<SecsMessage?>> Done { get; } = done;
         public int Epoch;                   // gate: 보낸 연결의 세대(linkEpoch). 지난 연결의 늦은 완료를 가려낸다
+#pragma warning disable CS0649   // 스풀 머리를 보내는 뒤 태스크(내보내기)에서 넣는다
+        public long? SpoolSeq;              // 스풀에서 꺼내 보내는 메시지의 순번(아니면 null). 버림 경로가 스풀에 다시 넣지 않는다
+#pragma warning restore CS0649
     }
 
     // 앱이 정해야 하는 응답(리모트 명령·EC 승인·등록 메시지). 앱 결과와 기한 응답 중 먼저 온 것 하나만 보낸다. Run = 받은 실행의 번호
@@ -496,12 +499,14 @@ public partial class GemEquipment : IDisposable
         GemCommunicationState comm;
         GemControlState ctl;
         GemCatalog c;
+        bool sp;
         lock (gate)
         {
             if (!running) return;
             comm = commState;
             ctl = control;
             c = catalog;
+            sp = spooling;
         }
         int key = m.Stream * 256 + m.Function;
         // ① DISABLED: 아무것도 해석하지 않는다(W면 전송 계층이 SxF0)
@@ -517,7 +522,8 @@ public partial class GemEquipment : IDisposable
         // ② 지원하지 않는 Stream → S9F3, 지원 Stream의 모르는 Function → S9F5 (상태와 무관)
         bool registered = c.Messages.Contains(key);
         if (!c.Streams.Contains(m.Stream)) { SendS9(e, 3, $"지원하지 않는 Stream: {GemItems.Sml(m)}"); return; }
-        if (!registered && !handlers.ContainsKey(key)) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
+        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만 GEM이 처리한다
+        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key))) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
         // ③ NOT COMMUNICATING: S1F13만 처리 ④ OFF-LINE: S1F13·S1F17만 처리. 나머지 W는 SxF0
         if (comm != GemCommunicationState.Communicating && key != S1F13) return;
         if (IsOffline(ctl) && key != S1F13 && key != S1F17) return;
@@ -655,19 +661,42 @@ public partial class GemEquipment : IDisposable
         return true;
     }
 
-    // 버림 경로(스풀링 훅 자리): 보내지 못하는 GEM 1차 메시지는 모두 여기로 온다(gate 안). 지금은 SendFailed만 발생시킨다.
-    // 나중의 스풀링은 여기서 "S1이 아니고 스풀 대상 Stream/Function이면 저장"을 한다.
-    void DiscardLocked(SecsMessage message, GemSendFailure reason) => Raise(SendFailed, new GemSendFailedEventArgs(message, reason, null, null));
+    // 버림 경로: 보내지 못하는 GEM 1차 메시지는 모두 여기로 온다(gate 안). 통신 실패(NotCommunicating)이고 스풀 ACTIVE + 대상이면 스풀에 넣고 true,
+    // 아니면 SendFailed를 발생시키고 false(스풀링이 꺼져 있으면 늘 이쪽 — 지금 동작)
+    bool DiscardLocked(SecsMessage message, GemSendFailure reason)
+    {
+        if (reason == GemSendFailure.NotCommunicating && SpoolsLocked(message))
+        {
+            SpoolLocked(message);
+            return true;
+        }
+        Raise(SendFailed, new GemSendFailedEventArgs(message, reason, null, null));
+        return false;
+    }
 
-    // 대기열과 응답을 기다리는 메시지를 모두 버린다(gate 안). 응답을 기다리던 메시지의 결과는 나중에 와도 무시한다
+    // GEM 보고 메시지(S5F1·S6F11·S10F1)를 내보내는 하나의 입구(gate 안, ON-LINE이고 통신이 켜져 있을 때): NOT COMMUNICATING이면 버림 경로,
+    // COMMUNICATING + 스풀 ACTIVE + 대상이면 스풀 뒤에(Host가 S6F23으로 비울 때까지 실시간으로 가지 않음), 아니면 대기열. 대기열 또는 스풀에 넣었으면 true
+    bool SendOrSpoolLocked(SecsMessage message)
+    {
+        if (commState != GemCommunicationState.Communicating) return DiscardLocked(message, GemSendFailure.NotCommunicating);
+        if (SpoolsLocked(message))
+        {
+            SpoolLocked(message);
+            return true;
+        }
+        return EnqueueLocked(message);
+    }
+
+    // 대기열과 응답을 기다리는 메시지를 모두 버린다(gate 안). 응답을 기다리던 메시지의 결과는 나중에 와도 무시한다.
+    // 스풀에서 꺼내 보내던 메시지(SpoolSeq)는 스풀 머리에 그대로 있으므로 버리지도 다시 넣지도 않는다
     void ClearQueueLocked(GemSendFailure reason)
     {
-        if (inFlight != null && !IsS1F13(inFlight.Message)) DiscardLocked(inFlight.Message, reason);
+        if (inFlight != null && !IsS1F13(inFlight.Message) && inFlight.SpoolSeq == null) DiscardLocked(inFlight.Message, reason);
         inFlight = null;
         while (sendQueue.Count > 0)
         {
-            var m = sendQueue.Dequeue().Message;
-            if (!IsS1F13(m)) DiscardLocked(m, reason);   // 장비의 S1F13은 내부 시도라 알리지 않는다
+            var o = sendQueue.Dequeue();
+            if (!IsS1F13(o.Message) && o.SpoolSeq == null) DiscardLocked(o.Message, reason);   // 장비의 S1F13은 내부 시도라 알리지 않는다
         }
     }
 

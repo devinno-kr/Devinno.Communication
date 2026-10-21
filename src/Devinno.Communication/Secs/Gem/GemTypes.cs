@@ -72,7 +72,7 @@ public enum GemSendFailure
     InvalidReply,
     /// <summary>Dropped because the send queue was full (<c>MaxPendingSends</c>).</summary>
     QueueFull,
-    /// <summary>Dropped because the equipment is ON-LINE but communication is not established, or the queue was flushed after a communication failure (placeholder for later spooling).</summary>
+    /// <summary>Dropped because the equipment is ON-LINE but communication is not established, or the queue was flushed after a communication failure. When spooling is on and active and the Host selected the message for spooling (S2F43), it is put in the spool instead and this is not reported.</summary>
     NotCommunicating,
     /// <summary>Dropped because the queue was flushed when communication was turned off (DISABLED).</summary>
     Disabled,

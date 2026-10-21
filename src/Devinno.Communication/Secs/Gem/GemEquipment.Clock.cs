@@ -189,7 +189,7 @@ public partial class GemEquipment
     /// <remarks>The conditions under which nothing is sent are the same as for <see cref="TriggerEvent"/> (false for DISABLED or OFF-LINE; false plus <see cref="SendFailed"/> for ON-LINE without communication). If ACKC10 is not 0, <see cref="SendFailed"/> (NotAcknowledged) is raised.</remarks>
     /// <param name="tid">Terminal number</param>
     /// <param name="text">Text (ASCII)</param>
-    /// <returns>true if it was put in the send queue</returns>
+    /// <returns>true if it was put in the send queue or the spool</returns>
     /// <exception cref="ArgumentNullException">text is null</exception>
     /// <exception cref="ArgumentException">text contains characters outside ASCII (Latin-1)</exception>
     /// <exception cref="InvalidOperationException">Not started</exception>
@@ -201,17 +201,12 @@ public partial class GemEquipment
         {
             if (!running || commState == GemCommunicationState.Disabled || IsOffline(control)) return false;
             var s10f1 = GemMessages.S10F1(tid, text, terminalReplyExpected);
-            if (commState != GemCommunicationState.Communicating)
-            {
-                DiscardLocked(s10f1, GemSendFailure.NotCommunicating);
-                return false;
-            }
-            return EnqueueLocked(s10f1);
+            return SendOrSpoolLocked(s10f1);
         }
     }
 
     /// <summary>The operator reports that the Host's terminal message was acknowledged (MessageRecognition CE).</summary>
-    /// <returns>true if the CE was put in the send queue (the conditions under which nothing is sent are the same as for <see cref="TriggerEvent"/>)</returns>
+    /// <returns>true if the CE was put in the send queue or the spool (the conditions under which nothing is sent are the same as for <see cref="TriggerEvent"/>)</returns>
     /// <exception cref="InvalidOperationException">Not started</exception>
     public bool RecognizeTerminalMessage()
     {

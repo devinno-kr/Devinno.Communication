@@ -128,6 +128,12 @@ public partial class GemEquipment
             equipmentConnect = EquipmentConnect.WaitDelay;                             // 전이 6
             delay = CommDelayMs;
             commDelayDeadline = Environment.TickCount64 + delay;
+            // 스풀 전이 1(장비 S1F13 실패): 이미 NOT COMMUNICATING이라 옮길 대기열·상태 알림이 없다
+            if (CanActivateSpoolLocked)
+            {
+                ActivateSpoolLocked();
+                FinishSpoolActivationLocked();
+            }
         }
         Error($"S1F13 통신 수립 실패({failure}). {delay / 1000}초 뒤 다시 보냅니다.");
     }
@@ -146,12 +152,16 @@ public partial class GemEquipment
         }
     }
 
-    // 통신 실패(전이 14, gate 안): 대기열을 버림 경로로 비우고 NOT COMMUNICATING → 다시 S1F13
+    // 통신 실패(전이 14, gate 안): 대기열을 버림 경로로 비우고 NOT COMMUNICATING → 다시 S1F13.
+    // 스풀 전이 1이면 순서: 활성화 → 대기열을 스풀로 → CommunicationStateChanged → (전이 4) → SpoolingActivated CE → SpoolStateChanged → S1F13
     void CommunicationLostLocked(bool connected)
     {
+        bool activate = CanActivateSpoolLocked;
+        if (activate) ActivateSpoolLocked();
         ClearQueueLocked(GemSendFailure.NotCommunicating);
         SetCommunicationLocked(GemCommunicationState.NotCommunicating);
         OnCommunicationLostLocked();
+        if (activate) FinishSpoolActivationLocked();
         StartWaitCraLocked(connected);
     }
 
@@ -179,8 +189,12 @@ public partial class GemEquipment
             if (commState == GemCommunicationState.Communicating) CommunicationLostLocked(connected: false);   // 전이 14
             else if (commState == GemCommunicationState.NotCommunicating && equipmentConnect == EquipmentConnect.WaitCra)
             {
-                // WAIT CRA 중 끊김: 응답 대기·대기열의 장비 S1F13을 놓고(알리지 않음) WAIT DELAY. 다음 DeviceOpened가 바로 S1F13
+                // WAIT CRA 중 끊김: 응답 대기·대기열의 장비 S1F13을 놓고(알리지 않음) WAIT DELAY. 다음 DeviceOpened가 바로 S1F13.
+                // 장비 S1F13 실패이므로 스풀 전이 1도 여기서(통신 상태는 이미 NOT COMMUNICATING)
+                bool activate = CanActivateSpoolLocked;
+                if (activate) ActivateSpoolLocked();
                 ClearQueueLocked(GemSendFailure.NotCommunicating);
+                if (activate) FinishSpoolActivationLocked();
                 StartWaitCraLocked(connected: false);
             }
         }
