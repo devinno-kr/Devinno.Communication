@@ -661,15 +661,11 @@ public partial class GemEquipment : IDisposable
         return true;
     }
 
-    // 버림 경로: 보내지 못하는 GEM 1차 메시지는 모두 여기로 온다(gate 안). 통신 실패(NotCommunicating)이고 스풀 ACTIVE + 대상이면 스풀에 넣고 true,
-    // 아니면 SendFailed를 발생시키고 false(스풀링이 꺼져 있으면 늘 이쪽 — 지금 동작)
+    // 버림 경로: 보내지 못하는 GEM 1차 메시지는 모두 여기로 온다(gate 안). 통신 실패(NotCommunicating)이고 스풀 ACTIVE + 대상이면 스풀로(넣었으면 true,
+    // 가득 차 버렸으면 false + SendFailed SpoolFull), 아니면 SendFailed를 발생시키고 false(스풀링이 꺼져 있으면 늘 이쪽 — 지금 동작)
     bool DiscardLocked(SecsMessage message, GemSendFailure reason)
     {
-        if (reason == GemSendFailure.NotCommunicating && SpoolsLocked(message))
-        {
-            SpoolLocked(message);
-            return true;
-        }
+        if (reason == GemSendFailure.NotCommunicating && SpoolsLocked(message)) return SpoolLocked(message);
         Raise(SendFailed, new GemSendFailedEventArgs(message, reason, null, null));
         return false;
     }
@@ -679,12 +675,7 @@ public partial class GemEquipment : IDisposable
     bool SendOrSpoolLocked(SecsMessage message)
     {
         if (commState != GemCommunicationState.Communicating) return DiscardLocked(message, GemSendFailure.NotCommunicating);
-        if (SpoolsLocked(message))
-        {
-            SpoolLocked(message);
-            return true;
-        }
-        return EnqueueLocked(message);
+        return SpoolsLocked(message) ? SpoolLocked(message) : EnqueueLocked(message);
     }
 
     // 대기열과 응답을 기다리는 메시지를 모두 버린다(gate 안). 응답을 기다리던 메시지의 결과는 나중에 와도 무시한다.

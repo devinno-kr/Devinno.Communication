@@ -228,7 +228,10 @@ public class GemSpoolLoadTests
             eq.SendFailed += (s, e) => failed.Enqueue(e);
             await Disconnect(eq, host);
             await TestUtil.Until(() => eq.SpoolState == GemSpoolState.NoOutput, 5000);   // SpoolingActivated = 1개째
-            for (int i = 0; i < 4; i++) eq.TriggerEvent(5002);                            // 2·3개째는 들어가고 4·5개째는 버림
+            Assert.True(eq.TriggerEvent(5002));                                           // 2개째
+            Assert.True(eq.TriggerEvent(5002));                                           // 3개째
+            Assert.False(eq.TriggerEvent(5002));                                          // 4개째: 가득 차 버림
+            Assert.False(eq.TriggerEvent(5002));                                          // 5개째: 버림
             Assert.Equal(3, eq.SpoolCount);
             Assert.True(eq.IsSpoolFull);
             await TestUtil.Until(() => failed.Count >= 2, 3000);

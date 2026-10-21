@@ -142,8 +142,9 @@ public partial class GemEquipment
     // 지금 ACTIVE이고 이 메시지가 스풀 대상인가(꺼져 있으면 늘 false)
     bool SpoolsLocked(SecsMessage m) => spooling && spoolState != GemSpoolState.Inactive && IsSpoolTarget(m);
 
-    // 스풀 끝에 넣는다(6I.4). 자리가 없으면 전이 2 뒤 OverWriteSpool에 따라 새 것 또는 가장 오래된 것을 버린다(SendFailed SpoolFull)
-    void SpoolLocked(SecsMessage message)
+    // 스풀 끝에 넣는다(6I.4). 자리가 없으면 전이 2 뒤 OverWriteSpool에 따라 새 것 또는 가장 오래된 것을 버린다(SendFailed SpoolFull).
+    // 넣었으면 true(가장 오래된 것을 지우고 넣은 경우 포함), 새 것을 버렸으면 false(EnqueueLocked의 QueueFull과 같은 모양)
+    bool SpoolLocked(SecsMessage message)
     {
         spoolTotal++;
         if (spool.Count >= maxSpoolMessages)
@@ -161,7 +162,7 @@ public partial class GemEquipment
             if (victim == null)
             {
                 Raise(SendFailed, new GemSendFailedEventArgs(message, GemSendFailure.SpoolFull, null, null));
-                return;
+                return false;
             }
             spool.Remove(victim);
             spoolStore?.Remove(victim.Value.Seq);
@@ -170,6 +171,7 @@ public partial class GemEquipment
         long seq = nextSeq++;
         spool.AddLast((seq, message));
         spoolStore?.Add(seq, message);
+        return true;
     }
     #endregion
 
