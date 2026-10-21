@@ -8285,6 +8285,279 @@
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F18가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F13(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="88e1a740c7f719be">
+            <summary>S2F13 Equipment Constant Request &lt;L ECID…&gt;를 만듭니다.</summary>
+            <param name="ecids">ECID 목록 (null이나 빈 목록 = 모든 EC)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ECID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S2F13 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 ECID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ECID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F13(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="1761b2a757516c43">
+            <summary>S2F13 Equipment Constant Request를 해석합니다.</summary>
+            <remarks>&lt;L ECID…&gt;, 정수 배열 아이템, A 아이템 하나를 모두 받고, 각 ID는 정수 포맷 무엇이든 또는 A입니다(설정 포맷은 검사하지 않음). 헤더만 있는 메시지나 길이 0 아이템은 빈 목록(= 모든 EC)입니다.</remarks>
+            <param name="message">받은 S2F13</param>
+            <returns>요청한 ECID 목록</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F13가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 목록이 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F14(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem})" en-hash="9798b984277f1916">
+            <summary>S2F14 Equipment Constant Data &lt;L ECV…&gt;를 만듭니다.</summary>
+            <param name="values">요청 순서대로의 값 목록</param>
+            <returns>S2F14 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="values" />나 값이 null인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F14(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="9544ab849c24acc9">
+            <summary>S2F14 Equipment Constant Data를 해석합니다.</summary>
+            <param name="message">받은 S2F14</param>
+            <returns>장비가 보낸 순서대로의 값 목록 (헤더만 있는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F14가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 리스트가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F15(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="a7e7fddc56aade89">
+            <summary>S2F15 New Equipment Constant Send &lt;L &lt;L ECID ECV&gt;…&gt;를 만듭니다.</summary>
+            <param name="changes">ECID와 새 값 목록</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ECID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S2F15 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="changes" />나 값이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ECID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ECID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F15(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="2773081b00f13755">
+            <summary>S2F15 New Equipment Constant Send를 해석합니다.</summary>
+            <param name="message">받은 S2F15</param>
+            <returns>받은 순서대로의 ECID(정수 포맷 무엇이든 또는 A)와 값 목록 (헤더만 있는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F15가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ECID ECV&gt;…&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F16(System.Byte)" en-hash="b9b049f8397c96c8">
+            <summary>S2F16 New Equipment Constant Acknowledge &lt;B EAC&gt;를 만듭니다.</summary>
+            <param name="eac">EAC (0 = 수락, 1 = 모르는 상수, 2 = 처리 중, 3 = 범위 밖)</param>
+            <returns>S2F16 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F16(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="6f007837ada53a60">
+            <summary>S2F16 New Equipment Constant Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S2F16</param>
+            <returns>EAC (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F16가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F17" en-hash="50f7c22b7c7e586c">
+            <summary>S2F17 Date and Time Request를 만듭니다(헤더만, W비트 켬).</summary>
+            <returns>S2F17 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F18(System.DateTime,System.Int32)" en-hash="a365c929cedacef2">
+            <summary>S2F18 Date and Time Data &lt;A TIME&gt;를 만듭니다.</summary>
+            <param name="time">시각 (UTC 값은 로컬 시각으로 바꿈)</param>
+            <param name="timeFormat">TimeFormat: 0(12자리), 1(16자리), 2(시간대가 붙은 확장형)</param>
+            <returns>S2F18 메시지</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="timeFormat" />이 0, 1, 2가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F18(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="db1d51d24ca56070">
+            <summary>S2F18 Date and Time Data를 해석합니다.</summary>
+            <remarks>보낸 쪽의 TimeFormat과 관계없이 세 TIME 형식을 모두 받습니다(<see cref="M:Devinno.Communication.Secs.Gem.GemTime.TryParse(System.String,System.DateTime@)" /> 참고).</remarks>
+            <param name="message">받은 S2F18</param>
+            <returns>로컬 시각</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F18가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 A 아이템이 아니거나 TIME으로 해석할 수 없는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F29(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="de1cbc08cf4bb297">
+            <summary>S2F29 Equipment Constant Namelist Request &lt;L ECID…&gt;를 만듭니다.</summary>
+            <param name="ecids">ECID 목록 (null이나 빈 목록 = 모든 EC)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ECID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S2F29 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 ECID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ECID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F29(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="4f24fa1574aae71c">
+            <summary>S2F29 Equipment Constant Namelist Request를 해석합니다.</summary>
+            <remarks>받는 모양은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F13(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</remarks>
+            <param name="message">받은 S2F29</param>
+            <returns>요청한 ECID 목록 (비어 있으면 모든 EC)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F29가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 목록이 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F30(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemConstantInfo},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="5c79f65f7aa1ec51">
+            <summary>S2F30 Equipment Constant Namelist &lt;L &lt;L ECID ECNAME ECMIN ECMAX ECDEF UNITS&gt;…&gt;를 만듭니다.</summary>
+            <param name="items">요청 순서대로의 항목</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ECID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S2F30 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="items" />나 항목이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ECID를 숫자 포맷으로 보낼 수 없거나 이름에 255를 넘는 문자가 있는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ECID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F30(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="592f360c463dddd3">
+            <summary>S2F30 Equipment Constant Namelist를 해석합니다.</summary>
+            <param name="message">받은 S2F30</param>
+            <returns>장비가 보낸 순서대로의 항목 (각 ID는 장비가 보낸 포맷 그대로, 헤더만 있는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F30가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ID A min max default A&gt;…&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F31(System.DateTime,System.Int32)" en-hash="fd061494bce1b7c7">
+            <summary>S2F31 Date and Time Set Request &lt;A TIME&gt;를 만듭니다.</summary>
+            <param name="time">시각 (UTC 값은 로컬 시각으로 바꿈)</param>
+            <param name="timeFormat">TimeFormat: 0(12자리), 1(16자리), 2(시간대가 붙은 확장형)</param>
+            <returns>S2F31 메시지</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="timeFormat" />이 0, 1, 2가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F31(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="29498f276e7e67b0">
+            <summary>S2F31 Date and Time Set Request를 해석합니다.</summary>
+            <remarks>세 TIME 형식을 모두 받습니다(<see cref="M:Devinno.Communication.Secs.Gem.GemTime.TryParse(System.String,System.DateTime@)" /> 참고). GEM 장비는 <see cref="T:System.FormatException" />가 나면 TIACK 1로 답합니다.</remarks>
+            <param name="message">받은 S2F31</param>
+            <returns>로컬 시각</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F31가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 A 아이템이 아니거나 TIME으로 해석할 수 없는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F32(System.Byte)" en-hash="5cd5a18ee7897d56">
+            <summary>S2F32 Date and Time Set Acknowledge &lt;B TIACK&gt;를 만듭니다.</summary>
+            <param name="tiack">TIACK (0 = 수락, 1 = 오류)</param>
+            <returns>S2F32 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F32(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="8c2b2403146946a6">
+            <summary>S2F32 Date and Time Set Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S2F32</param>
+            <returns>TIACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F32가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F33(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="cc65ba432e9a6697">
+            <summary>S2F33 Define Report &lt;L DATAID &lt;L &lt;L RPTID &lt;L VID…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="dataId">DATAID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" />로 보냄)</param>
+            <param name="reports">리포트 목록 (빈 목록 = 모든 리포트 삭제, VID 목록이 비면 그 리포트 삭제). RPTID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />, VID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />)</param>
+            <returns>S2F33 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="reports" />나 VID 목록이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F33(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="5a77b3f9fe85deb3">
+            <summary>S2F33 Define Report를 해석합니다.</summary>
+            <remarks>RPTID와 VID는 정수 포맷 무엇이든 또는 A입니다(설정 포맷은 검사하지 않음). VID 목록은 &lt;L VID…&gt;, 정수 배열 아이템, A 아이템 하나를 모두 받습니다.</remarks>
+            <param name="message">받은 S2F33</param>
+            <returns>받은 그대로의 DATAID 아이템과 리포트 목록 (VID 목록이 비면 그 리포트 삭제, 리포트 목록이 비면 모두 삭제)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F33가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID &lt;L &lt;L RPTID &lt;L VID…&gt;&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F34(System.Byte)" en-hash="ecd23e5fd4a8ab71">
+            <summary>S2F34 Define Report Acknowledge &lt;B DRACK&gt;를 만듭니다.</summary>
+            <param name="drack">DRACK (0 = 수락)</param>
+            <returns>S2F34 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F34(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="615244e43100feca">
+            <summary>S2F34 Define Report Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S2F34</param>
+            <returns>DRACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F34가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F35(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="39e6c4ef5ea09964">
+            <summary>S2F35 Link Event Report &lt;L DATAID &lt;L &lt;L CEID &lt;L RPTID…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="dataId">DATAID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" />로 보냄)</param>
+            <param name="links">연결 목록 (RPTID 목록이 비면 그 이벤트의 연결 해제). CEID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" />, RPTID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /></param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />)</param>
+            <returns>S2F35 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="links" />나 RPTID 목록이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F35(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="5570095260de5d30">
+            <summary>S2F35 Link Event Report를 해석합니다.</summary>
+            <remarks>받는 모양은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F33(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</remarks>
+            <param name="message">받은 S2F35</param>
+            <returns>받은 그대로의 DATAID 아이템과 연결 목록</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F35가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID &lt;L &lt;L CEID &lt;L RPTID…&gt;&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F36(System.Byte)" en-hash="a4661b249a23c0d6">
+            <summary>S2F36 Link Event Report Acknowledge &lt;B LRACK&gt;를 만듭니다.</summary>
+            <param name="lrack">LRACK (0 = 수락)</param>
+            <returns>S2F36 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F36(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="d2d8ad8ea3f100a3">
+            <summary>S2F36 Link Event Report Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S2F36</param>
+            <returns>LRACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F36가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F37(System.Boolean,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="b7411bbb7dc03930">
+            <summary>S2F37 Enable/Disable Event Report &lt;L &lt;BOOLEAN CEED&gt; &lt;L CEID…&gt;&gt;를 만듭니다.</summary>
+            <param name="enable">true면 사용, false면 사용 안 함</param>
+            <param name="ceids">CEID 목록 (null이나 빈 목록 = 모든 수집 이벤트)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). CEID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" /></param>
+            <returns>S2F37 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 CEID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 CEID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F37(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="08c56c8a6fcf605c">
+            <summary>S2F37 Enable/Disable Event Report를 해석합니다.</summary>
+            <remarks>CEED는 BOOLEAN, B, U1 하나를 받습니다(0이 아니면 사용). CEID 목록은 &lt;L CEID…&gt;, 정수 배열 아이템, A 아이템 하나를 모두 받습니다.</remarks>
+            <param name="message">받은 S2F37</param>
+            <returns>(사용 여부, CEID 목록). CEID 목록이 비면 모든 수집 이벤트</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F37가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L CEED &lt;L CEID…&gt;&gt;가 아니거나 CEED가 다른 포맷인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F38(System.Byte)" en-hash="3b3a0b72ae5cc467">
+            <summary>S2F38 Enable/Disable Event Report Acknowledge &lt;B ERACK&gt;를 만듭니다.</summary>
+            <param name="erack">ERACK (0 = 수락, 1 = 없는 CEID가 있음)</param>
+            <returns>S2F38 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F38(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="52862de1a94f1bf5">
+            <summary>S2F38 Enable/Disable Event Report Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S2F38</param>
+            <returns>ERACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F38가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F41(System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}})" en-hash="14eadcd86f9bfe52">
+            <summary>S2F41 Host Command Send &lt;L RCMD &lt;L &lt;L CPNAME CPVAL&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="command">RCMD (명령 이름)</param>
+            <param name="parameters">순서대로의 파라미터 목록 (null = 없음)</param>
+            <returns>S2F41 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="command" />나 이름, 값이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="command" />나 이름에 255를 넘는 문자가 있는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F41(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="e45eb4a6642a53a3">
+            <summary>S2F41 Host Command Send를 해석합니다.</summary>
+            <remarks>RCMD와 CPNAME은 A 아이템이나 정수 아이템 하나입니다(정수는 10진 문자열로 읽음).</remarks>
+            <param name="message">받은 S2F41</param>
+            <returns>명령 이름과, 받은 순서대로의 파라미터 목록 (이름, 값)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F41가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L RCMD &lt;L &lt;L CPNAME CPVAL&gt;…&gt;&gt;가 아니거나 이름이 A도 정수도 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F42(System.Byte,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,System.Byte}})" en-hash="704c5d2383bf04e3">
+            <summary>S2F42 Host Command Acknowledge &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="hcack">HCACK (<see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 <c>Hcack...</c> 값 참고)</param>
+            <param name="parameterAcks">오류가 있는 파라미터 목록 (CPNAME, CPACK). null = 없음</param>
+            <returns>S2F42 메시지</returns>
+            <exception cref="T:System.ArgumentNullException">이름이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">이름에 255를 넘는 문자가 있는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F42(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="ae3003d47848efe1">
+            <summary>S2F42 Host Command Acknowledge를 해석합니다.</summary>
+            <remarks>HCACK와 CPACK는 숫자 포맷 무엇이든 됩니다(0~255). CPNAME은 A 아이템이나 정수 아이템 하나입니다(정수는 10진 문자열로 읽음).</remarks>
+            <param name="message">받은 S2F42</param>
+            <returns>HCACK와 파라미터별 응답</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F42가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
         
         
         
