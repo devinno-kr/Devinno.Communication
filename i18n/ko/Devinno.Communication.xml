@@ -8285,6 +8285,66 @@
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F18가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
         </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S10F1(System.Byte,System.String,System.Boolean)" en-hash="698cfdadee1ab8ab">
+            <summary>S10F1 Terminal Request &lt;L TID TEXT&gt;(장비 → Host)를 만듭니다.</summary>
+            <param name="tid">터미널 번호 TID</param>
+            <param name="text">텍스트 (ASCII)</param>
+            <param name="replyExpected">true면 W 비트를 켬(기본값), false면 S10F2를 기다리지 않는 경우</param>
+            <returns>S10F1 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="text" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="text" />에 255를 넘는 문자가 있는 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS10F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="bb155869031d02eb">
+            <summary>S10F1 Terminal Request를 해석합니다.</summary>
+            <param name="message">받은 S10F1</param>
+            <returns>터미널 번호(숫자 포맷 무엇이든, 0~255)와 텍스트</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S10F1가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L TID TEXT&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S10F2(System.Byte)" en-hash="7795da09a1f70b19">
+            <summary>S10F2 Terminal Request Acknowledge &lt;B ACKC10&gt;를 만듭니다.</summary>
+            <param name="ackc10">ACKC10 (0 = 받음, 1 = 표시 못 함, 2 = 터미널 없음)</param>
+            <returns>S10F2 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS10F2(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="197a6566f4f86f86">
+            <summary>S10F2 Terminal Request Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S10F2</param>
+            <returns>ACKC10 (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S10F2가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255인 숫자 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S10F3(System.Byte,System.String,System.Boolean)" en-hash="87f0f26bec493fb2">
+            <summary>S10F3 Terminal Display, Single &lt;L TID TEXT&gt;(Host → 장비)를 만듭니다.</summary>
+            <param name="tid">터미널 번호 TID</param>
+            <param name="text">텍스트 (ASCII)</param>
+            <param name="replyExpected">true면 W 비트를 켬(기본값), false면 S10F4를 기다리지 않는 경우</param>
+            <returns>S10F3 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="text" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="text" />에 255를 넘는 문자가 있는 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS10F3(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="b54671fcebd402fa">
+            <summary>S10F3 Terminal Display, Single를 해석합니다.</summary>
+            <param name="message">받은 S10F3</param>
+            <returns>터미널 번호(숫자 포맷 무엇이든, 0~255)와 텍스트</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S10F3가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L TID TEXT&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S10F4(System.Byte)" en-hash="e9f844819a8d0075">
+            <summary>S10F4 Terminal Display, Single Acknowledge &lt;B ACKC10&gt;를 만듭니다.</summary>
+            <param name="ackc10">ACKC10 (0 = 받음, 1 = 표시 못 함, 2 = 터미널 없음)</param>
+            <returns>S10F4 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS10F4(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="aa42a3cd16769b5b">
+            <summary>S10F4 Terminal Display, Single Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S10F4</param>
+            <returns>ACKC10 (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S10F4가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255인 숫자 하나가 아닌 경우</exception>
+        </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F13(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="88e1a740c7f719be">
             <summary>S2F13 Equipment Constant Request &lt;L ECID…&gt;를 만듭니다.</summary>
             <param name="ecids">ECID 목록 (null이나 빈 목록 = 모든 EC)</param>
@@ -8557,6 +8617,231 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F42가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F1(System.Byte,Devinno.Communication.Secs.Gem.GemId,System.String,Devinno.Communication.Secs.Gem.GemFormats,System.Boolean)" en-hash="8bba214b36a82a00">
+            <summary>S5F1 Alarm Report Send &lt;L ALCD ALID ALTX&gt;를 만듭니다.</summary>
+            <param name="alcd">ALCD (0x80 = 알람 발생, 아래 7비트 = 분류)</param>
+            <param name="alid">ALID</param>
+            <param name="text">ALTX</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ALID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" /></param>
+            <param name="replyExpected">true면 W 비트를 켬(기본값), false면 S5F2를 기다리지 않는 경우</param>
+            <returns>S5F1 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="text" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없거나 <paramref name="text" />에 255를 넘는 문자가 있는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="9a70d94b507a02ac">
+            <summary>S5F1 Alarm Report Send를 해석합니다.</summary>
+            <param name="message">받은 S5F1</param>
+            <returns>알람 (ALID는 정수 포맷 무엇이든 또는 A, ALCD는 숫자 포맷 무엇이든)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F1가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L ALCD ALID ALTX&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F2(System.Byte)" en-hash="3cc2130e82d14e30">
+            <summary>S5F2 Alarm Report Acknowledge &lt;B ACKC5&gt;를 만듭니다.</summary>
+            <param name="ackc5">ACKC5 (0 = 받음)</param>
+            <returns>S5F2 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F2(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="2154a1a591d39cb3">
+            <summary>S5F2 Alarm Report Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S5F2</param>
+            <returns>ACKC5 (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F2가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255인 숫자 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F3(System.Boolean,System.Nullable{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="5ceb6d28bbccc882">
+            <summary>S5F3 Enable/Disable Alarm Send &lt;L ALED ALID&gt;를 만듭니다.</summary>
+            <param name="enable">true면 사용(ALED 0x80), false면 사용 안 함(ALED 0x00)</param>
+            <param name="alid">ALID (null = 길이 0 ALID, 모든 알람)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ALID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" /></param>
+            <returns>S5F3 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F3(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="61a8407faa8337f8">
+            <summary>S5F3 Enable/Disable Alarm Send를 해석합니다.</summary>
+            <remarks>ALED는 B, U1 하나(0x80 비트가 켜지면 사용), BOOLEAN을 받습니다. ALID는 길이 0 아이템(null = 모든 알람), ID 아이템 하나, ID 하나가 든 리스트를 받습니다.</remarks>
+            <param name="message">받은 S5F3</param>
+            <returns>(사용 여부, ALID). ALID가 null이면 모든 알람</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F3가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L ALED ALID&gt;가 아니거나, ALED가 다른 포맷이거나, ALID가 둘 이상인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F4(System.Byte)" en-hash="f9bcd53736d8dffd">
+            <summary>S5F4 Enable/Disable Alarm Acknowledge &lt;B ACKC5&gt;를 만듭니다.</summary>
+            <param name="ackc5">ACKC5 (0 = 받음, 1 = 모르는 ALID 같은 오류)</param>
+            <returns>S5F4 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F4(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="d02c91de317324df">
+            <summary>S5F4 Enable/Disable Alarm Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S5F4</param>
+            <returns>ACKC5 (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F4가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255인 숫자 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F5(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="013c64d6e32f2f53">
+            <summary>S5F5 List Alarms Request를 만듭니다.</summary>
+            <remarks><see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" />가 숫자 포맷이면 ALID를 정수 배열 아이템 하나로 보냅니다(ALID가 없으면 길이 0 배열 = 모든 알람). A면 0개는 빈 A 아이템, 1개는 A 아이템 하나로 보내고, A 배열이 없으므로 2개 이상은 보낼 수 없습니다.</remarks>
+            <param name="alids">ALID 목록 (null이나 빈 목록 = 모든 알람)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ALID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" /></param>
+            <returns>S5F5 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없거나, ALID 포맷이 A인데 ALID가 둘 이상인 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F5(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="cf75e2d374d25598">
+            <summary>S5F5 List Alarms Request를 해석합니다.</summary>
+            <remarks>&lt;L ALID…&gt;, 정수 배열 아이템, A 아이템 하나를 받고, ID마다 정수 포맷 무엇이든 또는 A를 받습니다(설정 포맷은 검사하지 않습니다). 본문 없는 메시지나 길이 0 아이템은 빈 목록(= 모든 알람)입니다.</remarks>
+            <param name="message">받은 S5F5</param>
+            <returns>요청한 ALID 목록</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F5가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 목록이 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F6(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemAlarmInfo},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="fb402c3c56aff859">
+            <summary>S5F6 List Alarms Data &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;를 만듭니다.</summary>
+            <param name="alarms">알람 목록 (순서대로)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ALID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" /></param>
+            <returns>S5F6 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="alarms" /> 또는 항목이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없거나 텍스트에 255를 넘는 문자가 있는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F6(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="d1bc97275456ff9b">
+            <summary>S5F6 List Alarms Data를 해석합니다.</summary>
+            <remarks>길이 0인 ALCD(장비가 모르는 알람)는 0으로 읽습니다.</remarks>
+            <param name="message">받은 S5F6</param>
+            <returns>장비가 보낸 순서의 알람 목록 (본문 없는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F6가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F7" en-hash="bd9cdfa754e97ec1">
+            <summary>S5F7 List Enabled Alarm Request(본문 없음, W 비트 켬)를 만듭니다.</summary>
+            <returns>S5F7 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F8(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemAlarmInfo},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="aa44a41d20317ae7">
+            <summary>S5F8 List Enabled Alarm Data &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;를 만듭니다.</summary>
+            <param name="alarms">보고가 켜진 알람 목록 (순서대로)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). ALID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" /></param>
+            <returns>S5F8 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="alarms" /> 또는 항목이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ALID를 숫자 포맷으로 보낼 수 없거나 텍스트에 255를 넘는 문자가 있는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ALID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F8(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="70e7e44f5b7ba5ad">
+            <summary>S5F8 List Enabled Alarm Data를 해석합니다. 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS5F6(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</summary>
+            <param name="message">받은 S5F8</param>
+            <returns>장비가 보낸 순서의 알람 목록 (본문 없는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F8가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F11(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem}}},Devinno.Communication.Secs.Gem.GemFormats,System.Boolean)" en-hash="c660774982f4ac37">
+            <summary>S6F11 Event Report Send &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="dataId">DATAID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" /> 사용)</param>
+            <param name="ceid">CEID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" /> 사용)</param>
+            <param name="reports">순서대로의 리포트: RPTID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 사용)와 그 값</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />)</param>
+            <param name="replyExpected">true면 W 비트를 켬(기본값), false면 S6F12를 기다리지 않는 경우</param>
+            <returns>S6F11 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="reports" /> 또는 값이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="ed4df861cb8c51cf">
+            <summary>S6F11 Event Report Send를 해석합니다.</summary>
+            <remarks>DATAID는 장비가 보낸 아이템 그대로 둡니다. <paramref name="reportVids" />를 주면 RPTID가 표에 있고 값 개수가 VID 개수와 같은 리포트에만 VID를 붙이고, 나머지 리포트는 <see cref="P:Devinno.Communication.Secs.Gem.GemReportValue.Vid" /> = null입니다.
+            표의 열쇠와 받은 RPTID는 <paramref name="formats" />의 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 기준으로 같은 정규화를 거쳐 맞추므로, 표도 같은 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />로 만드십시오. A면 1000 같은 숫자 ID를 텍스트 "1000"으로 보므로 표 열쇠 1000이 장비가 A "1000"으로 보낸 RPTID와 맞습니다. 숫자 포맷이면 열쇠를 숫자로 비교하고 문자열 RPTID는 맞지 않습니다.</remarks>
+            <param name="message">받은 S6F11</param>
+            <param name="reportVids">리포트 정의별 VID (null = 아는 것 없음)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). 표를 찾을 때 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />만 씁니다</param>
+            <returns>해석한 이벤트 리포트</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F11가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F12(System.Byte)" en-hash="e40513337d906f3e">
+            <summary>S6F12 Event Report Acknowledge &lt;B ACKC6&gt;를 만듭니다.</summary>
+            <param name="ackc6">ACKC6 (0 = 받음)</param>
+            <returns>S6F12 메시지</returns>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F12(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="fcb3dfe389964943">
+            <summary>S6F12 Event Report Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S6F12</param>
+            <returns>ACKC6 (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F12가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255인 숫자 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F15(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Gem.GemFormats)" en-hash="3415913e8c24a34a">
+            <summary>S6F15 Event Report Request &lt;CEID&gt;를 만듭니다.</summary>
+            <param name="ceid">CEID</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). CEID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" /></param>
+            <returns>S6F15 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 CEID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 CEID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F15(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="8841b85fb3f9af39">
+            <summary>S6F15 Event Report Request를 해석합니다.</summary>
+            <param name="message">받은 S6F15</param>
+            <returns>CEID (정수 포맷 무엇이든 또는 A)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F15가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F16(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem}}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="d15aa00f51ee5c17">
+            <summary>S6F16 Event Report Data(S6F11과 같은 본문)를 만듭니다.</summary>
+            <param name="dataId">DATAID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" /> 사용)</param>
+            <param name="ceid">CEID (<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" /> 사용)</param>
+            <param name="reports">순서대로의 리포트: RPTID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 사용)와 그 값</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />)</param>
+            <returns>S6F16 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="reports" /> 또는 값이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F16(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="fbcaebce67addb72">
+            <summary>S6F16 Event Report Data를 해석합니다. 리포트 표의 열쇠를 포함해 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" />와 같습니다.</summary>
+            <param name="message">받은 S6F16</param>
+            <param name="reportVids">리포트 정의별 VID (null = 아는 것 없음)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). 표를 찾을 때 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />만 씁니다</param>
+            <returns>해석한 이벤트 리포트</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F16가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F19(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Gem.GemFormats)" en-hash="5f732441c6ac5fe1">
+            <summary>S6F19 Individual Report Request &lt;RPTID&gt;를 만듭니다.</summary>
+            <param name="rptid">RPTID</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). RPTID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /></param>
+            <returns>S6F19 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 RPTID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 RPTID가 포맷 범위 밖인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F19(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="be1464fda921c394">
+            <summary>S6F19 Individual Report Request를 해석합니다.</summary>
+            <param name="message">받은 S6F19</param>
+            <returns>RPTID (정수 포맷 무엇이든 또는 A)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F19가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 하나가 아닌 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F20(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem})" en-hash="195e52084d828975">
+            <summary>S6F20 Individual Report Data &lt;L V…&gt;를 만듭니다.</summary>
+            <param name="values">리포트 정의 순서의 값 목록 (모르는 RPTID면 빈 목록)</param>
+            <returns>S6F20 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="values" /> 또는 값이 null인 경우</exception>
+        </member>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F20(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="3e407fc82a85b818">
+            <summary>S6F20 Individual Report Data를 해석합니다.</summary>
+            <param name="message">받은 S6F20</param>
+            <returns>장비가 보낸 순서의 값 목록 (본문 없는 메시지는 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F20가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 리스트가 아닌 경우</exception>
         </member>
         
         
