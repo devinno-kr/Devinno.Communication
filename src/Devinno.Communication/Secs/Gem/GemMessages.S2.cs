@@ -469,6 +469,73 @@ public static partial class GemMessages
     }
     #endregion
 
+    #region S2F43 / S2F44
+    /// <summary>Builds S2F43 Reset Spooling Streams and Functions &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;.</summary>
+    /// <remarks>An empty list asks the equipment to stop spooling every stream and function (E30 7.12). STRID and FCNID are written as <c>U1</c>.</remarks>
+    /// <param name="streams">The streams to spool in order; each has a stream number and the function numbers to spool (an empty list = every primary message of the stream).</param>
+    /// <returns>The S2F43 message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="streams"/> or a function list is null.</exception>
+    public static SecsMessage S2F43(IReadOnlyList<(byte Stream, IReadOnlyList<byte> Functions)> streams)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        return new(2, 43, true, SecsItem.L([.. streams.Select(s =>
+        {
+            ArgumentNullException.ThrowIfNull(s.Functions, nameof(streams));
+            return SecsItem.L(SecsItem.U1(s.Stream), SecsItem.L([.. s.Functions.Select(f => SecsItem.U1(f))]));
+        })]));
+    }
+
+    /// <summary>Reads S2F43 Reset Spooling Streams and Functions.</summary>
+    /// <remarks>STRID and FCNID may be any integer format with a value from 0 to 255. A message without a body reads as an empty list.</remarks>
+    /// <param name="message">The received S2F43.</param>
+    /// <returns>The streams and their function numbers; an empty list means "stop spooling everything".</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F43.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;, or an ID is not a number from 0 to 255.</exception>
+    public static IReadOnlyList<(byte Stream, IReadOnlyList<byte> Functions)> ParseS2F43(SecsMessage message)
+    {
+        Check(message, 2, 43);
+        const string expected = "<L <L STRID <L FCNID…>>…>";
+        return [.. Entries(message, expected).Select(e =>
+        {
+            if (e is not { Format: SecsFormat.List, Count: 2 } || e.Items[1].Format != SecsFormat.List) throw Fail(message, expected);
+            return (Ack(e.Items[0], message, expected), SpoolFunctions(e.Items[1], message, expected));
+        })];
+    }
+
+    /// <summary>Builds S2F44 Reset Spooling Acknowledge &lt;L &lt;B RSPACK&gt; &lt;L &lt;L STRID &lt;B STRACK&gt; &lt;L FCNID…&gt;&gt;…&gt;&gt;.</summary>
+    /// <param name="rspack">RSPACK (0 = accepted, 1 = rejected; see <see cref="GemAck"/>).</param>
+    /// <param name="errors">The streams that were rejected, each with its STRACK and the function numbers concerned (null = none, written as an empty list).</param>
+    /// <returns>The S2F44 message.</returns>
+    /// <exception cref="ArgumentNullException">A function list in <paramref name="errors"/> is null.</exception>
+    public static SecsMessage S2F44(byte rspack, IReadOnlyList<(byte Stream, byte Strack, IReadOnlyList<byte> Functions)>? errors = null)
+        => new(2, 44, false, SecsItem.L(GemItems.Ack(rspack), SecsItem.L([.. (errors ?? []).Select(e =>
+        {
+            ArgumentNullException.ThrowIfNull(e.Functions, nameof(errors));
+            return SecsItem.L(SecsItem.U1(e.Stream), GemItems.Ack(e.Strack), SecsItem.L([.. e.Functions.Select(f => SecsItem.U1(f))]));
+        })])));
+
+    /// <summary>Reads S2F44 Reset Spooling Acknowledge.</summary>
+    /// <remarks>RSPACK, STRID, STRACK and FCNID may be any integer format with a value from 0 to 255.</remarks>
+    /// <param name="message">The received S2F44.</param>
+    /// <returns>RSPACK and the per-stream errors (empty when none).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F44.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L RSPACK &lt;L &lt;L STRID STRACK &lt;L FCNID…&gt;&gt;…&gt;&gt;, or a code is not a number from 0 to 255.</exception>
+    public static (byte Rspack, IReadOnlyList<(byte Stream, byte Strack, IReadOnlyList<byte> Functions)> Errors) ParseS2F44(SecsMessage message)
+    {
+        Check(message, 2, 44);
+        const string expected = "<L RSPACK <L <L STRID STRACK <L FCNID…>>…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List) throw Fail(message, expected);
+        var errors = body.Items[1].Items.Select(e =>
+        {
+            if (e is not { Format: SecsFormat.List, Count: 3 } || e.Items[2].Format != SecsFormat.List) throw Fail(message, expected);
+            return (Ack(e.Items[0], message, expected), Ack(e.Items[1], message, expected), SpoolFunctions(e.Items[2], message, expected));
+        });
+        return (Ack(body.Items[0], message, expected), [.. errors]);
+    }
+    #endregion
+
     #region S2F39 / S2F40 (internal, 3층용)
     internal static SecsMessage S2F40(byte grant) => new(2, 40, false, GemItems.Ack(grant));
     #endregion
@@ -484,6 +551,9 @@ public static partial class GemMessages
     // <L DATAID <L …>> → (DATAID 아이템, 둘째 리스트). 아니면 Fail
     static (SecsItem DataId, SecsItem List) DataAndList(SecsMessage m, string expected)
         => m.Item is { Format: SecsFormat.List, Count: 2 } body && body.Items[1].Format == SecsFormat.List ? (body.Items[0], body.Items[1]) : throw Fail(m, expected);
+
+    // <L FCNID…> → 기능 번호 목록(숫자 포맷 무엇이든 0~255). 아니면 Fail
+    static IReadOnlyList<byte> SpoolFunctions(SecsItem list, SecsMessage m, string expected) => [.. list.Items.Select(i => Ack(i, m, expected))];
 
     // RCMD·CPNAME 텍스트: A(관대하게 정수 하나도 10진 문자열)
     static string NameText(SecsItem item, SecsMessage m, string expected)

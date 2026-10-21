@@ -5585,12 +5585,13 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Gem.GemAck" en-hash="859a8a485f510bdc">
+        <member name="T:Devinno.Communication.Secs.Gem.GemAck" en-hash="b66bf69dd2fc2524">
             <summary>
             GEM 확인 코드(ack)의 알려진 값입니다. ack는 열린 <see cref="T:System.Byte" /> 값이라 여기 없는 값도 그대로 주고받습니다.
             </summary>
             <remarks>
             SEMI E5 원문을 읽지 못해 secsgem·장비 회사 GEM 매뉴얼에서 확인한 값만 둡니다. HCACK 5·6은 secsgem에만 있습니다.
+            STRACK 값(S2F44)은 공개 자료 하나(secsgem)에서만 얻었고 SEMI E30 원문으로는 확인하지 못했습니다.
             예: 리모트 명령 핸들러에서 <c>e.Hcack = GemAck.HcackAcceptedLater;</c>
             </remarks>
         </member>
@@ -5725,6 +5726,39 @@
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemAck.AledEnable" en-hash="dee17794f289d69f">
             <summary>ALED의 8번째 비트(0x80): 알람 보고 켬 (S5F3)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RspackAccepted" en-hash="a7246843dd85a492">
+            <summary>RSPACK 0: 스풀링 초기화 받음 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RspackRejected" en-hash="ff557f5712a9cf8f">
+            <summary>RSPACK 1: 스풀링 초기화 거절, 스트림별 STRACK 참고 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.StrackNotAllowed" en-hash="5e078967e1731dab">
+            <summary>STRACK 1: 그 스트림은 스풀링할 수 없음 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.StrackUnknownStream" en-hash="c4c8ceaf400d3ad7">
+            <summary>STRACK 2: 모르는 스트림 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.StrackUnknownFunction" en-hash="1531187498167b9f">
+            <summary>STRACK 3: 모르는 기능 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.StrackSecondaryFunction" en-hash="60d267096dae4f2d">
+            <summary>STRACK 4: 2차(짝수) 기능이라 스풀링하지 않음 (S2F44)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdcTransmit" en-hash="a7ce948805a7606e">
+            <summary>RSDC 0: 스풀된 메시지 전송 (S6F23)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdcPurge" en-hash="1ff4906b09655283">
+            <summary>RSDC 1: 스풀된 메시지 폐기 (S6F23)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdaAccepted" en-hash="e86ff9e6a43d3550">
+            <summary>RSDA 0: 요청 받음 (S6F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdaBusy" en-hash="fd4ec5669f57a50d">
+            <summary>RSDA 1: 바쁨, 다시 시도 (S6F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdaNoData" en-hash="17ce0c205227e3b1">
+            <summary>RSDA 2: 스풀된 데이터 없음 (S6F24)</summary>
         </member>
         
         
@@ -8680,6 +8714,38 @@
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F42가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;가 아닌 경우</exception>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F43(System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}})" en-hash="03e17dccb0f381c2">
+            <summary>S2F43 Reset Spooling Streams and Functions &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;를 만듭니다.</summary>
+            <remarks>빈 목록은 모든 스트림·기능의 스풀링을 멈추라는 뜻입니다(E30 7.12). STRID와 FCNID는 <c>U1</c>로 씁니다.</remarks>
+            <param name="streams">스풀링할 스트림을 순서대로: 스트림 번호와 스풀링할 기능 번호(빈 목록 = 그 스트림의 모든 1차 메시지)</param>
+            <returns>S2F43 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="streams" />나 기능 목록이 null인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F43(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="f72936d74d7a8eee">
+            <summary>S2F43 Reset Spooling Streams and Functions를 해석합니다.</summary>
+            <remarks>STRID와 FCNID는 숫자 포맷 무엇이든 0~255입니다. 본문이 없는 메시지는 빈 목록으로 읽습니다.</remarks>
+            <param name="message">받은 S2F43</param>
+            <returns>스트림과 기능 번호들. 빈 목록은 "모든 스풀링 중지"</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F43이 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;가 아니거나 ID가 0~255 숫자가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F44(System.Byte,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}})" en-hash="f7ec775e326f87a4">
+            <summary>S2F44 Reset Spooling Acknowledge &lt;L &lt;B RSPACK&gt; &lt;L &lt;L STRID &lt;B STRACK&gt; &lt;L FCNID…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="rspack">RSPACK (0 = 받음, 1 = 거절. <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고)</param>
+            <param name="errors">거절된 스트림들: 스트림 번호, STRACK, 해당 기능 번호 (null = 없음, 빈 목록으로 씀)</param>
+            <returns>S2F44 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="errors" />의 기능 목록이 null인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F44(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="0b3f37b01261e00b">
+            <summary>S2F44 Reset Spooling Acknowledge를 해석합니다.</summary>
+            <remarks>RSPACK, STRID, STRACK, FCNID는 숫자 포맷 무엇이든 0~255입니다.</remarks>
+            <param name="message">받은 S2F44</param>
+            <returns>RSPACK과 스트림별 오류 (없으면 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F44가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L RSPACK &lt;L &lt;L STRID STRACK &lt;L FCNID…&gt;&gt;…&gt;&gt;가 아니거나 코드가 0~255 숫자가 아닌 경우</exception>
+        </member>
 <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S5F1(System.Byte,Devinno.Communication.Secs.Gem.GemId,System.String,Devinno.Communication.Secs.Gem.GemFormats,System.Boolean)" en-hash="8bba214b36a82a00">
             <summary>S5F1 Alarm Report Send &lt;L ALCD ALID ALTX&gt;를 만듭니다.</summary>
             <param name="alcd">ALCD (0x80 = 알람 발생, 아래 7비트 = 분류)</param>
@@ -8905,6 +8971,32 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F20가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 리스트가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F23(System.Byte)" en-hash="e4088697a9c853c5">
+            <summary>S6F23 Request Spooled Data &lt;U1 RSDC&gt;를 만듭니다.</summary>
+            <param name="rsdc">RSDC (0 = 스풀된 메시지 전송, 1 = 폐기. <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고). <c>U1</c>로 씁니다.</param>
+            <returns>S6F23 메시지 (W비트 켜짐)</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F23(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="f7df12001892a4d4">
+            <summary>S6F23 Request Spooled Data를 해석합니다.</summary>
+            <param name="message">받은 S6F23</param>
+            <returns>RSDC (숫자 포맷 무엇이든 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F23이 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F24(System.Byte)" en-hash="e99232dcae756c0c">
+            <summary>S6F24 Request Spooled Data Acknowledge &lt;B RSDA&gt;를 만듭니다.</summary>
+            <param name="rsda">RSDA (0 = 받음, 1 = 바쁨, 2 = 스풀된 데이터 없음. <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고)</param>
+            <returns>S6F24 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F24(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="4d1b07b904fc1977">
+            <summary>S6F24 Request Spooled Data Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S6F24</param>
+            <returns>RSDA (숫자 포맷 무엇이든 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F24가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
         </member>
         
         

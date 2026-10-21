@@ -156,6 +156,42 @@ public static partial class GemMessages
     }
     #endregion
 
+    #region S6F23 / S6F24
+    /// <summary>Builds S6F23 Request Spooled Data &lt;U1 RSDC&gt;.</summary>
+    /// <param name="rsdc">RSDC (0 = transmit the spooled messages, 1 = purge them; see <see cref="GemAck"/>). It is written as <c>U1</c>.</param>
+    /// <returns>The S6F23 message (W-bit set).</returns>
+    public static SecsMessage S6F23(byte rsdc) => new(6, 23, true, SecsItem.U1(rsdc));
+
+    /// <summary>Reads S6F23 Request Spooled Data.</summary>
+    /// <param name="message">The received S6F23.</param>
+    /// <returns>RSDC (any numeric format, 0 to 255).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F23.</exception>
+    /// <exception cref="FormatException">The body is not a single number from 0 to 255.</exception>
+    public static byte ParseS6F23(SecsMessage message)
+    {
+        Check(message, 6, 23);
+        return Ack(message.Item, message, "RSDC");
+    }
+
+    /// <summary>Builds S6F24 Request Spooled Data Acknowledge &lt;B RSDA&gt;.</summary>
+    /// <param name="rsda">RSDA (0 = accepted, 1 = busy, 2 = no spooled data; see <see cref="GemAck"/>).</param>
+    /// <returns>The S6F24 message.</returns>
+    public static SecsMessage S6F24(byte rsda) => new(6, 24, false, GemItems.Ack(rsda));
+
+    /// <summary>Reads S6F24 Request Spooled Data Acknowledge.</summary>
+    /// <param name="message">The received S6F24.</param>
+    /// <returns>RSDA (any numeric format, 0 to 255).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F24.</exception>
+    /// <exception cref="FormatException">The body is not a single number from 0 to 255.</exception>
+    public static byte ParseS6F24(SecsMessage message)
+    {
+        Check(message, 6, 24);
+        return Ack(message.Item, message, "RSDA");
+    }
+    #endregion
+
     #region S6 도우미
     static SecsItem EventBody(GemId dataId, GemId ceid, IReadOnlyList<(GemId Rptid, IReadOnlyList<SecsItem> Values)> reports, GemFormats f)
     {

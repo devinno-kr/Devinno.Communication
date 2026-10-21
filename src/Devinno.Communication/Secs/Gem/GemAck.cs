@@ -5,6 +5,7 @@ namespace Devinno.Communication.Secs.Gem;
 /// </summary>
 /// <remarks>
 /// The SEMI E5 original could not be read, so only values confirmed from secsgem and equipment vendors' GEM manuals are included. HCACK 5 and 6 exist only in secsgem.
+/// The STRACK values (S2F44) come from a single public source (secsgem) and could not be checked against the SEMI E30 original.
 /// Example: in a remote command handler, <c>e.Hcack = GemAck.HcackAcceptedLater;</c>
 /// </remarks>
 public static class GemAck
@@ -111,4 +112,30 @@ public static class GemAck
     public const byte AlcdSet = 0x80;
     /// <summary>Bit 8 (0x80) of ALED: alarm reporting enabled (S5F3)</summary>
     public const byte AledEnable = 0x80;
+
+    /// <summary>RSPACK 0: spooling reset accepted (S2F44)</summary>
+    public const byte RspackAccepted = 0;
+    /// <summary>RSPACK 1: spooling reset rejected, see the per-stream STRACK (S2F44)</summary>
+    public const byte RspackRejected = 1;
+
+    /// <summary>STRACK 1: spooling not allowed for the stream (S2F44)</summary>
+    public const byte StrackNotAllowed = 1;
+    /// <summary>STRACK 2: unknown stream (S2F44)</summary>
+    public const byte StrackUnknownStream = 2;
+    /// <summary>STRACK 3: unknown function (S2F44)</summary>
+    public const byte StrackUnknownFunction = 3;
+    /// <summary>STRACK 4: secondary (even) function, which is never spooled (S2F44)</summary>
+    public const byte StrackSecondaryFunction = 4;
+
+    /// <summary>RSDC 0: transmit the spooled messages (S6F23)</summary>
+    public const byte RsdcTransmit = 0;
+    /// <summary>RSDC 1: purge the spooled messages (S6F23)</summary>
+    public const byte RsdcPurge = 1;
+
+    /// <summary>RSDA 0: request accepted (S6F24)</summary>
+    public const byte RsdaAccepted = 0;
+    /// <summary>RSDA 1: busy, try again (S6F24)</summary>
+    public const byte RsdaBusy = 1;
+    /// <summary>RSDA 2: no spooled data (S6F24)</summary>
+    public const byte RsdaNoData = 2;
 }
