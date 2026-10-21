@@ -45,7 +45,7 @@ internal sealed class SecsSession(
     readonly object queueLock = new();
     // Ordered = 순서 있는 완료의 Action(Start가 비울 때도 버리지 않음)
     readonly Queue<(SecsMessage? Message, byte[]? Header, int Generation, Action? Action, bool Ordered)> queue = new();
-    Thread? dispatcher;
+    Worker? dispatcher;
     bool running;
     int runGeneration;      // queueLock으로 보호: Start마다 1씩 늘림(지난 실행의 정리가 새 실행을 멈추지 않게)
 
@@ -56,7 +56,15 @@ internal sealed class SecsSession(
     internal int PendingCount { get { lock (gate) return pending.Count; } }
 
     // 지금 스레드가 이 세션의 디스패처 스레드인지
-    public bool IsDispatcherThread { get { lock (queueLock) return dispatcher == Thread.CurrentThread; } }
+    public bool IsDispatcherThread { get { lock (queueLock) return dispatcher?.Thread == Thread.CurrentThread; } }
+
+    // 디스패처 스레드 하나. Exited·Handoff는 queueLock으로 보호
+    sealed class Worker
+    {
+        public Thread Thread = null!;
+        public bool Exited;             // Dispatch가 끝나기로 정함(이 뒤로는 Handoff를 보지 않음)
+        public List<Action>? Handoff;   // 멈춘 뒤에도 일(핸들러)을 하던 중이라 Stop이 넘긴 남은 일: 끝나기 전에 이 스레드에서 순서대로
+    }
 
     #region Lifecycle
     // 디스패처 스레드를 시작한다(전송 클래스의 Start에서). 이번 실행의 번호를 돌려준다(Stop의 startGen용).
@@ -72,7 +80,9 @@ internal sealed class SecsSession(
             queue.Clear();
             running = true;
             gen = ++runGeneration;
-            t = dispatcher = new Thread(Dispatch) { IsBackground = true, Name = name + ".PrimaryReceived" };
+            var w = new Worker();
+            t = w.Thread = new Thread(() => Dispatch(w)) { IsBackground = true, Name = name + ".PrimaryReceived" };
+            dispatcher = w;
             // 지난 실행의 디스패처가 아직 기다리고 있으면(그 Stop이 아직 세션을 멈추지 못함) 깨워 끝낸다. 안 그러면 다음 Pulse 하나를
             // 그 스레드가 받고 그냥 끝나 버려, 새 디스패처가 그 알림(DeviceOpened 등)을 다음 Post 때까지 처리하지 못한다
             Monitor.PulseAll(queueLock);
@@ -87,21 +97,31 @@ internal sealed class SecsSession(
     // startGen을 주면 그 번호의 실행일 때만 멈춘다(그 뒤에 다시 Start됐으면 아무것도 하지 않음).
     public void Stop(int waitMs, int? startGen = null)
     {
-        Thread? t;
+        Worker? w;
         List<Action> leftover;
         lock (queueLock)
         {
             if (startGen != null && startGen != runGeneration) return;
             Disconnected();   // 번호 검사와 같은 lock 안에서: 새 실행의 연결을 끊지 않게 (lock 순서는 queueLock → gate뿐이고 반대로 잡는 곳은 없음)
-            t = dispatcher;
+            w = dispatcher;
             dispatcher = null;
             running = false;
             leftover = [.. queue.Where(q => q.Action != null).Select(q => q.Action!)];
             queue.Clear();
             Monitor.PulseAll(queueLock);
         }
-        if (t != null && t != Thread.CurrentThread) t.Join(waitMs);
-        // Post로 맡긴 알림(DeviceClosed·ProtocolError 등)은 버리지 않고 멈추는 쪽 스레드에서 순서대로 마저 실행한다
+        bool other = w != null && w.Thread != Thread.CurrentThread;
+        if (other) w!.Thread.Join(waitMs);
+        // 디스패처가 아직 일(핸들러)을 하는 중이면(기다림 0 = 전송 루프가 스스로 끝남, 또는 시간 초과) 남은 일은 그 디스패처에 넘긴다:
+        // 지금 일 뒤에 같은 스레드에서 순서대로. 여기서 돌리면 순서가 뒤집히고 핸들러가 두 스레드에서 동시에 돈다
+        if (other && leftover.Count > 0)
+        {
+            lock (queueLock)
+            {
+                if (!w!.Exited) { w.Handoff = leftover; leftover = []; }
+            }
+        }
+        // Post로 맡긴 알림(DeviceClosed·ProtocolError 등)은 버리지 않고 멈추는 쪽 스레드에서 순서대로 마저 실행한다(디스패처가 이미 끝났을 때)
         foreach (var a in leftover) { try { a(); } catch (Exception) { } }
     }
 
@@ -486,21 +506,28 @@ internal sealed class SecsSession(
     #endregion
 
     #region Dispatch
-    void Dispatch()
+    void Dispatch(Worker me)
     {
-        var me = Thread.CurrentThread;
+        List<Action>? handoff;
         while (true)
         {
             (SecsMessage? Message, byte[]? Header, int Generation, Action? Action, bool Ordered) x;
             lock (queueLock)
             {
                 while (running && dispatcher == me && queue.Count == 0) Monitor.Wait(queueLock);
-                if (!running || dispatcher != me) return;
+                if (!running || dispatcher != me)
+                {
+                    me.Exited = true;
+                    handoff = me.Handoff;
+                    me.Handoff = null;
+                    break;
+                }
                 x = queue.Dequeue();
             }
             if (x.Action != null) { try { x.Action(); } catch (Exception) { } }
             else Deliver(x.Message!, x.Header!, x.Generation);
         }
+        if (handoff != null) foreach (var a in handoff) { try { a(); } catch (Exception) { } }
     }
 
     void Deliver(SecsMessage msg, byte[] header, int gen)

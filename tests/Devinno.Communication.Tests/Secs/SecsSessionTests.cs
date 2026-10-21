@@ -850,6 +850,38 @@ public class SecsSessionTests
         Assert.NotNull(c.Reply);
     }
 
+    // 전송 루프가 스스로 끝날 때는 Stop(0), 핸들러가 StopWait보다 오래 걸리면 Join이 먼저 끝난다:
+    // 디스패처가 핸들러를 돌리는 중이면 남은 일(이벤트·ordered 완료)은 그 핸들러 뒤에 디스패처에서 같은 순서로 (멈추는 쪽 스레드에서 동시에 돌지 않음)
+    [Theory]
+    [InlineData(0)]
+    [InlineData(100)]
+    public void Stop_WhileHandlerRuns_RestRunAfterItOnDispatcherInOrder(int waitMs)
+    {
+        using var h = new Harness();
+        var log = new ConcurrentQueue<(string What, int Thread)>();
+        using var hold = new ManualResetEventSlim();
+        using var entered = new ManualResetEventSlim();
+        int dispatcherThread = 0;
+        h.Session.Post(() =>
+        {
+            dispatcherThread = Environment.CurrentManagedThreadId;
+            entered.Set();
+            hold.Wait(10000);
+            log.Enqueue(("A", Environment.CurrentManagedThreadId));
+        });
+        Assert.True(entered.Wait(3000), "디스패처가 돌지 않습니다.");
+        h.Session.Post(() => log.Enqueue(("B", Environment.CurrentManagedThreadId)));
+        h.Session.SendOrdered(S1F1, (Task<SecsMessage?> t) => log.Enqueue(("C", Environment.CurrentManagedThreadId)));
+        h.Receive(S1F2, h.NextSent().SystemBytes);                       // 완료가 대기열에 들어감
+        h.Session.Stop(waitMs);
+        Assert.Empty(log);                                                 // 핸들러가 도는 동안 나머지를 실행하지 않는다
+        hold.Set();
+        TestUtil.Wait(() => log.Count == 3);
+        Thread.Sleep(50);
+        Assert.Equal(["A", "B", "C"], log.Select(l => l.What).ToArray());
+        Assert.All(log, l => Assert.Equal(dispatcherThread, l.Thread));
+    }
+
     [Fact]
     public void Ordered_QueuedAtRestart_RunsOnceOnStartThread()
     {

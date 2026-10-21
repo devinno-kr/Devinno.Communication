@@ -78,6 +78,35 @@ public class SecsOrderedTransportTests
             Assert.Equal(["completed SecsDisconnectedException", "DeviceClosed"], log.ToArray());
         }
     }
+
+    [Fact]
+    public void Hsms_ActiveNoReconnect_LinkDropsWhileHandlerRuns_DeviceClosedAfterHandler()
+    {
+        // 재접속 없는 Active는 끊기면 루프가 스스로 끝나며 세션을 기다림 없이 멈춘다: 그래도 남은 알림은 붙잡힌 핸들러 뒤에 디스패처에서
+        using var peer = FakeHsmsPeer.Listen();
+        var log = new ConcurrentQueue<(string What, bool OnDispatcher)>();
+        using var us = SecsHsmsTests.Active(SecsRole.Host, peer.Port);
+        us.AutoReconnect = false;
+        us.PrimaryReceived += (s, e) =>
+        {
+            log.Enqueue(("primary start", us.IsDispatcherThread));
+            TestUtil.Wait(() => !us.IsOpen, 5000);
+            Thread.Sleep(300);   // 끊김 정리(세션 멈춤)가 끝날 시간
+            log.Enqueue(("primary end", us.IsDispatcherThread));
+        };
+        us.DeviceClosed += (s, e) => log.Enqueue(("DeviceClosed", false));
+        us.Start();
+        peer.Accept();
+        peer.AnswerSelect();
+        TestUtil.Wait(() => us.IsOpen);
+        peer.SendData(new SecsMessage(1, 1, false).WithHeader(1, 1));
+        TestUtil.Wait(() => log.Any(l => l.What == "primary start"));
+        us.SendOrdered(new SecsMessage(6, 11, false, SecsItem.U4(0)), t => log.Enqueue(("completed " + Describe(t), false)));
+        peer.Close();
+        TestUtil.Wait(() => log.Any(l => l.What == "DeviceClosed"), 8000);
+        Thread.Sleep(100);
+        Assert.Equal(["primary start", "primary end", "completed null", "DeviceClosed"], log.Select(l => l.What).ToArray());   // W 없는 HSMS 송신은 쓰기가 끝나 성공
+    }
     #endregion
 
     #region SECS-I
@@ -151,6 +180,35 @@ public class SecsOrderedTransportTests
         c.Line.Close();
         TestUtil.Wait(() => c.Log.Count == 4, 5000);
         Assert.Equal(["completed SecsDisconnectedException", "completed SecsDisconnectedException", "completed SecsDisconnectedException", "DeviceClosed"], c.Log.ToArray());
+    }
+
+    [Fact]
+    public void Serial_LineClosedWhileHandlerRuns_CompletionAndDeviceClosedAfterHandler()
+    {
+        // AutoReconnect = false(기본): 회선이 닫히면 루프가 스스로 끝나며 세션을 기다림 없이 멈춘다.
+        // 디스패처가 핸들러를 돌리는 중이어도 남은 완료·DeviceClosed는 그 핸들러 뒤에, 같은 순서로
+        var log = new ConcurrentQueue<string>();
+        SecsSerial? self = null;
+        using var c = new SerialCtx(u =>
+        {
+            u.PrimaryReceived += (s, e) =>
+            {
+                log.Enqueue("primary start");
+                TestUtil.Wait(() => !self!.IsOpen, 5000);
+                Thread.Sleep(300);   // 끊김 정리(세션 멈춤)가 끝날 시간
+                log.Enqueue("primary end");
+            };
+            u.DeviceClosed += (s, e) => log.Enqueue("DeviceClosed");
+        });
+        self = c.Us;
+        c.Peer.SendMessage(new SecsMessage(1, 1, false).WithHeader(1, 1), rbit: true);   // 상대(장비)가 보낸 W 없는 1차 메시지
+        TestUtil.Wait(() => log.Contains("primary start"));
+        c.Us.SendOrdered(new SecsMessage(6, 11, false, SecsItem.U4(0)), t => log.Enqueue("completed " + Describe(t)));
+        c.Peer.Expect(SecsIBlock.ENQ);
+        c.Line.Close();
+        TestUtil.Wait(() => log.Contains("DeviceClosed"), 8000);
+        Thread.Sleep(100);
+        Assert.Equal(["primary start", "primary end", "completed SecsDisconnectedException", "DeviceClosed"], log.ToArray());
     }
 
     [Fact]
