@@ -10,7 +10,7 @@ namespace Devinno.Communication.Secs.Data;
 // - 1차 메시지 핸들러가 응답하지 않으면 SxF0.
 // 전송 계층은 연결되면 Connected(송신 함수), 끊기면 Disconnected()를 부르고, I/O 스레드에서 주기적으로 CheckTimeouts()를 부른다.
 // 송신 Task를 비동기로 끝내는 전송 계층(SECS-I)은 보내기를 끝낸 I/O 스레드에서 TransmitCompleted(wire)를 불러 T3를 그 순간부터 재게 한다.
-// 순서 있는 완료(SendOrdered, GEM 내부용): 결과를 TCS 대신 디스패처 대기열(1차 메시지와 같은 대기열)에 넣어 와이어 순서로 알린다.
+// 순서 있는 완료(SendOrdered, GEM 내부용·공개 SecsSendResult 겹치기): 결과를 TCS 대신 디스패처 대기열(1차 메시지와 같은 대기열)에 넣어 와이어 순서로 알린다.
 // 잠금 순서는 queueLock → gate 하나뿐: gate 안에서는 대기 표에서 꺼내기만 하고, 대기열에 넣기(queueLock)는 언제나 gate를 놓은 뒤에 한다.
 internal sealed class SecsSession(
     Func<SecsRole> role,
@@ -24,12 +24,12 @@ internal sealed class SecsSession(
     // 송신 함수: 메시지(System Bytes·장치 ID가 채워진 것)를 보내고, 보내기가 끝나면 완료되는 Task
     public delegate Task Transmit(SecsMessage wire, CancellationToken token);
 
-    sealed class Pending(SecsMessage primary, Action<Task<SecsMessage?>>? ordered)
+    sealed class Pending(SecsMessage primary, Action<SecsMessage?, Task<SecsMessage?>>? ordered)
     {
         public SecsMessage Primary { get; } = primary;
         public TaskCompletionSource<SecsMessage?> Tcs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        // 순서 있는 완료(SendOrdered)면 결과를 받을 콜백(TCS는 쓰지 않음). W비트가 없어도 대기 표에 들어간다(송신 완료·실패로 끝남)
-        public readonly Action<Task<SecsMessage?>>? Ordered = ordered;
+        // 순서 있는 완료(SendOrdered)면 결과를 받을 콜백(wire, 결과; TCS는 쓰지 않음). W비트가 없어도 대기 표에 들어간다(송신 완료·실패로 끝남)
+        public readonly Action<SecsMessage?, Task<SecsMessage?>>? Ordered = ordered;
         // T3 기한(Environment.TickCount64). 보내기가 끝나기 전에는 MaxValue
         public long Deadline = long.MaxValue;
         // SECS-I: 응답 첫 블록을 받았음(이후는 T4가 맡음)
@@ -144,7 +144,8 @@ internal sealed class SecsSession(
         }
         var result = error != null ? Task.FromException<SecsMessage?>(error) : Task.FromResult(reply);
         var completed = p.Ordered;
-        PostCompletion(() => completed(result));
+        var wire = p.Primary;
+        PostCompletion(() => completed(wire, result));
     }
 
     // 새 연결(HSMS Selected, SECS-I 포트 열림). System Bytes 카운터를 처음부터 센다.
@@ -197,7 +198,7 @@ internal sealed class SecsSession(
     internal static bool IsNotConnected(Exception ex) => ex.GetType() == typeof(InvalidOperationException) && ex.Message == NotConnectedMessage;
 
     // 보내기 시작: System Bytes를 매기고(응답을 기다리거나 ordered면 대기 표에 넣고) 송신 함수를 부른다
-    (Pending? P, Task Sent) Begin(SecsMessage primary, CancellationToken token, Action<Task<SecsMessage?>>? ordered = null)
+    (Pending? P, Task Sent) Begin(SecsMessage primary, CancellationToken token, Action<SecsMessage?, Task<SecsMessage?>>? ordered = null)
     {
         ArgumentNullException.ThrowIfNull(primary);
         if (primary.Function % 2 == 0)
@@ -291,9 +292,17 @@ internal sealed class SecsSession(
             return await p.Tcs.Task.ConfigureAwait(false);
     }
 
-    // 순서 있는 완료로 보낸다(GEM 내부용). 검사·동기 예외는 SendAsync와 같고, 동기 예외면 completed는 불리지 않는다.
-    // 그 밖에는 completed가 정확히 한 번, 끝난 Task로 불린다(응답 / W 없으면 송신 성공 때 null / 예외). 디스패처가 돌면 디스패처에서(와이어 순서)
+    // 순서 있는 완료로 보낸다(GEM 내부용 겹치기: 끝난 Task만 받음). 규칙은 아래 겹치기와 같다
     public void SendOrdered(SecsMessage primary, Action<Task<SecsMessage?>> completed)
+    {
+        ArgumentNullException.ThrowIfNull(primary);
+        ArgumentNullException.ThrowIfNull(completed);
+        SendOrdered(primary, (_, t) => completed(t));
+    }
+
+    // 순서 있는 완료로 보낸다. 검사·동기 예외는 SendAsync와 같고, 동기 예외면 completed는 불리지 않는다.
+    // 그 밖에는 completed가 정확히 한 번, (wire = System Bytes를 채운 보낸 메시지, 끝난 Task)로 불린다(응답 / W 없으면 송신 성공 때 null / 예외). 디스패처가 돌면 디스패처에서(와이어 순서)
+    public void SendOrdered(SecsMessage primary, Action<SecsMessage?, Task<SecsMessage?>> completed)
     {
         ArgumentNullException.ThrowIfNull(primary);
         ArgumentNullException.ThrowIfNull(completed);

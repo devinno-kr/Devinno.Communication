@@ -308,6 +308,27 @@ public class SecsHsms : IDisposable
     public Task<SecsMessage?> SendAsync(SecsMessage primary, CancellationToken cancellationToken = default)
         => session.SendAsync(primary, cancellationToken);
 
+    /// <summary>Sends a primary message and reports its result to <paramref name="completed"/> exactly once, in wire order on the dispatcher thread. Use it instead of <see cref="SendAsync"/> when a reply must be handled before the next primary message the peer sent after that reply.</summary>
+    /// <remarks>
+    /// <para><b>Thread and order</b>: <paramref name="completed"/> is normally called on the dispatcher thread (the same thread as <see cref="PrimaryReceived"/>), in the order the results arrived on the wire: when the reply has been received, it is called before the <see cref="PrimaryReceived"/> of any primary message received after that reply. A message without the W-bit completes with <see cref="SecsSendResult.Reply"/> = null once sending has finished (or failed).
+    /// If the dispatcher is stopped (during or after <see cref="Stop"/>), it is called at once on the thread that completed the transaction (for example the thread that called Stop).
+    /// A failure caused by disconnection (<see cref="SecsDisconnectedException"/>) may be reported before or after that connection's <see cref="DeviceClosed"/>; to tell which connection a result belongs to, keep a connection count that you increase on each <see cref="DeviceOpened"/> and record it when sending.</para>
+    /// <para><b>Exceptions at the call</b>: argument errors and "no connection" are thrown by the call, as with <see cref="Send"/>, and then <paramref name="completed"/> is never called. Every other outcome is passed to <paramref name="completed"/>: the reply in <see cref="SecsSendResult.Reply"/>, and a failure (SxF0, S9Fx, T3, disconnection, send failure) in <see cref="SecsSendResult.Exception"/>, with the same exception types as <see cref="Send"/>.</para>
+    /// <para><b>Callback rules</b>: the same as a <see cref="PrimaryReceived"/> handler. A synchronous <see cref="Send"/> inside the callback does not deadlock, but events are delayed while it waits for its reply (up to T3).
+    /// Waiting inside the callback or an event handler for the completion of another SendOrdered deadlocks, because that completion is queued behind it on the same dispatcher.
+    /// Exceptions thrown by the callback are ignored (the dispatcher keeps running). There is no cancellation token; T3 bounds the wait.</para>
+    /// </remarks>
+    /// <param name="primary">The primary message (odd function). The system bytes and device ID are filled in when sending, and the object passed in is not modified.</param>
+    /// <param name="completed">Receives the result exactly once.</param>
+    /// <exception cref="ArgumentNullException">primary or completed is null.</exception>
+    /// <exception cref="ArgumentException">The function is even.</exception>
+    /// <exception cref="InvalidOperationException">The state is not Selected.</exception>
+    public void SendOrdered(SecsMessage primary, Action<SecsSendResult> completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        session.SendOrdered(primary, (wire, t) => SecsSendResult.Invoke(completed, wire ?? primary, t));
+    }
+
     // GEM 내부용: 순서 있는 완료로 보낸다(완료는 디스패처에서 와이어 순서로, SecsSession.SendOrdered)
     internal void SendOrdered(SecsMessage primary, Action<Task<SecsMessage?>> completed) => session.SendOrdered(primary, completed);
 
