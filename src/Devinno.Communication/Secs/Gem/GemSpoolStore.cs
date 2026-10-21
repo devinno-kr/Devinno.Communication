@@ -78,14 +78,14 @@ internal sealed class GemSpoolStore : IDisposable
         }
         list.Sort((a, b) => a.Item1.CompareTo(b.Item1));
         Messages = list;
-        SkippedFiles = skipped;
 
         var statePath = Path.Combine(dir, StateName);
         if (File.Exists(statePath))
         {
             State = TryReadState(statePath);
-            if (State == null) TryDelete(statePath);
+            if (State == null) { TryDelete(statePath); skipped++; }
         }
+        SkippedFiles = skipped;
     }
 
     static bool TryReadMessage(string path, out long seq, out SecsMessage? msg)
@@ -162,9 +162,16 @@ internal sealed class GemSpoolStore : IDisposable
 
     public void Remove(long seq) => Post(() => File.Delete(MsgPath(seq)));
 
+    // 하나를 못 지워도 나머지는 마저 지운다(첫 실패에서 멈추면 지운 메시지가 재시작 때 되살아남). 첫 예외는 끝에 다시 던져 WriteFailed로 알린다
     public void Clear() => Post(() =>
     {
-        foreach (var p in Directory.GetFiles(dir, "*" + MsgExt)) File.Delete(p);
+        Exception? first = null;
+        foreach (var p in Directory.GetFiles(dir, "*" + MsgExt))
+        {
+            try { File.Delete(p); }
+            catch (Exception ex) { first ??= ex; }
+        }
+        if (first != null) throw first;
     });
 
     public void SaveState(GemSpoolSnapshot state)

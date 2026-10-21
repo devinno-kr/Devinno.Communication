@@ -45,11 +45,11 @@ public partial class GemEquipment
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public int MaxSpoolMessages { get => maxSpoolMessages; set => Setting(() => maxSpoolMessages = Check(value, 1, 1000000, nameof(MaxSpoolMessages))); }
 
-    /// <summary>Gets the current spooling state (<see cref="GemSpoolState.Inactive"/> when spooling is off)</summary>
+    /// <summary>Gets the current spooling state (<see cref="GemSpoolState.Inactive"/> when spooling is off or GEM is stopped; the spool kept in the folder is restored at the next <see cref="Start"/>)</summary>
     public GemSpoolState SpoolState { get { lock (gate) return spoolState; } }
-    /// <summary>Gets whether the spool is full (false when spooling is off)</summary>
+    /// <summary>Gets whether the spool is full (false when spooling is off or GEM is stopped)</summary>
     public bool IsSpoolFull { get { lock (gate) return spoolFull; } }
-    /// <summary>Gets the number of messages in the spool (0 when spooling is off)</summary>
+    /// <summary>Gets the number of messages in the spool (0 when spooling is off or GEM is stopped)</summary>
     public int SpoolCount { get { lock (gate) return spool.Count; } }
 
     /// <summary>Raised on the application event thread when the spooling state or the full flag changed (for example, spooling was activated or the spool became full). A change of the message count alone does not raise it.</summary>
@@ -109,6 +109,17 @@ public partial class GemEquipment
             else store.Remove(seq);
         }
         if (msgs.Count > 0) nextSeq = msgs[^1].Seq + 1;
+        // DATAID는 복원한 S6F11의 가장 큰 값 다음부터(ResetReports가 0으로 만든 뒤에 불려야 함 — Start의 호출 순서).
+        // Host가 DATAID로 거를 수 있게 새 S6F11이 복원한 것과 겹치지 않게 한다. 숫자 포맷만 보고 A·해석 불가는 무시.
+        // DataidFormat 최댓값 이상이면 NextDataIdLocked가 1로 돌린다
+        foreach (var (_, m) in spool)
+        {
+            if (m.Stream != 6 || m.Function != 11 || m.Item is not { Format: SecsFormat.List, Count: > 0 } body) continue;
+            var d = body.Items[0];
+            if (!GemItems.IsInteger(d.Format) || d.Count == 0) continue;
+            try { if (d.GetInt64() is var v && v > dataId) dataId = v; }
+            catch (OverflowException) { }
+        }
         if (snap?.Active == true || msgs.Count > 0)
         {
             spoolState = GemSpoolState.NoOutput;
@@ -156,6 +167,8 @@ public partial class GemEquipment
     internal bool OnTransportDispatcherThread => transport.IsDispatcherThread();
     // 테스트용: OnS6F23이 S6F24를 보낸 뒤 두 번째 gate 블록 전에 부른다(디스패처 스레드, gate 밖)
     internal Action? AfterS6F24ForTest;
+    // 테스트용: SpoolDone 맨 앞(Completed가 gate를 놓은 뒤, gate 밖)에서 부른다
+    internal Action? BeforeSpoolDoneForTest;
 
     #region 모으기 (gate 안)
     // 전이 1의 조건: 스풀링 켬 + INACTIVE + EnableSpooling 참(끄면 새 활성화만 막는다)
@@ -230,7 +243,7 @@ public partial class GemEquipment
     {
         if (spoolSending != null || spoolState != GemSpoolState.Transmit || commState != GemCommunicationState.Communicating || IsOffline(control) || spool.First is not { } head) return null;
         spoolSending = head.Value.Seq;
-        return new Outgoing(head.Value.Message, SpoolDone) { SpoolSeq = head.Value.Seq };
+        return new Outgoing(head.Value.Message, SpoolDone) { SpoolSeq = head.Value.Seq, Run = run };
     }
 
     // 스풀 머리의 송신 완료(Completed 뒤, 보통 디스패처, gate 밖에서 불림). 6I.5 표:
@@ -239,11 +252,13 @@ public partial class GemEquipment
     // 그 밖(SECS-I 재시도 초과 IOException 등) → 남기고 전이 6(CE 없음, 회선은 유지되므로 Host가 다시 S6F23)
     void SpoolDone(Outgoing o, Task<SecsMessage?> t)
     {
+        BeforeSpoolDoneForTest?.Invoke();
         var ex = t.IsCompletedSuccessfully ? null : t.Exception?.InnerException;
         if (ex is SecsTimeoutException) return;                     // spoolSending은 이어지는 통신 실패의 ClearQueueLocked가 비운다
         lock (gate)
         {
-            if (!running) return;
+            // Completed가 gate를 놓은 뒤 여기까지 오는 사이 Stop·Start가 끼면 새 실행은 같은 seq로 복원했을 수 있다: 지난 실행의 결과는 버린다
+            if (!running || o.Run != run) return;
             if (spoolSending == o.SpoolSeq) spoolSending = null;
             if (ex != null && ex is not (SecsAbortException or SecsErrorException))
             {

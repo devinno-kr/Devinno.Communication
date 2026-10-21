@@ -644,6 +644,86 @@ public class GemSpoolUnloadTests
         finally { Delete(dir); }
     }
 
+    // 재시작 뒤 새 S6F11의 DATAID는 복원한 S6F11의 가장 큰 DATAID 다음(Host가 DATAID로 중복을 거를 수 있게)
+    [Fact]
+    public async Task Restart_DataIdContinuesAfterRestored()
+    {
+        var dir = TempDir();
+        try
+        {
+            using (var eq = Eq(dir))
+            {
+                using var host = await Spooled(eq, 3);
+                eq.Stop();
+            }
+            using var eq2 = Eq(dir);
+            using var host2 = await GemKit.Communicating(eq2);
+            Assert.Equal(Accepted, await host2.Ask("S6F23 W <U1 0>"));
+            var restored = Enumerable.Range(0, 3).Select(_ => DataId(host2.Next(6, 11))).ToArray();
+            var deactivated = host2.Next(6, 11);
+            Assert.Equal(1308UL, Ceid(deactivated));
+            Assert.Equal(restored.Max() + 1, DataId(deactivated));
+        }
+        finally { Delete(dir); }
+    }
+
+    // Stop 뒤 공개 스풀 상태는 꺼짐과 같고(파일은 남음), 다시 Start하면 복원한다
+    [Fact]
+    public async Task Stop_ResetsPublicSpoolState_StartRestores()
+    {
+        var dir = TempDir();
+        try
+        {
+            using var eq = Eq(dir, e => e.MaxSpoolMessages = 2);
+            using (var host = await Spooled(eq, 2))
+            {
+                Assert.False(eq.TriggerEvent(5002));                // 가득 참: 새 것을 버림
+                Assert.True(eq.IsSpoolFull);
+                eq.Stop();
+            }
+            Assert.Equal(GemSpoolState.Inactive, eq.SpoolState);
+            Assert.False(eq.IsSpoolFull);
+            Assert.Equal(0, eq.SpoolCount);
+            Assert.Equal(2, Directory.GetFiles(dir, "*.msg").Length);
+            eq.Start();
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+            Assert.True(eq.IsSpoolFull);
+            Assert.Equal(2, eq.SpoolCount);
+        }
+        finally { Delete(dir); }
+    }
+
+    // 스풀 머리의 결과가 Stop·Start 뒤에 늦게 오면 새 실행의 (같은 seq로 복원한) 머리를 지우지 않는다
+    [Fact]
+    public async Task LateSpoolResultAfterRestart_Ignored()
+    {
+        var dir = TempDir();
+        try
+        {
+            using var eq = Eq(dir);
+            using var host = await Spooled(eq, 3, setup: h => h.Hold(6, 11));
+            Assert.Equal(Accepted, await host.Ask("S6F23 W <U1 0>"));
+            host.Next(6, 11);
+            Assert.True(host.Held.TryTake(out var held, 3000));
+            using var restarted = new ManualResetEventSlim(false);
+            eq.BeforeSpoolDoneForTest = () =>
+            {
+                eq.BeforeSpoolDoneForTest = null;
+                eq.Stop();
+                eq.Start();
+                restarted.Set();
+            };
+            held!.Reply(S6F12(0));
+            Assert.True(restarted.Wait(10000));
+            await Task.Delay(300);
+            Assert.Equal(3, eq.SpoolCount);
+            Assert.Equal(GemSpoolState.NoOutput, eq.SpoolState);
+            await Task.Delay(200);
+            Assert.Equal(3, Directory.GetFiles(dir, "*.msg").Length);
+        }
+        finally { Delete(dir); }
+    }
+
     // 스풀링 꺼짐: S6F23은 지금처럼 S9F5
     [Fact]
     public async Task Off_S6F23_S9F5()

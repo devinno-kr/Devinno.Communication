@@ -138,6 +138,48 @@ public class GemSpoolStoreTests
     }
 
     [Fact]
+    public void Load_CorruptStateFile_CountedAsSkipped()
+    {
+        var dir = NewDir();
+        try
+        {
+            Directory.CreateDirectory(dir);
+            var state = Path.Combine(dir, "spool.state");
+            File.WriteAllBytes(state, [1, 2]);
+            using var r = GemSpoolStore.Open(dir);
+            Assert.Null(r.State);
+            Assert.Equal(1, r.SkippedFiles);
+            Assert.False(File.Exists(state));
+        }
+        finally { Cleanup(dir); }
+    }
+
+    // 하나를 못 지워도 나머지는 지우고 실패는 한 번 알린다(지운 메시지가 재시작 때 되살아나지 않게)
+    [Fact]
+    public void Clear_ContinuesPastFailedDelete()
+    {
+        var dir = NewDir();
+        try
+        {
+            var s = GemSpoolStore.Open(dir);
+            for (var i = 1; i <= 3; i++) s.Add(i, Msg(i, true));
+            s.Close(3000);
+            var r = GemSpoolStore.Open(dir);
+            var failures = new List<Exception>();
+            r.WriteFailed = e => { lock (failures) failures.Add(e); };
+            using (new FileStream(Path.Combine(dir, 1L.ToString("D20") + ".msg"), FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                r.Clear();
+                r.Close(3000);
+            }
+            lock (failures) Assert.Single(failures);
+            using var r2 = GemSpoolStore.Open(dir);
+            Assert.Equal([1L], r2.Messages.Select(x => x.Seq).ToArray());
+        }
+        finally { Cleanup(dir); }
+    }
+
+    [Fact]
     public void Close_FlushesPendingWrites()
     {
         var dir = NewDir();

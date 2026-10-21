@@ -21,7 +21,7 @@ namespace Devinno.Communication.Secs.Gem;
 /// <para><b>Threads</b>: Besides the transport threads, one GEM worker thread (send queue, timers, deadlines) and one application event thread are used. All public events are raised on the application event thread in the order they occurred, and exceptions thrown by handlers are ignored.
 /// A slow handler does not block automatic replies. To update the UI, marshal with BeginInvoke (WinForms) / Dispatcher.BeginInvoke (WPF).</para>
 /// <para>The E30 original has not been checked against, so do not use this as evidence for a GEM Compliance Statement. Trace, limits, recipes (S7), and S2F49 are not supported.</para>
-/// <para><b>Spooling</b> (SEMI E30 7.12) is off by default. Set <see cref="SpoolDirectory"/> to turn it on: while ON-LINE but not communicating, the S5F1, S6F11, and S10F1 messages the Host selected with S2F43 are stored in that folder instead of being reported through <see cref="SendFailed"/>, and the Host gets them back with S6F23. The Host must send S6F23, or the selected messages are never sent live again while the spool is ACTIVE. Delivery is at least once: after a crash, or when <see cref="DisableCommunication"/> interrupts a spooled message that is on the wire, that message can be sent again later. One folder belongs to one equipment (a second <see cref="Start"/> on it throws <see cref="IOException"/>). Writes are asynchronous, so the last few spooled messages can be lost on a power failure, and a state file lost in a crash can leave SpoolStartTime empty. Spooled data are values from the moment of the call and can be stale compared with the current equipment state when the Host receives them.</para>
+/// <para><b>Spooling</b> (SEMI E30 7.12) is off by default. Set <see cref="SpoolDirectory"/> to turn it on: spooling becomes active when communication fails (whatever the control state; EnableSpooling = false only blocks a new activation), and while it is active the S5F1, S6F11, and S10F1 messages the Host selected with S2F43 are stored in that folder instead of being reported through <see cref="SendFailed"/> (nothing is stored while OFF-LINE, where nothing is sent), and the Host gets them back with S6F23. The Host must send S6F23, or the selected messages are never sent live again while the spool is ACTIVE. Delivery is at least once: after a crash, or when <see cref="DisableCommunication"/> interrupts a spooled message that is on the wire, that message can be sent again later. One folder belongs to one equipment (a second <see cref="Start"/> on it throws <see cref="IOException"/>). Writes are asynchronous, so the last few spooled messages can be lost on a power failure, and a state file lost in a crash can leave SpoolStartTime empty. Spooled data are values from the moment of the call and can be stale compared with the current equipment state when the Host receives them.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -59,6 +59,7 @@ public partial class GemEquipment : IDisposable
         public Action<Outgoing, Task<SecsMessage?>> Done { get; } = done;
         public int Epoch;                   // gate: 보낸 연결의 세대(linkEpoch). 지난 연결의 늦은 완료를 가려낸다
         public long? SpoolSeq;              // 스풀에서 꺼내 보내는 메시지의 순번(아니면 null). 버림 경로가 스풀에 다시 넣지 않는다
+        public int Run;                     // gate: 스풀 머리를 꺼낸 실행 번호(run). Stop·Start 사이에 늦게 온 결과가 새 실행의 같은 seq를 지우지 않게 한다
     }
 
     // 앱이 정해야 하는 응답(리모트 명령·EC 승인·등록 메시지). 앱 결과와 기한 응답 중 먼저 온 것 하나만 보낸다. Run = 받은 실행의 번호
@@ -380,9 +381,10 @@ public partial class GemEquipment : IDisposable
 
     #region Start / Stop
     /// <summary>Checks the definitions, initializes the state, and then starts the GEM threads and the transport. Does nothing if already started.</summary>
-    /// <remarks>The state (values, reports, links, enable flags, alarms, clock) returns to its initial values at every Start (persistence is planned for later).</remarks>
+    /// <remarks>The state (values, reports, links, enable flags, alarms, clock) returns to its initial values at every Start. Only the spool is kept across restarts: with <see cref="SpoolDirectory"/> set, the spooled messages, the spooling state, and the spool target table chosen by S2F43 are restored from the folder.</remarks>
     /// <exception cref="ObjectDisposedException">Disposed</exception>
     /// <exception cref="InvalidOperationException">A definition is wrong (ID overlap, format range, unknown VID reference) or the transport has already been started. The transport is not started.</exception>
+    /// <exception cref="IOException">The <see cref="SpoolDirectory"/> folder is in use by another equipment (or process) or cannot be created. Nothing is started.</exception>
     public void Start()
     {
         lock (lifeLock)
@@ -472,6 +474,10 @@ public partial class GemEquipment : IDisposable
             worker = null;
             app = null;
             spoolStore = null;
+            // 멈춘 동안 공개 스풀 상태는 "꺼짐"과 같게(파일은 디스크에 남고 다음 Start가 복원). 알림 없음
+            spoolState = GemSpoolState.Inactive;
+            spoolFull = false;
+            spool.Clear();
         }
     }
 

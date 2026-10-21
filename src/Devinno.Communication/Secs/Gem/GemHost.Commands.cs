@@ -337,7 +337,7 @@ public partial class GemHost
     /// <summary>Sets which streams and functions the equipment spools (S2F43, Reset Spooling Streams and Functions).</summary>
     /// <param name="streams">The streams to spool and, for each, the functions (an empty list means all functions of the stream). An empty list of streams means no stream is spooled.</param>
     /// <returns>RSPACK (0 = accepted, 1 = some streams or functions are not allowed) and, for each rejected entry, its stream, STRACK, and functions.</returns>
-    /// <exception cref="ArgumentException">A stream or function number cannot be represented in the message.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="streams"/> or a function list is null.</exception>
     /// <exception cref="InvalidOperationException">Not connected.</exception>
     /// <exception cref="SecsTimeoutException">No reply within T3.</exception>
     /// <exception cref="SecsAbortException">The equipment replied with S2F0.</exception>
