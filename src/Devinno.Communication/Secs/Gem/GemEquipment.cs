@@ -57,9 +57,7 @@ public partial class GemEquipment : IDisposable
         public SecsMessage Message { get; } = message;
         public Action<Outgoing, Task<SecsMessage?>> Done { get; } = done;
         public int Epoch;                   // gate: 보낸 연결의 세대(linkEpoch). 지난 연결의 늦은 완료를 가려낸다
-#pragma warning disable CS0649   // 스풀 머리를 보내는 뒤 태스크(내보내기)에서 넣는다
         public long? SpoolSeq;              // 스풀에서 꺼내 보내는 메시지의 순번(아니면 null). 버림 경로가 스풀에 다시 넣지 않는다
-#pragma warning restore CS0649
     }
 
     // 앱이 정해야 하는 응답(리모트 명령·EC 승인·등록 메시지). 앱 결과와 기한 응답 중 먼저 온 것 하나만 보낸다. Run = 받은 실행의 번호
@@ -394,6 +392,8 @@ public partial class GemEquipment : IDisposable
             var c = GemCatalog.Build(definitions, StandardIds, vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat, sp);
             // 스풀 저장소는 gate 밖에서, 스레드·전송을 시작하기 전에 연다(실패하면 예외를 그대로 던지고 아무것도 시작하지 않는다)
             var store = sp ? GemSpoolStore.Open(spoolDirectory!) : null;
+            // 실행 중 첫 쓰기 실패를 한 번 알린다(쓰기 스레드에서, gate 없이 앱 이벤트 대기열에 넣기만)
+            if (store != null) store.WriteFailed = ex => Error($"스풀 파일을 쓰지 못했습니다(메모리 스풀은 계속, 재시작하면 그 사이 것을 잃을 수 있음): {ex.Message}");
             var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick);
             var a = new GemLoop(nameof(GemEquipment) + ".Events", maxPending: maxPendingEvents);
             lock (gate)
@@ -424,6 +424,8 @@ public partial class GemEquipment : IDisposable
             w.Start();
             a.Start();
             IsStart = true;
+            // 복원 때 해석하지 못해 지운 스풀 파일이 있으면 Start 뒤 한 번 알린다(앱 이벤트 스레드가 시작된 뒤라야 전달됨)
+            if (store is { SkippedFiles: > 0 }) Error($"스풀 디렉터리에서 읽지 못한 파일 {store.SkippedFiles}개를 지웠습니다(나머지는 복원함).");
             try { transport.Start(); }
             catch
             {
@@ -684,6 +686,7 @@ public partial class GemEquipment : IDisposable
     {
         if (inFlight != null && !IsS1F13(inFlight.Message) && inFlight.SpoolSeq == null) DiscardLocked(inFlight.Message, reason);
         inFlight = null;
+        spoolSending = null;                // 보내던 스풀 머리의 결과는 이제 오지 않는다(머리는 스풀에 남음)
         while (sendQueue.Count > 0)
         {
             var o = sendQueue.Dequeue();
@@ -699,8 +702,11 @@ public partial class GemEquipment : IDisposable
         Outgoing o;
         lock (gate)
         {
-            if (!running || !linkUp || inFlight != null || sendQueue.Count == 0) return;
-            o = inFlight = sendQueue.Dequeue();
+            if (!running || !linkUp || inFlight != null) return;
+            // ① 대기열 ② 대기열이 비었고 내보내는 중이면 스풀 머리(스풀링이 꺼져 있으면 늘 null)
+            var next = sendQueue.Count > 0 ? sendQueue.Dequeue() : SpoolHeadLocked();
+            if (next == null) return;
+            o = inFlight = next;
             o.Epoch = linkEpoch;
         }
         if (transport.IsDispatcherThread()) Interlocked.Increment(ref dispatcherSendCount);

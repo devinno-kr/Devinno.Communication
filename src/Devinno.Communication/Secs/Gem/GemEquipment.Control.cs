@@ -117,6 +117,7 @@ public partial class GemEquipment
         var prev = control;
         previousControlValue = (byte)prev;
         control = next;
+        if (IsOffline(next)) StopUnloadLocked(commFailure: false);     // 스풀 전이 6′: OFF-LINE 진입이면 내보내기를 멈춤(CE 없음)
         if (ceAfter != null) TriggerStandardEventLocked(ceAfter.Value);
         Raise(ControlStateChanged, new GemControlStateEventArgs(prev, next));
     }

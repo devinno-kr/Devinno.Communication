@@ -55,6 +55,7 @@ public partial class GemEquipment
             ClearQueueLocked(GemSendFailure.Disabled);
             equipmentConnect = EquipmentConnect.None;
             SetCommunicationLocked(GemCommunicationState.Disabled);
+            StopUnloadLocked(commFailure: false);          // 스풀 전이 6′(보내던 머리는 남고, 그 결과는 무시됨)
             OnCommunicationLostLocked();
             return true;
         }
@@ -153,13 +154,15 @@ public partial class GemEquipment
     }
 
     // 통신 실패(전이 14, gate 안): 대기열을 버림 경로로 비우고 NOT COMMUNICATING → 다시 S1F13.
-    // 스풀 전이 1이면 순서: 활성화 → 대기열을 스풀로 → CommunicationStateChanged → (전이 4) → SpoolingActivated CE → SpoolStateChanged → S1F13
+    // 스풀 전이 1이면 순서: 활성화 → 대기열을 스풀로 → CommunicationStateChanged → (전이 4) → SpoolingActivated CE → SpoolStateChanged → S1F13.
+    // 내보내는 중이면 전이 6: CommunicationStateChanged 뒤 NO OUTPUT + SpoolTransmitFailure CE(NOT COMMUNICATING이라 스풀 끝에)
     void CommunicationLostLocked(bool connected)
     {
         bool activate = CanActivateSpoolLocked;
         if (activate) ActivateSpoolLocked();
         ClearQueueLocked(GemSendFailure.NotCommunicating);
         SetCommunicationLocked(GemCommunicationState.NotCommunicating);
+        StopUnloadLocked(commFailure: true);
         OnCommunicationLostLocked();
         if (activate) FinishSpoolActivationLocked();
         StartWaitCraLocked(connected);
