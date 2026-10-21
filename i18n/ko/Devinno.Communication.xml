@@ -8147,8 +8147,55 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="text" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="text" />가 빈 문자열인 경우</exception>
         </member>
-        <member name="T:Devinno.Communication.Secs.Gem.GemMessages" en-hash="d9bcb65cf6191091">
+        <member name="T:Devinno.Communication.Secs.Gem.GemMessages" en-hash="f0a0fe3f833b9b3d">
             <summary>GEM 메시지 본문의 상태 없는 빌더(<c>SxFy(...)</c>)와 해석기(<c>ParseSxFy(...)</c>)입니다.</summary>
+            <remarks>
+            <para><b>세 층</b>: 전송(<c>SecsHsms</c>/<c>SecsSerial</c>)은 SECS-II 메시지 원본을 주고받고, 이 클래스(메시징 층)는 GEM 메시지 본문을 만들고 읽기만 하며 상태가 없고, <c>GemEquipment</c>/<c>GemHost</c>는 상태(통신·제어·리포트)를 갖고 자동으로 응답하는 E30 모듈입니다. 연결 하나에는 한 층을 고르세요. 이 클래스를 모듈과 섞어 써도 되지만(여기서 만들고 읽는 것이 모듈의 상태에 영향을 주지 않음), 모듈을 쓸 때는 전송의 <c>PrimaryReceived</c>를 직접 구독하지 마세요. 모듈이 쓰고 있습니다.</para>
+            <para><b>만들기</b>: 1차 메시지(홀수 Function)는 W비트가 켜집니다. E5에서 응답이 선택인 S5F1·S6F11·S10F1·S10F3만 <c>replyExpected</c>(기본 true)를 받습니다. 응답 빌더(짝수 Function)에는 W비트가 없으므로 <c>e.Reply(GemMessages.S1F14(...))</c>처럼 씁니다.</para>
+            <para><b>해석</b>: 해석기는 Stream/Function이 기대와 다르면 <see cref="T:System.ArgumentException" />(파라미터 <c>message</c>, 프로그램 오류), 본문 구조가 다르면 <see cref="T:System.FormatException" />을 던집니다(문장에 메시지의 앞 2048자 SML이 들어 있음). S1F3처럼 본문이 없는 메시지는 빈 목록으로 읽습니다.</para>
+            <para><b>받을 때 관대하게, 보낼 때 엄격하게</b>: 해석기는 정수 ID 포맷 전부 또는 A(<see cref="T:Devinno.Communication.Secs.Gem.GemId" /> 참고), 숫자 포맷 무엇이든 0~255인 ack(아니면 <see cref="T:System.FormatException" />), ID 목록은 <c>&lt;L ID…&gt;</c>·정수 배열·A 하나를 모두 받습니다. 빌더는 ID를 <see cref="T:Devinno.Communication.Secs.Gem.GemFormats" />의 포맷으로 씁니다(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />, 모두 U4). 범위를 넘는 숫자는 <see cref="T:System.ArgumentOutOfRangeException" />이고, 숫자를 A로 보내면 10진 문자열이 됩니다. ack는 항상 1바이트 <c>B</c>이며 <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 상수나 아무 <see cref="T:System.Byte" />를 넘기면 됩니다.</para>
+            <para><b>호출자가 확인할 것</b>: ID가 설정한 포맷에 맞는지, 요청에 몇 개까지 담을지, 텍스트 길이(MDLN 20자, ALTX 120자 등)는 여기서 검사하지 않습니다.</para>
+            <para><b>순서</b>: 상태를 직접 관리하면 <c>SendOrdered</c>(<c>SecsHsms</c>와 <c>SecsSerial</c>에 있음)로 보내서, 응답을 상대가 그 뒤에 보낸 1차 메시지보다 먼저 처리하세요. 어느 연결의 결과인지는 <c>DeviceOpened</c>마다 번호를 늘려 보낼 때 기록해 구분합니다.</para>
+            </remarks>
+            <example>
+            장비 앱: 연결되면 통신을 수립하고(SendOrdered) S1F3에 직접 응답합니다.
+            <code>
+            var hsms = new SecsHsms { Role = SecsRole.Equipment, Mode = HsmsMode.Passive, LocalPort = 5000 };
+            long generation = 0;
+            hsms.DeviceOpened += (s, e) =&gt;
+            {
+                long mine = Interlocked.Increment(ref generation);   // 이 결과가 어느 연결의 것인지
+                hsms.SendOrdered(GemMessages.S1F13("EQ", "1.0"), r =&gt;
+                {
+                    if (!r.IsSuccess || mine != Interlocked.Read(ref generation)) return;
+                    var (commack, modelName, softwareRevision) = GemMessages.ParseS1F14(r.Reply!);
+                    // commack 0 = 통신 중
+                });
+            };
+            hsms.PrimaryReceived += (s, e) =&gt;
+            {
+                if (e.Message is { Stream: 1, Function: 3 })
+                {
+                    var svids = GemMessages.ParseS1F3(e.Message);
+                    e.Reply(GemMessages.S1F4([.. svids.Select(id =&gt; SecsItem.F4(25))]));
+                }
+            };
+            hsms.Start();
+            </code>
+            Host 앱: 이벤트 리포트를 읽고(표가 리포트별 VID를 알려 줌) 응답합니다.
+            <code>
+            var table = new Dictionary&lt;GemId, IReadOnlyList&lt;GemId&gt;&gt; { [1000] = new GemId[] { 2001, 3001 } };
+            var formats = new GemFormats();   // 장비와 같은 ID 포맷
+            hsms.PrimaryReceived += (s, e) =&gt;
+            {
+                if (e.Message is { Stream: 6, Function: 11 })
+                {
+                    GemEventReport report = GemMessages.ParseS6F11(e.Message, table, formats);
+                    e.Reply(GemMessages.S6F12(GemAck.Ackc6Accepted));
+                }
+            };
+            </code>
+            </example>
         </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F1" en-hash="272acafaa8f9405d">
             <summary>S1F1 Are You There를 만듭니다(헤더만, W비트 켬).</summary>
@@ -8766,10 +8813,10 @@
             <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
         </member>
-<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="ed4df861cb8c51cf">
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="9c3dd838db1fd128">
             <summary>S6F11 Event Report Send를 해석합니다.</summary>
             <remarks>DATAID는 장비가 보낸 아이템 그대로 둡니다. <paramref name="reportVids" />를 주면 RPTID가 표에 있고 값 개수가 VID 개수와 같은 리포트에만 VID를 붙이고, 나머지 리포트는 <see cref="P:Devinno.Communication.Secs.Gem.GemReportValue.Vid" /> = null입니다.
-            표의 열쇠와 받은 RPTID는 <paramref name="formats" />의 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 기준으로 같은 정규화를 거쳐 맞추므로, 표도 같은 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />로 만드십시오. A면 1000 같은 숫자 ID를 텍스트 "1000"으로 보므로 표 열쇠 1000이 장비가 A "1000"으로 보낸 RPTID와 맞습니다. 숫자 포맷이면 열쇠를 숫자로 비교하고 문자열 RPTID는 맞지 않습니다.</remarks>
+            표의 열쇠와 받은 RPTID는 <paramref name="formats" />의 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" /> 기준으로 같은 정규화를 거쳐 맞추므로, 표도 같은 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />로 만드십시오. A면 1000 같은 숫자 ID를 텍스트 "1000"으로 보므로 표 열쇠 1000이 장비가 A "1000"으로 보낸 RPTID와 맞습니다. 숫자 포맷이면 열쇠를 숫자로 비교하고 문자열 RPTID는 맞지 않습니다. 먼저 텍스트 열쇠로 찾고, 숫자 열쇠(RPTID가 평범한 10진 정수일 때만)는 그 첫 조회가 빗나갔을 때만 시도합니다.</remarks>
             <param name="message">받은 S6F11</param>
             <param name="reportVids">리포트 정의별 VID (null = 아는 것 없음)</param>
             <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). 표를 찾을 때 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />만 씁니다</param>
@@ -8818,8 +8865,8 @@
             <exception cref="T:System.ArgumentException">문자열 ID를 숫자 포맷으로 보낼 수 없는 경우</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">숫자 ID가 포맷 범위 밖인 경우</exception>
         </member>
-<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F16(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="fbcaebce67addb72">
-            <summary>S6F16 Event Report Data를 해석합니다. 리포트 표의 열쇠를 포함해 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" />와 같습니다.</summary>
+<member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F16(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="7dcd727fa3b74633">
+            <summary>S6F16 Event Report Data를 해석합니다. 리포트 표의 열쇠를 포함해 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F11(Devinno.Communication.Secs.Data.SecsMessage,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}},Devinno.Communication.Secs.Gem.GemFormats)" />와 같습니다. A 포맷 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />에서는 첫 조회(<c>GemItems.Key</c>처럼 정규화한 텍스트 열쇠)가 빗나갔을 때만 숫자 열쇠를 시도합니다.</summary>
             <param name="message">받은 S6F16</param>
             <param name="reportVids">리포트 정의별 VID (null = 아는 것 없음)</param>
             <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). 표를 찾을 때 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" />만 씁니다</param>
@@ -9632,7 +9679,7 @@
             <exception cref="T:System.InvalidOperationException">포트가 열려 있지 않은 경우</exception>
             <exception cref="T:System.OperationCanceledException">취소된 경우</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.SendOrdered(Devinno.Communication.Secs.Data.SecsMessage,System.Action{Devinno.Communication.Secs.Data.SecsSendResult})" en-hash="55240e50fcd794d9">
+        <member name="M:Devinno.Communication.Secs.Serial.SecsSerial.SendOrdered(Devinno.Communication.Secs.Data.SecsMessage,System.Action{Devinno.Communication.Secs.Data.SecsSendResult})" en-hash="764566813d38685e">
             <summary>1차 메시지를 보내고 결과를 <paramref name="completed" />로 정확히 한 번, 디스패처 스레드에서 와이어 순서로 알립니다. 응답을 받은 뒤 상대가 그 응답 다음에 보낸 1차 메시지보다 먼저 처리해야 할 때 <see cref="M:Devinno.Communication.Secs.Serial.SecsSerial.SendAsync(Devinno.Communication.Secs.Data.SecsMessage,System.Threading.CancellationToken)" /> 대신 씁니다.</summary>
             <remarks>
             <para><b>스레드와 순서</b>: <paramref name="completed" />는 보통 디스패처 스레드(<see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />와 같은 스레드)에서 결과가 와이어에 도착한 순서대로 불립니다. 응답을 받았으면 그 응답 뒤에 받은 1차 메시지의 <see cref="E:Devinno.Communication.Secs.Serial.SecsSerial.PrimaryReceived" />보다 먼저 불립니다. W비트가 없는 메시지는 보내기가 끝나면(마지막 블록의 ACK)(또는 실패하면) <see cref="P:Devinno.Communication.Secs.Data.SecsSendResult.Reply" /> = null로 끝납니다.
@@ -9646,7 +9693,7 @@
             <param name="primary">1차 메시지 (홀수 Function). 보낼 때 System Bytes와 장치 ID를 채우며, 넘긴 객체는 바꾸지 않습니다.</param>
             <param name="completed">결과를 정확히 한 번 받습니다.</param>
             <exception cref="T:System.ArgumentNullException">primary나 completed가 null인 경우</exception>
-            <exception cref="T:System.ArgumentException">Function이 짝수인 경우</exception>
+            <exception cref="T:System.ArgumentException">Function이 짝수이거나 본문이 너무 큰 경우</exception>
             <exception cref="T:System.InvalidOperationException">포트가 열려 있지 않은 경우</exception>
         </member>
         

@@ -70,8 +70,11 @@ The other Master classes follow the same flow: create, attach events, register `
 | MQTT | `MQClient` (MQTTnet wrapper) | TCP | Client |
 | SECS/GEM | `SecsHsms` (HSMS-SS, SEMI E37) | TCP | Host / Equipment |
 | SECS/GEM | `SecsSerial` (SECS-I, SEMI E4) | Serial | Host / Equipment |
+| SECS/GEM | `GemMessages` (stateless GEM message builders/parsers) | — | Host / Equipment |
 | SECS/GEM | `GemEquipment` (SEMI E30, equipment side) | HSMS / SECS-I | Equipment |
 | SECS/GEM | `GemHost` (GEM host side) | HSMS / SECS-I | Host |
+
+SECS/GEM has three layers: transport (`SecsHsms`/`SecsSerial`), stateless messaging (`GemMessages`), and GEM modules (`GemEquipment`/`GemHost`).
 
 * Modbus functions: FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16, FC26
 * **S7-1200/1500 need "PUT/GET" access permitted and "Optimized block access" turned off in the PLC.**

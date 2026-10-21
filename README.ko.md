@@ -59,7 +59,7 @@ master.Dispose();
   * 영어 IntelliSense(모든 공개 API의 XML 문서 주석), 한국어(ko) 현지화 제공
 
 ## 지원 프로토콜
-<!-- en-hash: bdcb2a135a74b6c0 -->
+<!-- en-hash: 0c7bd297040f9c8a -->
 
 | 분류 | 클래스 | 전송 | 역할 | 문서 |
 |---|---|---|---|---|
@@ -77,8 +77,11 @@ master.Dispose();
 | MQTT | `MQClient` (MQTTnet 래퍼) | TCP | Client | [문서](guide/protocols/mqtt.md) |
 | SECS/GEM | `SecsHsms` (HSMS-SS, SEMI E37) | TCP | Host / Equipment | [문서](guide/protocols/secs-gem.md) |
 | SECS/GEM | `SecsSerial` (SECS-I, SEMI E4) | Serial | Host / Equipment | [문서](guide/protocols/secs-gem.md) |
+| SECS/GEM | `GemMessages` (상태 없는 GEM 메시지 만들기/해석) | — | Host / Equipment | [문서](guide/protocols/secs-gem.md#메시징-층-gemmessages) |
 | SECS/GEM | `GemEquipment` (SEMI E30 장비 쪽) | HSMS / SECS-I | Equipment | [문서](guide/protocols/secs-gem.md#gem-장비-gemequipment) |
 | SECS/GEM | `GemHost` (GEM Host 쪽) | HSMS / SECS-I | Host | [문서](guide/protocols/secs-gem.md#gem-host-gemhost) |
+
+SECS/GEM은 세 층입니다: 전송(`SecsHsms`/`SecsSerial`), 상태 없는 메시징(`GemMessages`), GEM 모듈(`GemEquipment`/`GemHost`).
 
 * Modbus Function : FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16, FC26
 * **S7-1200/1500은 PLC에서 PUT/GET 허용과 "최적화된 블록 액세스" 해제가 필요**
@@ -188,6 +191,7 @@ Devinno.Communication은 "있는 그대로" 제공되며 어떠한 보증도 하
 <!-- en-hash: b46496942cf1e813 -->
 
 MIT. 저장소 루트의 `LICENSE` 파일 참고.
+
 
 
 

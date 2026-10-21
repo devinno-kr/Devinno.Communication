@@ -887,7 +887,7 @@ Class `Devinno.Communication.Secs.Serial.SecsSerial` (SECS-I), config `SecsSeria
 
 ## 20. GemEquipment
 
-Class `Devinno.Communication.Secs.Gem.GemEquipment` (SEMI E30 equipment side), config `GemEquipmentConfig`. Construct with the transport: `new GemEquipment(new SecsHsms())` or `new GemEquipment(new SecsSerial())`; the XML transport child must match that type.
+Class `Devinno.Communication.Secs.Gem.GemEquipment` (SEMI E30 equipment side), config `GemEquipmentConfig`. Construct with the transport: `new GemEquipment(new SecsHsms())` or `new GemEquipment(new SecsSerial())`; the XML transport child must match that type. The stateless messaging layer (GemMessages) has no XML; see IntelliSense.
 Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; omitted = transport unchanged), `<Standard>` (0 – 1), `<SV>`*, `<DV>`*, `<EC>`*, `<CE>`*, `<Alarm>`*, `<Command>`* (each with `<Param>`*), `<Message>`*.
 
 - ID format attributes take `U1 U2 U4 U8 I1 I2 I4 I8 A`. An ID is a decimal integer for numeric formats, plain text for `A`.
@@ -1038,7 +1038,7 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 
 ## 21. GemHost
 
-Class `Devinno.Communication.Secs.Gem.GemHost` (GEM host side), config `GemHostConfig`. Construct with the transport: `new GemHost(new SecsHsms())` or `new GemHost(new SecsSerial())`; the XML transport child must match that type.
+Class `Devinno.Communication.Secs.Gem.GemHost` (GEM host side), config `GemHostConfig`. Construct with the transport: `new GemHost(new SecsHsms())` or `new GemHost(new SecsSerial())`; the XML transport child must match that type. The stateless messaging layer (GemMessages) has no XML; see IntelliSense.
 Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; `Role` omitted or `Host`), `<Subscribe>`*.
 
 ### `<GemHost>`

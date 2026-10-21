@@ -278,7 +278,7 @@ public class SecsSerial : IDisposable
     /// <param name="primary">The primary message (odd function). The system bytes and device ID are filled in when sending, and the object passed in is not modified.</param>
     /// <param name="completed">Receives the result exactly once.</param>
     /// <exception cref="ArgumentNullException">primary or completed is null.</exception>
-    /// <exception cref="ArgumentException">The function is even.</exception>
+    /// <exception cref="ArgumentException">The function is even, or the body is too large.</exception>
     /// <exception cref="InvalidOperationException">The port is not open.</exception>
     public void SendOrdered(SecsMessage primary, Action<SecsSendResult> completed)
     {

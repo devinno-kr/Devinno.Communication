@@ -47,6 +47,15 @@ This is the **document to read first** when you write a communication XML or app
 - Configuration classes are `<Class>Config` (`McEthernetConfig`), used with `ConfigSchema.Get<T>()` and `ApplyConfig`/`ToConfig`.
 - Named writes (`<Write>` + `NamedWrite`) exist only on the 10 PLC masters: `ModbusRTUMaster`, `ModbusTCPMaster`, `LsCNet`, `LsFEnet`, `McSerial`, `McEthernet`, `S7Ethernet`, `FinsUdp`, `FinsTcp`, `FinsSerial`.
 - SECS/GEM, MQTT and the slaves are covered here only for their XML. Use IntelliSense for their messaging APIs.
+- SECS/GEM, which layer to use:
+
+  | Layer | Class | Use it for |
+  |---|---|---|
+  | transport | `SecsHsms` / `SecsSerial` | raw SECS-II messages (`Send`, `PrimaryReceived`) |
+  | messaging | `GemMessages` (`…Secs.Gem`) | stateless build/parse of GEM message bodies (`GemMessages.S1F13(...)`, `ParseS6F11(...)`); your app owns the state; use `SendOrdered` to handle a reply before the next primary message |
+  | modules | `GemEquipment` / `GemHost` | full E30 state and automatic replies; do not subscribe to the transport's `PrimaryReceived` when using a module |
+
+- GEM IDs (`GemMessages`, `GemFormats`): lenient on receive (any integer format or A), strict on send (the format in `GemFormats`, default U4).
 - SECS/GEM event order: transport events (`DeviceOpened` → that connection's `PrimaryReceived`/`ProtocolError` → `DeviceClosed`) are raised one at a time on one dispatcher thread in the order received; GEM state changes follow wire order (GEM app events are raised in that order on the GEM app event thread).
 - `Send`/`SendAsync` results (and GEM command-method returns/exceptions) are outside that order (other threads); never assume they come before or after an event.
 - Judge link state by `DeviceOpened`/`DeviceClosed`, not `IsOpen` (GEM: `GemEquipment.CommunicationState`, `GemHost.IsCommunicating` and `CommunicationStateChanged`).

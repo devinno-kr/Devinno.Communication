@@ -27,7 +27,7 @@ public static partial class GemMessages
     /// <summary>Reads S6F11 Event Report Send.</summary>
     /// <remarks>
     /// The DATAID is kept as the item the equipment sent. When <paramref name="reportVids"/> is given, each report whose RPTID is in the table and whose value count equals the VID count gets its VIDs; every other report has <see cref="GemReportValue.Vid"/> = null.
-    /// The table key and the received RPTID are matched with the same normalization by <see cref="GemFormats.Rptid"/> of <paramref name="formats"/>, so build the table with the same <see cref="GemFormats.Rptid"/>. If it is A, a numeric ID such as 1000 is treated as the text "1000", so a table key 1000 matches an RPTID the equipment sent as A "1000". If it is numeric, the keys are compared as numbers and a text RPTID never matches.
+    /// The table key and the received RPTID are matched with the same normalization by <see cref="GemFormats.Rptid"/> of <paramref name="formats"/>, so build the table with the same <see cref="GemFormats.Rptid"/>. If it is A, a numeric ID such as 1000 is treated as the text "1000", so a table key 1000 matches an RPTID the equipment sent as A "1000". The text key is looked up first; the numeric key (only for an RPTID that is a plain decimal integer) is tried only when that first lookup misses. If it is numeric, the keys are compared as numbers and a text RPTID never matches.
     /// </remarks>
     /// <param name="message">The received S6F11.</param>
     /// <param name="reportVids">The VIDs of each report definition (null = none known).</param>
@@ -93,7 +93,7 @@ public static partial class GemMessages
     public static SecsMessage S6F16(GemId dataId, GemId ceid, IReadOnlyList<(GemId Rptid, IReadOnlyList<SecsItem> Values)> reports, GemFormats? formats = null)
         => new(6, 16, false, EventBody(dataId, ceid, reports, F(formats)));
 
-    /// <summary>Reads S6F16 Event Report Data. The rules, including the report table key, are the same as for <see cref="ParseS6F11"/>.</summary>
+    /// <summary>Reads S6F16 Event Report Data. The rules, including the report table key, are the same as for <see cref="ParseS6F11"/>: for an A <see cref="GemFormats.Rptid"/> the numeric key is tried only when the first lookup (the text key normalized like <c>GemItems.Key</c>) misses.</summary>
     /// <param name="message">The received S6F16.</param>
     /// <param name="reportVids">The VIDs of each report definition (null = none known).</param>
     /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>); only <see cref="GemFormats.Rptid"/> is used, to look up the table.</param>
