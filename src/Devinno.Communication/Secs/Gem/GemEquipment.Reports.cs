@@ -24,10 +24,10 @@ public partial class GemEquipment
 
     partial void AddReportHandlers()
     {
-        handlers[S2F33] = e => Respond(e, GemItems.Ack(DefineReports(e.Message.Item)));
-        handlers[S2F35] = e => Respond(e, GemItems.Ack(LinkReports(e.Message.Item)));
-        handlers[S2F37] = e => Respond(e, GemItems.Ack(EnableEvents(e.Message.Item)));
-        handlers[S2F39] = e => Respond(e, GemItems.Ack(GemAck.GrantGranted));    // 한도를 두지 않으므로 항상 허락
+        handlers[S2F33] = e => Respond(e, GemMessages.S2F34(DefineReports(e.Message)));
+        handlers[S2F35] = e => Respond(e, GemMessages.S2F36(LinkReports(e.Message)));
+        handlers[S2F37] = e => Respond(e, GemMessages.S2F38(EnableEvents(e.Message)));
+        handlers[S2F39] = e => Respond(e, GemMessages.S2F40(GemAck.GrantGranted));    // 한도를 두지 않으므로 항상 허락
         handlers[S6F15] = OnS6F15;
         handlers[S6F19] = OnS6F19;
         standardValues[GemStandard.EventsEnabled] = () => GemItems.IdList(catalog.EventList.Where(e => enabledEvents.Contains(e.Key)).Select(e => e.Key), catalog.CeidFormat);
@@ -82,7 +82,8 @@ public partial class GemEquipment
     {
         if (!running || commState == GemCommunicationState.Disabled || IsOffline(control)) return false;
         if (!enabledEvents.Contains(ce.Key)) return false;
-        var message = new SecsMessage(6, 11, eventReplyExpected, EventBodyLocked(ce.Key.ToItem(catalog.CeidFormat), ce, overrides));
+        var reps = ReportsLocked(ce, overrides);                 // 값을 먼저, DATAID는 그 뒤(지금 순서)
+        var message = GemMessages.S6F11(NextDataIdLocked(), ce.Key, reps, formats, eventReplyExpected);
         if (commState != GemCommunicationState.Communicating)
         {
             DiscardLocked(message, GemSendFailure.NotCommunicating);
@@ -94,41 +95,45 @@ public partial class GemEquipment
     partial void TriggerStandardEventLocked(GemStandard ce)
         => TriggerLocked(catalog.Events[catalog.Std(ce)], null);
 
-    // S6F11/S6F16 본문: <L DATAID CEID <L <L RPTID <L V…>>…>> (리포트는 링크 순서, 링크가 없으면 빈 L)
-    SecsItem EventBodyLocked(SecsItem ceidItem, GemEventDef? ce, IReadOnlyDictionary<GemId, SecsItem>? overrides)
+    // S6F11/S6F16의 리포트: 링크 순서, 각 리포트의 지금 값(링크가 없으면 빈 목록)
+    List<(GemId Rptid, IReadOnlyList<SecsItem> Values)> ReportsLocked(GemEventDef? ce, IReadOnlyDictionary<GemId, SecsItem>? overrides)
     {
-        var rpts = new List<SecsItem>();
+        var rpts = new List<(GemId Rptid, IReadOnlyList<SecsItem> Values)>();
         if (ce != null && links.TryGetValue(ce.Key, out var linked))
-            foreach (var rptid in linked) rpts.Add(SecsItem.L(rptid.ToItem(catalog.RptidFormat), ReportValuesLocked(rptid, overrides)));
-        return SecsItem.L(NextDataIdLocked(), ceidItem, SecsItem.L([.. rpts]));
+            foreach (var rptid in linked) rpts.Add((rptid, ReportValuesLocked(rptid, overrides)));
+        return rpts;
     }
 
-    SecsItem ReportValuesLocked(GemId rptid, IReadOnlyDictionary<GemId, SecsItem>? overrides)
-        => SecsItem.L([.. reports[rptid].Select(k => overrides != null && overrides.TryGetValue(k, out var o) ? o : ValueLocked(catalog.Vars[k]))]);
+    List<SecsItem> ReportValuesLocked(GemId rptid, IReadOnlyDictionary<GemId, SecsItem>? overrides)
+        => [.. reports[rptid].Select(k => overrides != null && overrides.TryGetValue(k, out var o) ? o : ValueLocked(catalog.Vars[k]))];
 
-    // DATAID: Start마다 1부터, DataidFormat의 최댓값을 넘으면 1로
-    SecsItem NextDataIdLocked()
+    // DATAID: Start마다 1부터, DataidFormat의 최댓값을 넘으면 1로 (보낼 때 formats.Dataid로)
+    GemId NextDataIdLocked()
     {
         long max = catalog.DataidFormat == SecsFormat.ASCII ? long.MaxValue : GemItems.IntegerRange(catalog.DataidFormat).Max;
         dataId = dataId >= max ? 1 : dataId + 1;
-        return new GemId(dataId).ToItem(catalog.DataidFormat);
+        return new GemId(dataId);
     }
     #endregion
 
     #region S2F33/35/37 (전부 검사한 뒤 한꺼번에 적용, 첫 오류의 코드)
-    // S2F33 <L DATAID <L <L RPTID <L VID…>>…>> → DRACK
-    byte DefineReports(SecsItem? body)
+    // S2F33 <L DATAID <L <L RPTID <L VID…>>…>> → DRACK. 2층 해석 실패(구조·ID 모양) = DRACK 1,
+    // 그 뒤 3층 규칙(D2): RPTID는 설정 포맷이고 그 포맷으로 되돌려 보낼 수 있어야, VID 목록은 <L VID…>만, VID는 설정 포맷(아니면 DRACK 1)
+    byte DefineReports(SecsMessage m)
     {
-        if (body is not { Format: SecsFormat.List, Count: 2 } || body.Items[1].Format != SecsFormat.List) return GemAck.DrackInvalidFormat;
+        IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> parsed;
+        try { parsed = GemMessages.ParseS2F33(m).Reports; }
+        catch (FormatException) { return GemAck.DrackInvalidFormat; }
+        var entries = m.Item!.Items[1].Items;
         var defs = new List<(GemId Rptid, List<GemId> Vids)>();
-        foreach (var r in body.Items[1].Items)
+        for (int i = 0; i < parsed.Count; i++)
         {
-            if (r is not { Format: SecsFormat.List, Count: 2 }) return GemAck.DrackInvalidFormat;
+            var r = entries[i];
             try
             {
-                var rptid = GemItems.ReadId(r.Items[0], catalog.RptidFormat);
+                var rptid = Expect(parsed[i].Rptid, r.Items[0].Format, catalog.RptidFormat);
                 if (!GemItems.Fits(rptid, catalog.RptidFormat)) return GemAck.DrackInvalidFormat;      // 설정 포맷으로 되돌려 보낼 수 없음
-                defs.Add((rptid, GemItems.ReadIdList(r.Items[1], catalog.VidFormat)));
+                defs.Add((rptid, ExpectList(r.Items[1], parsed[i].Vids, catalog.VidFormat)));
             }
             catch (FormatException) { return GemAck.DrackInvalidFormat; }
         }
@@ -166,15 +171,18 @@ public partial class GemEquipment
         }
     }
 
-    // S2F35 <L DATAID <L <L CEID <L RPTID…>>…>> → LRACK
-    byte LinkReports(SecsItem? body)
+    // S2F35 <L DATAID <L <L CEID <L RPTID…>>…>> → LRACK. 2층 해석 실패 = LRACK 1, 그 뒤 CEID·RPTID 설정 포맷과 RPTID 목록은 <L …>만(D2, 아니면 LRACK 1)
+    byte LinkReports(SecsMessage m)
     {
-        if (body is not { Format: SecsFormat.List, Count: 2 } || body.Items[1].Format != SecsFormat.List) return GemAck.LrackInvalidFormat;
+        IReadOnlyList<(GemId Ceid, IReadOnlyList<GemId> Rptids)> parsed;
+        try { parsed = GemMessages.ParseS2F35(m).Links; }
+        catch (FormatException) { return GemAck.LrackInvalidFormat; }
+        var entries = m.Item!.Items[1].Items;
         var reqs = new List<(GemId Ceid, List<GemId> Rptids)>();
-        foreach (var l in body.Items[1].Items)
+        for (int i = 0; i < parsed.Count; i++)
         {
-            if (l is not { Format: SecsFormat.List, Count: 2 }) return GemAck.LrackInvalidFormat;
-            try { reqs.Add((GemItems.ReadId(l.Items[0], catalog.CeidFormat), GemItems.ReadIdList(l.Items[1], catalog.RptidFormat))); }
+            var l = entries[i];
+            try { reqs.Add((Expect(parsed[i].Ceid, l.Items[0].Format, catalog.CeidFormat), ExpectList(l.Items[1], parsed[i].Rptids, catalog.RptidFormat))); }
             catch (FormatException) { return GemAck.LrackInvalidFormat; }
         }
         lock (gate)
@@ -198,17 +206,10 @@ public partial class GemEquipment
     }
 
     // S2F37 <L CEED <L CEID…>> → ERACK. CEED는 BOOLEAN(관대하게 B·U1: 0이 아니면 켬). 빈 목록 = 모든 CE. 구조 오류는 S9F7(ERACK에 형식 오류 코드가 없음)
-    byte EnableEvents(SecsItem? body)
+    byte EnableEvents(SecsMessage m)
     {
-        if (body is not { Format: SecsFormat.List, Count: 2 }) throw new FormatException("S2F37 본문은 <L CEED <L CEID…>>입니다.");
-        var ceed = body.Items[0];
-        bool enable = ceed switch
-        {
-            { Format: SecsFormat.Boolean, Count: 1 } => ceed.GetBooleans()[0],
-            { Format: SecsFormat.Binary or SecsFormat.U1, Count: 1 } => ceed.GetInt64() != 0,
-            _ => throw new FormatException($"CEED는 BOOLEAN이어야 합니다: {GemItems.Sml(ceed)}"),
-        };
-        var ceids = GemItems.ReadIdList(body.Items[1], catalog.CeidFormat);
+        var (enable, ids) = GemMessages.ParseS2F37(m);
+        var ceids = ExpectList(m.Item!.Items[1], ids, catalog.CeidFormat);     // <L CEID…>만, 설정 포맷(D2)
         lock (gate)
         {
             if (ceids.Any(c => !catalog.Events.ContainsKey(c))) return GemAck.ErackUnknownEvent;
@@ -226,24 +227,27 @@ public partial class GemEquipment
     // S6F15 CEID → S6F16 = S6F11과 같은 본문(지금 값, 활성화와 무관). 모르는 CEID는 <L DATAID CEID <L>>
     void OnS6F15(SecsPrimaryEventArgs e)
     {
-        var item = e.Message.Item ?? throw new FormatException("S6F15에 CEID가 없습니다.");
-        var ceid = GemItems.ReadId(item, catalog.CeidFormat);
-        SecsItem body;
+        var ceid = GemMessages.ParseS6F15(e.Message);                       // 본문 없음·ID 아님 = FormatException
+        var item = e.Message.Item!;
+        Expect(ceid, item.Format, catalog.CeidFormat);
+        SecsMessage reply;
         lock (gate)
         {
             var ce = catalog.Events.GetValueOrDefault(ceid);
-            body = EventBodyLocked(ce != null ? ce.Key.ToItem(catalog.CeidFormat) : item, ce, null);
+            var reps = ReportsLocked(ce, null);
+            reply = GemMessages.S6F16(NextDataIdLocked().ToItem(catalog.DataidFormat), ce != null ? ce.Key.ToItem(catalog.CeidFormat) : item,
+                [.. reps.Select(r => (r.Rptid.ToItem(catalog.RptidFormat), r.Values))]);    // 모르는 CEID는 받은 아이템 그대로(D3 겹치기)
         }
-        Respond(e, body);
+        Respond(e, reply);
     }
 
     // S6F19 RPTID → S6F20 <L V…>. 모르는 RPTID는 <L>
     void OnS6F19(SecsPrimaryEventArgs e)
     {
-        var rptid = GemItems.ReadId(e.Message.Item ?? throw new FormatException("S6F19에 RPTID가 없습니다."), catalog.RptidFormat);
-        SecsItem body;
-        lock (gate) body = reports.ContainsKey(rptid) ? ReportValuesLocked(rptid, null) : SecsItem.L();
-        Respond(e, body);
+        var rptid = Expect(GemMessages.ParseS6F19(e.Message), e.Message.Item!.Format, catalog.RptidFormat);
+        List<SecsItem> values;
+        lock (gate) values = reports.ContainsKey(rptid) ? ReportValuesLocked(rptid, null) : [];
+        Respond(e, GemMessages.S6F20(values));
     }
     #endregion
 }

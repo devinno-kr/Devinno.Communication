@@ -60,38 +60,37 @@ public partial class GemEquipment
     // S2F13 <L ECID…> → <L ECV…>. 빈 목록 = 모든 EC(표준 먼저), 모르는 ECID = <L>
     void OnS2F13(SecsPrimaryEventArgs e)
     {
-        var ids = RequestedIds(e.Message.Item, catalog.VidFormat);
-        SecsItem body;
+        var ids = RequestedIds(e.Message, GemMessages.ParseS2F13, catalog.VidFormat);
+        List<SecsItem> ecvs;
         lock (gate)
         {
-            body = ids.Count == 0
-                ? SecsItem.L([.. catalog.Constants.Select(v => values[v.Key])])
-                : SecsItem.L([.. ids.Select(id => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Constant ? values[v.Key] : SecsItem.L())]);
+            ecvs = ids.Count == 0
+                ? [.. catalog.Constants.Select(v => values[v.Key])]
+                : [.. ids.Select(id => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Constant ? values[v.Key] : SecsItem.L())];
         }
-        Respond(e, body);
+        Respond(e, GemMessages.S2F14(ecvs));
     }
 
     // S2F29 <L ECID…> → <L <L ECID ECNAME ECMIN ECMAX ECDEF UNITS>…>. Min/Max 없음 = 그 포맷의 길이 0. 모르는 ECID는 이름·단위 빈 A, 값 자리 <L>
     void OnS2F29(SecsPrimaryEventArgs e)
     {
-        var request = e.Message.Item;
-        var ids = RequestedIds(request, catalog.VidFormat);
-        SecsItem Entry(GemVar v) => SecsItem.L(v.Key.ToItem(catalog.VidFormat), SecsItem.A(v.Name),
-            v.Min ?? GemItems.Empty(v.Format), v.Max ?? GemItems.Empty(v.Format), v.Initial, SecsItem.A(v.Units));
-        var items = ids.Count == 0
-            ? catalog.Constants.Select(Entry)
-            : ids.Select((id, i) => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Constant
-                ? Entry(v) : SecsItem.L(request!.Items[i], SecsItem.A(""), SecsItem.L(), SecsItem.L(), SecsItem.L(), SecsItem.A("")));
-        Respond(e, SecsItem.L([.. items]));
+        var request = e.Message;
+        var ids = RequestedIds(request, GemMessages.ParseS2F29, catalog.VidFormat);
+        (SecsItem Id, string Name, SecsItem Min, SecsItem Max, SecsItem Default, string Units) Entry(GemVar v) => (v.Key.ToItem(catalog.VidFormat), v.Name,
+            v.Min ?? GemItems.Empty(v.Format), v.Max ?? GemItems.Empty(v.Format), v.Initial, v.Units);
+        List<(SecsItem Id, string Name, SecsItem Min, SecsItem Max, SecsItem Default, string Units)> items = ids.Count == 0
+            ? [.. catalog.Constants.Select(Entry)]
+            : [.. ids.Select((id, i) => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Constant
+                ? Entry(v) : (request.Item!.Items[i], "", SecsItem.L(), SecsItem.L(), SecsItem.L(), ""))];
+        Respond(e, GemMessages.S2F30(items));                     // 모르는 ECID는 받은 아이템 그대로(D3 겹치기)
     }
 
     // S2F15 <L <L ECID ECV>…> → EAC. 전부 검사(모르는 ECID 1, 포맷·개수·범위 3) → 앱 승인(미룬 응답) → EAC 0이면 모두 적용
     void OnS2F15(SecsPrimaryEventArgs e)
     {
+        // 본문 없음은 2층에서 빈 목록이지만 장비는 지금처럼 구조 오류(S9F7). ECID는 설정 포맷(D2)
         if (e.Message.Item is not { Format: SecsFormat.List } body) throw new FormatException("S2F15 본문은 <L <L ECID ECV>…>입니다.");
-        var requests = body.Items.Select(i => i is { Format: SecsFormat.List, Count: 2 }
-            ? (Id: GemItems.ReadId(i.Items[0], catalog.VidFormat), Value: i.Items[1])
-            : throw new FormatException("S2F15 항목은 <L ECID ECV>입니다.")).ToList();
+        var requests = GemMessages.ParseS2F15(e.Message).Select((c, i) => (Id: Expect(c.Ecid, body.Items[i].Items[0].Format, catalog.VidFormat), c.Value)).ToList();
         var changes = new List<(GemVar Var, SecsItem Value)>();
         byte eac = GemAck.EacAccepted;
         int r;
@@ -110,7 +109,7 @@ public partial class GemEquipment
         if (eac != GemAck.EacAccepted || handler == null)
         {
             if (eac == GemAck.EacAccepted) ApplyConstants(changes, r);
-            Respond(e, GemItems.Ack(eac));
+            Respond(e, GemMessages.S2F16(eac));
             return;
         }
         if (!e.Message.ReplyExpected)
@@ -119,7 +118,7 @@ public partial class GemEquipment
             return;
         }
         var args = new GemConstantsChangeEventArgs([.. changes.Select(c => (c.Var.Id, c.Value))]);
-        var d = DeferReply(e, new SecsMessage(2, 16, false, GemItems.Ack(GemAck.EacBusy)), "S2F15(EC 변경 승인)");
+        var d = DeferReply(e, GemMessages.S2F16(GemAck.EacBusy), "S2F15(EC 변경 승인)");
         PostApp(() =>
         {
             byte result;
@@ -129,7 +128,7 @@ public partial class GemEquipment
                 result = GemAck.EacBusy;                                                   // 실패 쪽으로: 아무것도 적용하지 않음
                 ErrorIn(d.Run, $"S2F15(EC 변경 승인): EquipmentConstantsChangeRequested 핸들러 예외로 EAC 2로 응답합니다: {ex.GetType().Name}: {ex.Message}");
             }
-            FinishDeferred(d, new SecsMessage(2, 16, false, GemItems.Ack(result)), () => { if (result == GemAck.EacAccepted) ApplyConstants(changes, d.Run); });
+            FinishDeferred(d, GemMessages.S2F16(result), () => { if (result == GemAck.EacAccepted) ApplyConstants(changes, d.Run); });
         });
     }
 

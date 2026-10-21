@@ -101,6 +101,10 @@ public static partial class GemMessages
         Check(message, 6, 16);
         return EventReport(message, reportVids, formats);
     }
+
+    // 3층 장비용: DATAID·CEID·RPTID를 이미 만든 아이템으로(모르는 CEID는 받은 아이템 그대로 되돌리기, D3)
+    internal static SecsMessage S6F16(SecsItem dataId, SecsItem ceid, IReadOnlyList<(SecsItem Rptid, IReadOnlyList<SecsItem> Values)> reports)
+        => new(6, 16, false, S6F11Body(dataId, ceid, reports));
     #endregion
 
     #region S6F19 / S6F20

@@ -97,7 +97,7 @@ public partial class GemEquipment
             return;
         }
         equipmentConnect = EquipmentConnect.WaitCra;
-        EnqueueLocked(new SecsMessage(1, 13, true, SecsItem.L(SecsItem.A(modelName), SecsItem.A(softwareRevision))), S1F13Done);
+        EnqueueLocked(GemMessages.S1F13(modelName, softwareRevision), S1F13Done);
     }
 
     // 장비 S1F13의 결과(송신 완료, 보통 디스패처): COMMACK 0이면 전이 9, 아니면 전이 6(WAIT DELAY)
@@ -105,15 +105,15 @@ public partial class GemEquipment
     {
         string? failure = null;
         if (!t.IsCompletedSuccessfully) failure = t.Exception?.InnerException?.Message;
-        else if (t.Result?.Item is not { Format: SecsFormat.List, Count: 2 } body) failure = $"S1F14 본문 구조가 틀림: {(t.Result == null ? "(응답 없음)" : GemItems.Sml(t.Result))}";
+        else if (t.Result == null) failure = "S1F14 본문 구조가 틀림: (응답 없음)";
         else
         {
             try
             {
-                byte ack = GemItems.ReadAck(body.Items[0]);
+                byte ack = GemMessages.ParseS1F14(t.Result).Commack;          // MDLN·SOFTREV는 보지 않음
                 if (ack != GemAck.CommackAccepted) failure = $"COMMACK {ack}";
             }
-            catch (FormatException ex) { failure = ex.Message; }
+            catch (FormatException ex) { failure = ex.Message; }            // 구조 오류·COMMACK 해석 실패(2층 문장, 응답 SML 포함)
         }
         int delay;
         lock (gate)
@@ -135,7 +135,7 @@ public partial class GemEquipment
     // Host의 S1F13: 언제나(DISABLED 제외) COMMACK 0. NOT COMMUNICATING이면 전이 15
     void OnS1F13(SecsPrimaryEventArgs e)
     {
-        Respond(e, SecsItem.L(GemItems.Ack(GemAck.CommackAccepted), SecsItem.L(SecsItem.A(modelName), SecsItem.A(softwareRevision))));
+        Respond(e, GemMessages.S1F14(GemAck.CommackAccepted, modelName, softwareRevision));
         lock (gate)
         {
             if (!running || commState != GemCommunicationState.NotCommunicating) return;

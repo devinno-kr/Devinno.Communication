@@ -182,6 +182,13 @@ public static partial class GemMessages
                 ? new GemConstantInfo(Id(e.Items[0], message, expected), e.Items[1].GetString(), e.Items[2], e.Items[3], e.Items[4], e.Items[5].GetString())
                 : throw Fail(message, expected))];
     }
+
+    // 3층 장비용: ECID를 이미 만든 아이템으로(모르는 ECID는 받은 아이템 그대로 되돌리기, D3)
+    internal static SecsMessage S2F30(IReadOnlyList<(SecsItem Id, string Name, SecsItem Min, SecsItem Max, SecsItem Default, string Units)> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        return new(2, 30, false, SecsItem.L([.. items.Select(i => SecsItem.L(i.Id, SecsItem.A(i.Name), i.Min, i.Max, i.Default, SecsItem.A(i.Units)))]));
+    }
     #endregion
 
     #region S2F31 / S2F32

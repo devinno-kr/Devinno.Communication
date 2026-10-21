@@ -86,6 +86,7 @@ public partial class GemEquipment : IDisposable
     readonly EventHandler<SecsPrimaryEventArgs> onPrimary;
     readonly EventHandler onOpened, onClosed;
     GemCatalog catalog = null!;         // Start 때 만듦(실행 중 읽기 전용)
+    GemFormats formats = GemFormats.Default;   // Start 때 ID 포맷 설정으로 만듦(실행 중 읽기 전용, GemMessages 빌더에 넘김)
     GemLoop? worker, app;               // 작업 스레드, 앱 이벤트 스레드
     GemLoop? lastApp;                   // gate: 마지막으로 시작한 앱 이벤트 스레드(Stop 뒤에도 버린 이벤트 수를 읽음)
     bool running;                       // gate: Start ~ Stop
@@ -389,6 +390,7 @@ public partial class GemEquipment : IDisposable
             lock (gate)
             {
                 catalog = c;
+                formats = GemFormats.Of(vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat);
                 worker = w;
                 app = lastApp = a;
                 running = true;
@@ -517,11 +519,34 @@ public partial class GemEquipment : IDisposable
 
     static bool IsOffline(GemControlState s) => s is GemControlState.EquipmentOffline or GemControlState.AttemptOnline or GemControlState.HostOffline;
 
-    // 자동 응답(W비트일 때만). 실패는 ProtocolError
-    void Respond(SecsPrimaryEventArgs e, SecsItem? body)
+    // 자동 응답(W비트일 때만, 본문은 GemMessages 빌더가 만든 응답). 실패는 ProtocolError
+    void Respond(SecsPrimaryEventArgs e, SecsMessage reply)
     {
         if (!e.Message.ReplyExpected) return;
-        ReplyNow(e, new SecsMessage(e.Message.Stream, e.Message.Function + 1, false, body), $"S{e.Message.Stream}F{e.Message.Function}");
+        ReplyNow(e, reply, $"S{e.Message.Stream}F{e.Message.Function}");
+    }
+
+    // 받은 ID가 설정 포맷과 맞는지(D2: 2층은 정수·A 무엇이든 받으므로 3층이 검사). 숫자 설정이면 정수 ID, A 설정이면 A ID. 아니면 FormatException
+    static GemId Expect(GemId id, SecsFormat itemFormat, SecsFormat f)
+    {
+        if (f == SecsFormat.ASCII ? !id.IsText : id.IsText)
+            throw new FormatException($"ID 포맷이 {GemItems.FormatName(f)}인데 {GemItems.FormatName(itemFormat)} 아이템을 받았습니다.");
+        return id;
+    }
+
+    // 2층이 <L ID…>에서 읽은 ID 목록을 3층 규칙으로: 받은 아이템이 리스트가 아니면 FormatException(정수 배열·A 하나는 받지 않음), 각 ID는 Expect
+    static List<GemId> ExpectList(SecsItem? list, IReadOnlyList<GemId> ids, SecsFormat f)
+    {
+        if (list is not { Format: SecsFormat.List }) throw new FormatException("ID 목록은 리스트여야 합니다.");
+        return [.. ids.Select((id, i) => Expect(id, list.Items[i].Format, f))];
+    }
+
+    // ID 목록 요청(S1F3·S1F11·S1F21·S1F23·S2F13·S2F29): 본문이 없으면 빈 목록(= 전체), <L ID…>만, 각 ID는 설정 포맷
+    static List<GemId> RequestedIds(SecsMessage m, Func<SecsMessage, IReadOnlyList<GemId>> parse, SecsFormat f)
+    {
+        if (m.Item == null) return [];
+        if (m.Item.Format != SecsFormat.List) throw new FormatException("ID 목록은 리스트여야 합니다.");
+        return ExpectList(m.Item, parse(m), f);
     }
 
     void ReplyNow(SecsPrimaryEventArgs e, SecsMessage reply, string what)
@@ -685,7 +710,15 @@ public partial class GemEquipment : IDisposable
         }
         if (t.Result == null) return;                  // W비트 없음
         byte ack;
-        try { ack = GemItems.ReadAck(t.Result.Item); }
+        try
+        {
+            ack = t.Result.Stream switch
+            {
+                5 => GemMessages.ParseS5F2(t.Result),
+                6 => GemMessages.ParseS6F12(t.Result),
+                _ => GemMessages.ParseS10F2(t.Result),
+            };
+        }
         catch (FormatException ex)
         {
             Raise(SendFailed, new GemSendFailedEventArgs(o.Message, GemSendFailure.InvalidReply, null, ex));

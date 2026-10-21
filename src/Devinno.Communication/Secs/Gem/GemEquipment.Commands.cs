@@ -105,37 +105,26 @@ public partial class GemEquipment
 
     partial void AddCommandHandlers() => handlers[S2F41] = OnS2F41;
 
-    static SecsMessage S2F42(byte hcack, IEnumerable<SecsItem> cpacks) => new(2, 42, false, SecsItem.L(GemItems.Ack(hcack), SecsItem.L([.. cpacks])));
-
-    // RCMD·CPNAME 텍스트: A(관대하게 정수 하나도 받아 10진 문자열)
-    static string NameText(SecsItem item) => item.Format == SecsFormat.ASCII ? item.GetString()
-        : GemItems.IsInteger(item.Format) && item.Count == 1 ? GemId.FromItem(item).ToString()
-        : throw new FormatException($"이름은 A여야 합니다: {GemItems.Sml(item)}");
-
     // S2F41 <L RCMD <L <L CPNAME CPVAL>…>> → <L HCACK <L <L CPNAME CPACK>…>>
     void OnS2F41(SecsPrimaryEventArgs e)
     {
-        if (e.Message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List)
-            throw new FormatException("S2F41 본문은 <L RCMD <L <L CPNAME CPVAL>…>>입니다.");
-        string rcmd = NameText(body.Items[0]);
-        var ps = body.Items[1].Items.Select(p => p is { Format: SecsFormat.List, Count: 2 }
-            ? (Item: p.Items[0], Name: NameText(p.Items[0]), Value: p.Items[1])
-            : throw new FormatException("S2F41 파라미터는 <L CPNAME CPVAL>입니다.")).ToList();
+        // 구조 오류·이름이 A(또는 정수 하나)가 아님 = FormatException(S9F7). CPNAME 아이템은 CPACK에 그대로 되돌린다(D3)
+        var (rcmd, ps) = GemMessages.ParseS2F41Raw(e.Message);
 
-        if (!catalog.Commands.TryGetValue(rcmd, out var def)) { Respond(e, S2F42(GemAck.HcackInvalidCommand, []).Item); return; }
+        if (!catalog.Commands.TryGetValue(rcmd, out var def)) { Respond(e, GemMessages.S2F42(GemAck.HcackInvalidCommand)); return; }
         bool local;
         lock (gate) local = control == GemControlState.OnlineLocal;
-        if (local) { Respond(e, S2F42(GemAck.HcackCannotPerform, []).Item); return; }
-        var bad = new List<SecsItem>();
+        if (local) { Respond(e, GemMessages.S2F42(GemAck.HcackCannotPerform)); return; }
+        var bad = new List<(SecsItem Name, byte Cpack)>();
         foreach (var (item, name, value) in ps)
         {
             var pd = def.Parameters.FirstOrDefault(x => x.Name == name);
-            if (pd == null) bad.Add(SecsItem.L(item, GemItems.Ack(GemAck.CpackUnknownName)));
-            else if (pd.Format != null && value.Format != pd.Format) bad.Add(SecsItem.L(item, GemItems.Ack(GemAck.CpackIllegalFormat)));
+            if (pd == null) bad.Add((item, GemAck.CpackUnknownName));
+            else if (pd.Format != null && value.Format != pd.Format) bad.Add((item, GemAck.CpackIllegalFormat));
         }
-        if (bad.Count > 0) { Respond(e, S2F42(GemAck.HcackParameterInvalid, bad).Item); return; }
+        if (bad.Count > 0) { Respond(e, GemMessages.S2F42(GemAck.HcackParameterInvalid, bad)); return; }
         var handler = RemoteCommandReceived;
-        if (handler == null) { Respond(e, S2F42(GemAck.HcackCannotPerform, []).Item); return; }
+        if (handler == null) { Respond(e, GemMessages.S2F42(GemAck.HcackCannotPerform)); return; }
 
         var args = new GemRemoteCommandEventArgs(def.Name, [.. ps.Select(p => (p.Name, p.Value))]);
         string what = $"S2F41 {def.Name}";
@@ -149,7 +138,7 @@ public partial class GemEquipment
             });
             return;
         }
-        var d = DeferReply(e, S2F42(GemAck.HcackCannotPerform, []), what);
+        var d = DeferReply(e, GemMessages.S2F42(GemAck.HcackCannotPerform), what);
         PostApp(() =>
         {
             SecsMessage reply;
@@ -158,11 +147,11 @@ public partial class GemEquipment
                 handler(this, args);
                 byte hcack = args.Hcack;
                 if (args.ParameterAcks.Count > 0 && hcack == GemAck.HcackAccepted) hcack = GemAck.HcackParameterInvalid;
-                reply = S2F42(hcack, args.ParameterAcks.Select(a => SecsItem.L(SecsItem.A(a.Name), GemItems.Ack(a.Cpack))));
+                reply = GemMessages.S2F42(hcack, args.ParameterAcks);
             }
             catch (Exception ex)
             {
-                reply = S2F42(GemAck.HcackCannotPerform, []);                              // 실패 쪽으로: 실행하지 않은 것으로 답함
+                reply = GemMessages.S2F42(GemAck.HcackCannotPerform);                      // 실패 쪽으로: 실행하지 않은 것으로 답함
                 ErrorIn(d.Run, $"{what}: RemoteCommandReceived 핸들러 예외로 HCACK 2로 응답합니다: {ex.GetType().Name}: {ex.Message}");
             }
             FinishDeferred(d, reply);

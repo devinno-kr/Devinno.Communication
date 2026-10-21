@@ -67,7 +67,7 @@ public partial class GemEquipment
             if (!running || control != GemControlState.EquipmentOffline) return false;
             ChangeControlLocked(GemControlState.AttemptOnline);
             if (commState != GemCommunicationState.Communicating) ChangeControlLocked(onlineFailedState);      // 전이 4
-            else if (!EnqueueLocked(new SecsMessage(1, 1, true), S1F1Done)) ChangeControlLocked(onlineFailedState);   // 대기열이 가득 차 S1F1이 버려짐: 결과가 오지 않으므로 전이 4
+            else if (!EnqueueLocked(GemMessages.S1F1(), S1F1Done)) ChangeControlLocked(onlineFailedState);   // 대기열이 가득 차 S1F1이 버려짐: 결과가 오지 않으므로 전이 4
             return true;
         }
     }
@@ -147,12 +147,12 @@ public partial class GemEquipment
     #endregion
 
     #region 받은 메시지
-    void OnS1F1(SecsPrimaryEventArgs e) => Respond(e, SecsItem.L(SecsItem.A(modelName), SecsItem.A(softwareRevision)));
+    void OnS1F1(SecsPrimaryEventArgs e) => Respond(e, GemMessages.S1F2(modelName, softwareRevision));
 
     // Host의 OFF-LINE 요청: OFLACK 0 후 전이 10 (EquipmentOffline CE는 상태를 바꾸기 전에)
     void OnS1F15(SecsPrimaryEventArgs e)
     {
-        Respond(e, GemItems.Ack(GemAck.OflackAccepted));
+        Respond(e, GemMessages.S1F16(GemAck.OflackAccepted));
         lock (gate)
         {
             if (!running || control is not (GemControlState.OnlineLocal or GemControlState.OnlineRemote)) return;
@@ -172,7 +172,7 @@ public partial class GemEquipment
                 GemControlState.OnlineLocal or GemControlState.OnlineRemote => GemAck.OnlackAlreadyOnline,
                 _ => GemAck.OnlackNotAllowed,
             };
-        Respond(e, GemItems.Ack(ack));
+        Respond(e, GemMessages.S1F18(ack));
         if (ack != GemAck.OnlackAccepted) return;
         lock (gate)
         {

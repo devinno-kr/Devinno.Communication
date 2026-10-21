@@ -64,50 +64,46 @@ public partial class GemEquipment
         }
     }
 
-    // 요청 목록 <L ID…> 읽기. 본문이 없으면 빈 목록(= 전체)으로 본다
-    static List<GemId> RequestedIds(SecsItem? body, SecsFormat format) => body == null ? [] : GemItems.ReadIdList(body, format);
-
     // S1F3: 빈 목록 = 모든 SV(정의 순서, 표준 SV 먼저). 모르는 SVID = 길이 0 L
     void OnS1F3(SecsPrimaryEventArgs e)
     {
-        var ids = RequestedIds(e.Message.Item, catalog.VidFormat);
-        SecsItem body;
+        var ids = RequestedIds(e.Message, GemMessages.ParseS1F3, catalog.VidFormat);
+        List<SecsItem> svs;
         lock (gate)
         {
-            body = ids.Count == 0
-                ? SecsItem.L([.. catalog.StatusVars.Select(ValueLocked)])
-                : SecsItem.L([.. ids.Select(id => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Status ? ValueLocked(v) : SecsItem.L())]);
+            svs = ids.Count == 0
+                ? [.. catalog.StatusVars.Select(ValueLocked)]
+                : [.. ids.Select(id => catalog.Vars.TryGetValue(id, out var v) && v.Kind == GemVarKind.Status ? ValueLocked(v) : SecsItem.L())];
         }
-        Respond(e, body);
+        Respond(e, GemMessages.S1F4(svs));
     }
 
     // S1F11: <L <L SVID SVNAME UNITS>…>. 모르는 SVID는 이름·단위가 빈 A
-    void OnS1F11(SecsPrimaryEventArgs e) => Respond(e, NameList(e.Message.Item, catalog.StatusVars, GemVarKind.Status));
+    void OnS1F11(SecsPrimaryEventArgs e) => Respond(e, GemMessages.S1F12(NameList(e.Message, GemMessages.ParseS1F11, catalog.StatusVars, GemVarKind.Status)));
 
     // S1F21: <L <L VID DVVALNAME UNITS>…> (DV만)
-    void OnS1F21(SecsPrimaryEventArgs e) => Respond(e, NameList(e.Message.Item, catalog.DataVars, GemVarKind.Data));
+    void OnS1F21(SecsPrimaryEventArgs e) => Respond(e, GemMessages.S1F22(NameList(e.Message, GemMessages.ParseS1F21, catalog.DataVars, GemVarKind.Data)));
 
-    SecsItem NameList(SecsItem? request, List<GemVar> all, GemVarKind kind)
+    // 모르는 ID는 받은 아이템 그대로 되돌린다(D3 겹치기)
+    List<(SecsItem Id, string Name, string Units)> NameList(SecsMessage request, Func<SecsMessage, IReadOnlyList<GemId>> parse, List<GemVar> all, GemVarKind kind)
     {
-        var ids = RequestedIds(request, catalog.VidFormat);
-        var items = ids.Count == 0
-            ? all.Select(v => NameEntry(v.Key.ToItem(catalog.VidFormat), v))
-            : ids.Select((id, i) => catalog.Vars.TryGetValue(id, out var v) && v.Kind == kind ? NameEntry(v.Key.ToItem(catalog.VidFormat), v) : NameEntry(request!.Items[i], null));
-        return SecsItem.L([.. items]);
+        var ids = RequestedIds(request, parse, catalog.VidFormat);
+        return ids.Count == 0
+            ? [.. all.Select(v => NameEntry(v.Key.ToItem(catalog.VidFormat), v))]
+            : [.. ids.Select((id, i) => catalog.Vars.TryGetValue(id, out var v) && v.Kind == kind ? NameEntry(v.Key.ToItem(catalog.VidFormat), v) : NameEntry(request.Item!.Items[i], null))];
     }
 
-    static SecsItem NameEntry(SecsItem id, GemVar? v) => SecsItem.L(id, SecsItem.A(v?.Name ?? ""), SecsItem.A(v?.Units ?? ""));
+    static (SecsItem Id, string Name, string Units) NameEntry(SecsItem id, GemVar? v) => (id, v?.Name ?? "", v?.Units ?? "");
 
     // S1F23: <L <L CEID CENAME <L VID…>>…>. 모르는 CEID는 빈 이름과 빈 목록
     void OnS1F23(SecsPrimaryEventArgs e)
     {
-        var request = e.Message.Item;
-        var ids = RequestedIds(request, catalog.CeidFormat);
-        SecsItem Entry(SecsItem id, GemEventDef? ce)
-            => SecsItem.L(id, SecsItem.A(ce?.Name ?? ""), SecsItem.L([.. (ce?.VidKeys ?? []).Select(k => k.ToItem(catalog.VidFormat))]));
-        var items = ids.Count == 0
-            ? catalog.EventList.Select(ce => Entry(ce.Key.ToItem(catalog.CeidFormat), ce))
-            : ids.Select((id, i) => Entry(catalog.Events.TryGetValue(id, out var ce) ? ce.Key.ToItem(catalog.CeidFormat) : request!.Items[i], catalog.Events.GetValueOrDefault(id)));
-        Respond(e, SecsItem.L([.. items]));
+        var request = e.Message;
+        var ids = RequestedIds(request, GemMessages.ParseS1F23, catalog.CeidFormat);
+        static (SecsItem Ceid, string Name, IReadOnlyList<GemId> Vids) Entry(SecsItem id, GemEventDef? ce) => (id, ce?.Name ?? "", ce?.VidKeys ?? []);
+        List<(SecsItem Ceid, string Name, IReadOnlyList<GemId> Vids)> items = ids.Count == 0
+            ? [.. catalog.EventList.Select(ce => Entry(ce.Key.ToItem(catalog.CeidFormat), ce))]
+            : [.. ids.Select((id, i) => Entry(catalog.Events.TryGetValue(id, out var ce) ? ce.Key.ToItem(catalog.CeidFormat) : request.Item!.Items[i], catalog.Events.GetValueOrDefault(id)))];
+        Respond(e, GemMessages.S1F24(items, formats));             // VID는 formats.Vid(= VidFormat)
     }
 }

@@ -60,7 +60,7 @@ public partial class GemEquipment
 
     partial void AddClockHandlers()
     {
-        handlers[S2F17] = e => Respond(e, ClockItem());
+        handlers[S2F17] = e => Respond(e, ClockReply());
         handlers[S2F31] = OnS2F31;
         handlers[S10F3] = OnS10F3;
         handlers[S10F5] = OnS10F5;
@@ -78,9 +78,17 @@ public partial class GemEquipment
 
     int TimeFormatLocked => (int)values[catalog.Std(GemStandard.TimeFormat)].GetInt64();
 
-    SecsItem ClockItem()
+    // S2F18 <A TIME>: GEM 시계(TimeFormat 형식)
+    SecsMessage ClockReply()
     {
-        lock (gate) return SecsItem.A(GemTime.Format(DateTime.Now + clockOffset, TimeFormatLocked));
+        DateTime now;
+        int timeFormat;
+        lock (gate)
+        {
+            now = DateTime.Now + clockOffset;
+            timeFormat = TimeFormatLocked;
+        }
+        return GemMessages.S2F18(now, timeFormat);
     }
 
     #region 시계
@@ -88,12 +96,14 @@ public partial class GemEquipment
     void OnS2F31(SecsPrimaryEventArgs e)
     {
         DateTime set = default;
-        bool ok = e.Message.Item is { Format: SecsFormat.ASCII } t && GemTime.TryParse(t.GetString(), out set);
+        bool ok = true;
+        try { set = GemMessages.ParseS2F31(e.Message); }
+        catch (FormatException) { ok = false; }                  // A가 아니거나 해석 불가(연도 범위 밖 포함) = TIACK 1
         if (ok)
         {
             lock (gate) clockOffset = set - DateTime.Now;
         }
-        Respond(e, GemItems.Ack(ok ? GemAck.TiackAccepted : GemAck.TiackError));
+        Respond(e, GemMessages.S2F32(ok ? GemAck.TiackAccepted : GemAck.TiackError));
         if (ok) Raise(ClockSet, new GemClockEventArgs(set, GemClockSource.S2F31));
     }
 
@@ -107,14 +117,21 @@ public partial class GemEquipment
         lock (gate)
         {
             if (!running || commState != GemCommunicationState.Communicating || IsOffline(control)) return false;
-            return EnqueueLocked(new SecsMessage(2, 17, true), S2F17Done);
+            return EnqueueLocked(GemMessages.S2F17(), S2F17Done);
         }
     }
 
     void S2F17Done(Outgoing o, Task<SecsMessage?> t)
     {
         if (!t.IsCompletedSuccessfully) { ReportFailure(o.Message, t.Exception!.InnerException!); return; }
-        if (t.Result?.Item is not { Format: SecsFormat.ASCII } item || !GemTime.TryParse(item.GetString(), out var time))
+        DateTime time = default;
+        bool ok = t.Result != null;
+        if (ok)
+        {
+            try { time = GemMessages.ParseS2F18(t.Result!); }
+            catch (FormatException) { ok = false; }
+        }
+        if (!ok)
         {
             Raise(SendFailed, new GemSendFailedEventArgs(o.Message, GemSendFailure.InvalidReply, null, new FormatException($"S2F18의 TIME을 해석하지 못했습니다: {(t.Result == null ? "(응답 없음)" : GemItems.Sml(t.Result))}")));
             return;
@@ -150,24 +167,21 @@ public partial class GemEquipment
     // S10F3 <L TID TEXT> → ACKC10 (구독자 없으면 2) → TerminalReceived
     void OnS10F3(SecsPrimaryEventArgs e)
     {
-        if (e.Message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.ASCII)
-            throw new FormatException("S10F3 본문은 <L TID TEXT>입니다.");
-        Terminal(e, GemItems.ReadAck(body.Items[0]), [body.Items[1].GetString()]);
+        var (tid, text) = GemMessages.ParseS10F3(e.Message);        // 구조 오류·TID 해석 실패 = FormatException(S9F7)
+        Terminal(e, tid, [text], GemMessages.S10F4);
     }
 
     // S10F5 <L TID <L TEXT…>> → ACKC10 → TerminalReceived
     void OnS10F5(SecsPrimaryEventArgs e)
     {
-        if (e.Message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List
-            || body.Items[1].Items.Any(l => l.Format != SecsFormat.ASCII))
-            throw new FormatException("S10F5 본문은 <L TID <L TEXT…>>입니다.");
-        Terminal(e, GemItems.ReadAck(body.Items[0]), [.. body.Items[1].Items.Select(l => l.GetString())]);
+        var (tid, lines) = GemMessages.ParseS10F5(e.Message);
+        Terminal(e, tid, lines, GemMessages.S10F6);
     }
 
-    void Terminal(SecsPrimaryEventArgs e, byte tid, IReadOnlyList<string> lines)
+    void Terminal(SecsPrimaryEventArgs e, byte tid, IReadOnlyList<string> lines, Func<byte, SecsMessage> reply)
     {
         var handler = TerminalReceived;
-        Respond(e, GemItems.Ack(handler == null ? GemAck.Ackc10TerminalNotAvailable : GemAck.Ackc10Accepted));
+        Respond(e, reply(handler == null ? GemAck.Ackc10TerminalNotAvailable : GemAck.Ackc10Accepted));
         Raise(handler, new GemTerminalEventArgs(tid, lines));
     }
 
@@ -186,7 +200,7 @@ public partial class GemEquipment
         lock (gate)
         {
             if (!running || commState == GemCommunicationState.Disabled || IsOffline(control)) return false;
-            var s10f1 = new SecsMessage(10, 1, terminalReplyExpected, SecsItem.L(SecsItem.B(tid), SecsItem.A(text)));
+            var s10f1 = GemMessages.S10F1(tid, text, terminalReplyExpected);
             if (commState != GemCommunicationState.Communicating)
             {
                 DiscardLocked(s10f1, GemSendFailure.NotCommunicating);
