@@ -2,57 +2,6 @@ using Devinno.Communication.Secs.Data;
 
 namespace Devinno.Communication.Secs.Gem;
 
-/// <summary>The name information of a single variable (SV or DV) (an S1F12 or S1F22 entry).</summary>
-/// <param name="id">The VID (read in the format the equipment sent).</param>
-/// <param name="name">The name ("" if the equipment does not know the VID).</param>
-/// <param name="units">The units ("" if the equipment does not know the VID).</param>
-public sealed class GemVariableInfo(GemId id, string name, string units)
-{
-    /// <summary>Gets the VID.</summary>
-    public GemId Id { get; } = id;
-    /// <summary>Gets the name ("" if the equipment does not know the VID).</summary>
-    public string Name { get; } = name;
-    /// <summary>Gets the units ("" if the equipment does not know the VID).</summary>
-    public string Units { get; } = units;
-}
-
-/// <summary>The information of a single collection event (CE) (an S1F24 entry).</summary>
-/// <param name="ceid">CEID</param>
-/// <param name="name">The name ("" if the equipment does not know the CEID).</param>
-/// <param name="vids">The VIDs related to this event (informational; the values carried in a report are decided by the Host).</param>
-public sealed class GemEventInfo(GemId ceid, string name, IReadOnlyList<GemId> vids)
-{
-    /// <summary>Gets the CEID.</summary>
-    public GemId Ceid { get; } = ceid;
-    /// <summary>Gets the name ("" if the equipment does not know the CEID).</summary>
-    public string Name { get; } = name;
-    /// <summary>Gets the list of related VIDs.</summary>
-    public IReadOnlyList<GemId> Vids { get; } = vids;
-}
-
-/// <summary>The information of a single equipment constant (EC) (an S2F30 entry).</summary>
-/// <param name="id">ECID</param>
-/// <param name="name">The name ("" if the equipment does not know the ECID).</param>
-/// <param name="min">The minimum value (a zero-length item if none).</param>
-/// <param name="max">The maximum value (a zero-length item if none).</param>
-/// <param name="defaultValue">The default value.</param>
-/// <param name="units">The units.</param>
-public sealed class GemConstantInfo(GemId id, string name, SecsItem min, SecsItem max, SecsItem defaultValue, string units)
-{
-    /// <summary>Gets the ECID.</summary>
-    public GemId Id { get; } = id;
-    /// <summary>Gets the name ("" if the equipment does not know the ECID).</summary>
-    public string Name { get; } = name;
-    /// <summary>Gets the minimum value (a zero-length item if none).</summary>
-    public SecsItem Min { get; } = min;
-    /// <summary>Gets the maximum value (a zero-length item if none).</summary>
-    public SecsItem Max { get; } = max;
-    /// <summary>Gets the default value.</summary>
-    public SecsItem Default { get; } = defaultValue;
-    /// <summary>Gets the units.</summary>
-    public string Units { get; } = units;
-}
-
 // 명령 메서드 S1(통신 수립·온라인·상태·이름)과 S2(EC·시계). 모두 동기 + Async 짝이고 요청 만들기·응답 해석을 함께 쓴다(동기 = 호출 스레드에서 Send, Async = SendAsync)
 public partial class GemHost
 {

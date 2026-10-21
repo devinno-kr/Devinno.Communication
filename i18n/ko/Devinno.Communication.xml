@@ -6869,6 +6869,34 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemProtocolErrorEventArgs.Reason" en-hash="2ccab268a55ecb5b">
             <summary>무슨 일이 있었는지 (진단용 문장)</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemFormats" en-hash="0d0cbc4c7d3d925d">
+            <summary><see cref="T:Devinno.Communication.Secs.Gem.GemMessages" /> 빌더가 GEM ID를 보낼 때 쓰는 아이템 포맷입니다.</summary>
+            <remarks>각 포맷은 U1, U2, U4, U8, I1, I2, I4, I8, A 중 하나이고(기본 U4), <c>GemEquipment</c>·<c>GemHost</c>의 <c>VidFormat</c>, <c>CeidFormat</c>, <c>RptidFormat</c>, <c>AlidFormat</c>, <c>DataidFormat</c> 설정과 같은 규칙입니다.
+            숫자 ID가 포맷 범위를 넘으면 빌더가 <see cref="T:System.ArgumentOutOfRangeException" />을 던지고, 숫자 ID를 A로 보내면 10진 문자열이 됩니다.</remarks>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Default" en-hash="50f0ac8b118e4b75">
+            <summary>기본 포맷(모두 U4)을 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" en-hash="d0b1cdcb412cb0bd">
+            <summary>SVID·ECID·DVID의 포맷을 가져옵니다(기본 U4).</summary>
+            <exception cref="T:System.ArgumentException">값이 U1, U2, U4, U8, I1, I2, I4, I8, A가 아닌 경우</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Ceid" en-hash="c14d92de36d74fbd">
+            <summary>CEID의 포맷을 가져옵니다(기본 U4).</summary>
+            <exception cref="T:System.ArgumentException">값이 U1, U2, U4, U8, I1, I2, I4, I8, A가 아닌 경우</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Rptid" en-hash="cd7a2cc96514dbaf">
+            <summary>RPTID의 포맷을 가져옵니다(기본 U4).</summary>
+            <exception cref="T:System.ArgumentException">값이 U1, U2, U4, U8, I1, I2, I4, I8, A가 아닌 경우</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Alid" en-hash="e99da48d7cb093b7">
+            <summary>ALID의 포맷을 가져옵니다(기본 U4).</summary>
+            <exception cref="T:System.ArgumentException">값이 U1, U2, U4, U8, I1, I2, I4, I8, A가 아닌 경우</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" en-hash="9478276c51a0ac09">
+            <summary>DATAID의 포맷을 가져옵니다(기본 U4).</summary>
+            <exception cref="T:System.ArgumentException">값이 U1, U2, U4, U8, I1, I2, I4, I8, A가 아닌 경우</exception>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemVariableInfo" en-hash="6169c5780948d1c0">
             <summary>변수(SV·DV) 하나의 이름 정보입니다(S1F12·S1F22 항목).</summary>
             <param name="id">VID (장비가 보낸 포맷 그대로 읽은 값)</param>
@@ -8104,6 +8132,159 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="text" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="text" />가 빈 문자열인 경우</exception>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemMessages" en-hash="d9bcb65cf6191091">
+            <summary>GEM 메시지 본문의 상태 없는 빌더(<c>SxFy(...)</c>)와 해석기(<c>ParseSxFy(...)</c>)입니다.</summary>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F1" en-hash="272acafaa8f9405d">
+            <summary>S1F1 Are You There를 만듭니다(헤더만, W비트 켬).</summary>
+            <returns>S1F1 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F2(System.String,System.String)" en-hash="b281b25657f855f2">
+            <summary>S1F2 On Line Data &lt;L MDLN SOFTREV&gt;를 만듭니다. 두 이름이 모두 null이면 &lt;L&gt;(Host 모양)입니다.</summary>
+            <param name="modelName">MDLN (<paramref name="softwareRevision" />와 함께 null 가능)</param>
+            <param name="softwareRevision">SOFTREV (<paramref name="modelName" />와 함께 null 가능)</param>
+            <returns>S1F2 메시지</returns>
+            <exception cref="T:System.ArgumentException">이름 하나만 null이거나 이름에 255보다 큰 문자가 있는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F2(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="6badb49a68f37140">
+            <summary>S1F2 On Line Data를 해석합니다.</summary>
+            <param name="message">받은 S1F2</param>
+            <returns>(MDLN, SOFTREV). 빈 &lt;L&gt;이면 둘 다 ""</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F2가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L A A&gt;도 &lt;L&gt;도 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F3(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="ba72a40dd77d93e9">
+            <summary>S1F3 Selected Equipment Status Request &lt;L SVID…&gt;를 만듭니다.</summary>
+            <param name="svids">SVID 목록 (null이나 빈 목록 = 모든 SV)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). SVID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S1F3 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 SVID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 SVID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F3(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="e4cf62ff9ab690c2">
+            <summary>S1F3 Selected Equipment Status Request를 해석합니다.</summary>
+            <remarks>&lt;L SVID…&gt;, 정수 배열 아이템, A 아이템 하나를 모두 받고, 각 ID는 정수 포맷 무엇이든 또는 A입니다(설정 포맷은 검사하지 않음). 헤더만 있는 메시지나 길이 0 아이템은 빈 목록(= 모든 SV)입니다.</remarks>
+            <param name="message">받은 S1F3</param>
+            <returns>요청한 SVID 목록</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F3가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 목록이 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F4(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem})" en-hash="1743cdcb53dccfa6">
+            <summary>S1F4 Selected Equipment Status Data &lt;L SV…&gt;를 만듭니다.</summary>
+            <param name="values">요청 순서대로의 값 목록</param>
+            <returns>S1F4 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="values" />나 값이 null인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F4(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="12d6835732a47821">
+            <summary>S1F4 Selected Equipment Status Data를 해석합니다.</summary>
+            <param name="message">받은 S1F4</param>
+            <returns>장비가 보낸 순서대로의 값 목록 (헤더만 있는 메시지면 빈 목록)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F4가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 리스트가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F11(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="c52c438affb02eee">
+            <summary>S1F11 Status Variable Namelist Request &lt;L SVID…&gt;를 만듭니다.</summary>
+            <param name="svids">SVID 목록 (null이나 빈 목록 = 모든 SV)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). SVID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S1F11 메시지</returns>
+            <exception cref="T:System.ArgumentException">문자열 SVID를 숫자 포맷으로 보낼 수 없는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 SVID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F11(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="8ee4fd87e2fdeaad">
+            <summary>S1F11 Status Variable Namelist Request를 해석합니다.</summary>
+            <remarks>받는 모양은 <see cref="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F3(Devinno.Communication.Secs.Data.SecsMessage)" />와 같습니다.</remarks>
+            <param name="message">받은 S1F11</param>
+            <returns>요청한 SVID 목록 (비어 있으면 모든 SV)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F11가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 ID 목록이 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F12(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemVariableInfo},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="eaa017ae93d982fc">
+            <summary>S1F12 Status Variable Namelist Reply &lt;L &lt;L SVID SVNAME UNITS&gt;…&gt;를 만듭니다.</summary>
+            <param name="items">요청 순서대로의 항목 (모르는 SVID는 이름·단위가 빈 문자열)</param>
+            <param name="formats">ID 포맷 (null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />). SVID는 <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /></param>
+            <returns>S1F12 메시지</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="items" />나 항목이 null인 경우</exception>
+            <exception cref="T:System.ArgumentException">문자열 SVID를 숫자 포맷으로 보낼 수 없거나 이름에 255보다 큰 문자가 있는 경우</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">숫자 SVID가 포맷 범위 밖인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F12(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="7b4f238b8b0457a7">
+            <summary>S1F12 Status Variable Namelist Reply를 해석합니다.</summary>
+            <param name="message">받은 S1F12</param>
+            <returns>장비가 보낸 순서대로의 항목 (각 ID는 장비가 보낸 포맷으로 읽음)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F12가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ID A A&gt;…&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F13(System.String,System.String)" en-hash="cb789f4827deb1a2">
+            <summary>S1F13 Establish Communications Request를 만듭니다. 두 이름이 모두 null이면 &lt;L&gt;(Host 모양), 아니면 &lt;L MDLN SOFTREV&gt;(장비 모양)입니다.</summary>
+            <param name="modelName">MDLN (<paramref name="softwareRevision" />와 함께 null 가능)</param>
+            <param name="softwareRevision">SOFTREV (<paramref name="modelName" />와 함께 null 가능)</param>
+            <returns>S1F13 메시지</returns>
+            <exception cref="T:System.ArgumentException">이름 하나만 null이거나 이름에 255보다 큰 문자가 있는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F13(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="e25c64523487fc67">
+            <summary>S1F13 Establish Communications Request를 해석합니다.</summary>
+            <remarks>GEM 장비·Host처럼 본문을 거절하지 않습니다. &lt;L A A&gt;가 아닌 모양은 모두 이름이 null입니다.</remarks>
+            <param name="message">받은 S1F13</param>
+            <returns>(MDLN, SOFTREV). &lt;L&gt;이나 다른 모양이면 (null, null)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F13가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F14(System.Byte,System.String,System.String)" en-hash="688f92bd6760c0df">
+            <summary>S1F14 Establish Communications Request Acknowledge &lt;L COMMACK &lt;L MDLN SOFTREV&gt;&gt;를 만듭니다(두 이름이 모두 null이면 &lt;L COMMACK &lt;L&gt;&gt;).</summary>
+            <param name="commack">COMMACK (0 = 받음, 1 = 거절)</param>
+            <param name="modelName">MDLN (<paramref name="softwareRevision" />와 함께 null 가능)</param>
+            <param name="softwareRevision">SOFTREV (<paramref name="modelName" />와 함께 null 가능)</param>
+            <returns>S1F14 메시지</returns>
+            <exception cref="T:System.ArgumentException">이름 하나만 null이거나 이름에 255보다 큰 문자가 있는 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F14(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="e7e0d090b5005b39">
+            <summary>S1F14 Establish Communications Request Acknowledge를 해석합니다.</summary>
+            <remarks>COMMACK는 숫자 포맷 무엇이든 됩니다(0~255). 이름은 둘째 아이템이 &lt;L A A&gt;일 때만 읽고, 다른 둘째 아이템은 예외 없이 이름이 null입니다.</remarks>
+            <param name="message">받은 S1F14</param>
+            <returns>(COMMACK, MDLN, SOFTREV)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F14가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 아이템 2개짜리 리스트가 아니거나 COMMACK가 0~255 숫자가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F15" en-hash="670bb1dfb1c37f71">
+            <summary>S1F15 Request OFF-LINE을 만듭니다(헤더만, W비트 켬).</summary>
+            <returns>S1F15 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F16(System.Byte)" en-hash="fa9a9997a3f9654b">
+            <summary>S1F16 OFF-LINE Acknowledge &lt;B OFLACK&gt;를 만듭니다.</summary>
+            <param name="oflack">OFLACK (0 = 받음)</param>
+            <returns>S1F16 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F16(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="8a97791a06351213">
+            <summary>S1F16 OFF-LINE Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S1F16</param>
+            <returns>OFLACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F16가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F17" en-hash="7ad2488ee69a312c">
+            <summary>S1F17 Request ON-LINE을 만듭니다(헤더만, W비트 켬).</summary>
+            <returns>S1F17 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S1F18(System.Byte)" en-hash="094d0ef0a9f8bec7">
+            <summary>S1F18 ON-LINE Acknowledge &lt;B ONLACK&gt;를 만듭니다.</summary>
+            <param name="onlack">ONLACK (0 = 받음, 1 = 허락 안 함, 2 = 이미 ON-LINE)</param>
+            <returns>S1F18 메시지</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS1F18(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="46072321e2a18a55">
+            <summary>S1F18 ON-LINE Acknowledge를 해석합니다.</summary>
+            <param name="message">받은 S1F18</param>
+            <returns>ONLACK (숫자 포맷 무엇이든, 0~255)</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S1F18가 아닌 경우</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
         
         
         
@@ -8175,6 +8356,10 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.MessageRecognition" en-hash="c5efdeda670c37fb">
             <summary>CE MessageRecognition (운전자가 Host 터미널 메시지를 확인함). null = 1306</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemTime" en-hash="4833bdabe845e24e">
+            <summary>GEM TIME 텍스트(TimeFormat EC)와 로컬 <see cref="T:System.DateTime" /> 값을 서로 바꿉니다.</summary>
+            <remarks>세 형식은 0 = A[12] <c>YYMMDDhhmmss</c>, 1 = A[16] <c>YYYYMMDDhhmmsscc</c>(cc = 1/100초), 2 = <c>YYYY-MM-DDThh:mm:ss.ssTZD</c>(TZD = <c>+09:00</c> 또는 <c>Z</c>)입니다. 시각은 모두 로컬입니다.</remarks>
+        </member>
         
         
         
@@ -8219,6 +8404,20 @@
             ○ Match if at the end of the string.<br />
             </code>
             </remarks>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTime.Format(System.DateTime,System.Int32)" en-hash="6354602e547bcc81">
+            <summary>로컬 시각을 GEM TIME 텍스트로 만듭니다.</summary>
+            <param name="local">로컬 시각</param>
+            <param name="timeFormat">TimeFormat 값: 0(12자리), 1(16자리), 2(시간대가 있는 확장 형식)</param>
+            <returns>TIME 텍스트 (예: 형식 0이면 <c>261021090807</c>)</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="timeFormat" />이 0, 1, 2가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTime.TryParse(System.String,System.DateTime@)" en-hash="3c07df079966266e">
+            <summary>세 형식 중 무엇이든 GEM TIME 텍스트를 읽습니다.</summary>
+            <remarks>2자리 연도 00~69는 20xx, 70~99는 19xx입니다. 시간대가 있는 형식 2 텍스트는 로컬 시각으로 바꿉니다. 로컬 연도 1970~2999만 받습니다.</remarks>
+            <param name="text">TIME 텍스트 (12자리, 16자리, 확장 형식)</param>
+            <param name="local">읽은 로컬 시각 (읽지 못하면 <c>default</c>)</param>
+            <returns>범위 안의 올바른 날짜·시각이면 true, 아니면 false (예외 없음)</returns>
         </member>
         
         

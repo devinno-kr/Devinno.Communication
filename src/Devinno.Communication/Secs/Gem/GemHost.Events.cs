@@ -2,54 +2,6 @@ using Devinno.Communication.Secs.Data;
 
 namespace Devinno.Communication.Secs.Gem;
 
-/// <summary>A single value inside an event report.</summary>
-/// <param name="vid">The VID of this value (the VID if the report was defined by the Host; null if the report is unknown or the number of values differs from the definition).</param>
-/// <param name="value">The value.</param>
-public sealed class GemReportValue(GemId? vid, SecsItem value)
-{
-    /// <summary>Gets the VID of this value (null if unknown).</summary>
-    public GemId? Vid { get; } = vid;
-    /// <summary>Gets the value.</summary>
-    public SecsItem Value { get; } = value;
-}
-
-/// <summary>A single report inside an event report.</summary>
-/// <param name="rptid">RPTID</param>
-/// <param name="values">The list of values (in the VID order of the report definition).</param>
-public sealed class GemReportData(GemId rptid, IReadOnlyList<GemReportValue> values)
-{
-    /// <summary>Gets the RPTID.</summary>
-    public GemId Rptid { get; } = rptid;
-    /// <summary>Gets the list of values (in the VID order of the report definition).</summary>
-    public IReadOnlyList<GemReportValue> Values { get; } = values;
-}
-
-/// <summary>An interpreted event report (S6F11, S6F16).</summary>
-/// <param name="dataId">The DATAID (the item exactly as the equipment sent it).</param>
-/// <param name="ceid">CEID</param>
-/// <param name="reports">The list of reports (in the order the equipment sent them).</param>
-public sealed class GemEventReport(SecsItem dataId, GemId ceid, IReadOnlyList<GemReportData> reports)
-{
-    /// <summary>Gets the DATAID (the item exactly as the equipment sent it; the format differs between equipment).</summary>
-    public SecsItem DataId { get; } = dataId;
-    /// <summary>Gets the CEID (read in the format the equipment sent).</summary>
-    /// <remarks>If the equipment sent it as A (usually when <c>CeidFormat</c> is A), it is a text ID even if it looks like a number. For example, <c>Ceid == new GemId("5001")</c> is true and <c>Ceid == 5001</c> is false.</remarks>
-    public GemId Ceid { get; } = ceid;
-    /// <summary>Gets the list of reports (in the order the equipment sent them).</summary>
-    public IReadOnlyList<GemReportData> Reports { get; } = reports;
-
-    /// <summary>Finds a value by VID (the first one if it appears in several reports).</summary>
-    /// <param name="vid">VID</param>
-    /// <returns>The value, or null if there is none (or the report does not know its VIDs).</returns>
-    public SecsItem? GetValue(GemId vid)
-    {
-        foreach (var r in Reports)
-            foreach (var v in r.Values)
-                if (v.Vid == vid) return v.Value;
-        return null;
-    }
-}
-
 /// <summary>The arguments for when the equipment sends an event report (S6F11).</summary>
 /// <param name="report">The interpreted report.</param>
 /// <param name="message">The received S6F11 as-is.</param>
@@ -77,37 +29,6 @@ public class GemAlarmEventArgs(GemId alid, byte alcd, string text) : EventArgs
     public int Category => Alcd & 0x7F;
     /// <summary>Gets the alarm text ALTX.</summary>
     public string Text { get; } = text;
-}
-
-/// <summary>The information of a single alarm (an S5F6 or S5F8 entry).</summary>
-/// <param name="alid">ALID</param>
-/// <param name="alcd">The ALCD (0x80 = currently set, lower 7 bits = category, 0 if the equipment does not know the ALID).</param>
-/// <param name="text">The alarm text ("" if the equipment does not know the ALID).</param>
-public sealed class GemAlarmInfo(GemId alid, byte alcd, string text)
-{
-    /// <summary>ALID</summary>
-    public GemId Alid { get; } = alid;
-    /// <summary>Gets the ALCD (0x80 = currently set, lower 7 bits = category, 0 if the equipment does not know the ALID).</summary>
-    public byte Alcd { get; } = alcd;
-    /// <summary>Gets a value indicating whether the alarm is currently set.</summary>
-    public bool IsSet => (Alcd & GemAck.AlcdSet) != 0;
-    /// <summary>Gets the alarm category (the lower 7 bits of ALCD).</summary>
-    public int Category => Alcd & 0x7F;
-    /// <summary>Gets the alarm text ("" if the equipment does not know the ALID).</summary>
-    public string Text { get; } = text;
-}
-
-/// <summary>The result of a remote command (S2F41). A nonzero HCACK is also a value, not an exception.</summary>
-/// <param name="hcack">HCACK</param>
-/// <param name="parameterAcks">The list of parameter errors (CPNAME, CPACK) (copied and kept read-only).</param>
-public sealed class GemCommandResult(byte hcack, IReadOnlyList<(string Name, byte Cpack)> parameterAcks)
-{
-    /// <summary>Gets the HCACK (0 = executed, 1 = unknown command, 2 = cannot be done now, 3 = parameter error, 4 = accepted, will finish later).</summary>
-    public byte Hcack { get; } = hcack;
-    /// <summary>Gets the list of parameter errors (CPNAME, CPACK) (CPACK 1 = unknown name, 2 = invalid value, 3 = invalid format).</summary>
-    public IReadOnlyList<(string Name, byte Cpack)> ParameterAcks { get; } = Array.AsReadOnly(parameterAcks.ToArray());
-    /// <summary>Gets a value indicating whether the equipment accepted the command (HCACK 0 or 4).</summary>
-    public bool IsAccepted => Hcack is GemAck.HcackAccepted or GemAck.HcackAcceptedLater;
 }
 
 // 장비 보고 받기(S6F11·S5F1·S10F1 자동 응답 + 해석 이벤트), 리포트 요청 S6F15/S6F19, 알람 S5F3/5/7, 터미널 S10F3, 리모트 명령 S2F41

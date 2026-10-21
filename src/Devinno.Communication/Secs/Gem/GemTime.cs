@@ -6,11 +6,18 @@ namespace Devinno.Communication.Secs.Gem;
 // GEM TIME 텍스트(TimeFormat EC) ↔ DateTime. 모두 로컬 시각이다.
 // 0 = A[12] YYMMDDhhmmss, 1 = A[16] YYYYMMDDhhmmsscc(cc = 1/100초), 2 = YYYY-MM-DDThh:mm:ss.ssTZD(소수 2자리, TZD = +09:00 또는 Z).
 // 받는 시각은 로컬 연도 1970~2999만(GEM 시계 = 시스템 시각 + 차이 계산이 DateTime 범위를 넘지 않게).
-internal static partial class GemTime
+/// <summary>Converts between GEM TIME text (the TimeFormat equipment constant) and local <see cref="DateTime"/> values.</summary>
+/// <remarks>The three forms are 0 = A[12] <c>YYMMDDhhmmss</c>, 1 = A[16] <c>YYYYMMDDhhmmsscc</c> (cc = hundredths of a second), and 2 = <c>YYYY-MM-DDThh:mm:ss.ssTZD</c> (TZD = <c>+09:00</c> or <c>Z</c>). All times are local.</remarks>
+public static partial class GemTime
 {
     [GeneratedRegex(@"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,7}))?(Z|[+-][0-9]{2}:[0-5][0-9])?\z")]
     private static partial Regex Extended();
 
+    /// <summary>Formats a local time as GEM TIME text.</summary>
+    /// <param name="local">The local time.</param>
+    /// <param name="timeFormat">The TimeFormat value: 0 (12 digits), 1 (16 digits), or 2 (extended form with time zone).</param>
+    /// <returns>The TIME text, for example <c>261021090807</c> for form 0.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeFormat"/> is not 0, 1, or 2.</exception>
     public static string Format(DateTime local, int timeFormat) => timeFormat switch
     {
         0 => local.ToString("yyMMddHHmmss", CultureInfo.InvariantCulture),
@@ -26,9 +33,14 @@ internal static partial class GemTime
         return (offset < TimeSpan.Zero ? "-" : "+") + a.Hours.ToString("00", CultureInfo.InvariantCulture) + ":" + a.Minutes.ToString("00", CultureInfo.InvariantCulture);
     }
 
-    public const int MinYear = 1970, MaxYear = 2999;
+    internal const int MinYear = 1970, MaxYear = 2999;
 
     // 세 형식 모두 받는다(길이 12 / 16 / T 포함, ASCII 숫자만). 2자리 연도 00~69 → 20xx, 70~99 → 19xx. 실제 날짜가 아니거나 로컬 연도가 1970~2999 밖이면 false(예외 없음)
+    /// <summary>Reads GEM TIME text in any of the three forms.</summary>
+    /// <remarks>A two-digit year 00 to 69 means 20xx and 70 to 99 means 19xx. Text in form 2 with a time zone is converted to local time. Only local years 1970 to 2999 are accepted.</remarks>
+    /// <param name="text">The TIME text (12 digits, 16 digits, or the extended form).</param>
+    /// <param name="local">The local time read, or <c>default</c> if the text cannot be read.</param>
+    /// <returns>true if the text is a valid date and time in range; otherwise false (no exception).</returns>
     public static bool TryParse(string? text, out DateTime local)
     {
         local = default;
