@@ -87,7 +87,7 @@ public partial class GemHost : IDisposable
     bool linkUp;                        // gate: GEM이 아는 연결 상태(디스패처의 DeviceOpened/DeviceClosed로 바뀜)
     int linkEpoch;                      // gate: 연결 세대(열림·닫힘마다 1 늘림). 끊긴 연결의 늦은 S1F14를 가려낸다
     GemConnectResult? pendingSequenceResult;   // gate: 자동 시퀀스의 끊김 실패(그 연결이 아직 열려 있을 때). DeviceClosed가 상태 이벤트 뒤에 알린다
-    (int Epoch, SecsItem? Model)? pendingEstablish;   // gate: GEM이 DeviceOpened를 처리하기 전에 온 그 연결의 S1F14(COMMACK 0). 그 DeviceOpened가 적용한다
+    (int Epoch, string? ModelName, string? SoftwareRevision)? pendingEstablish;   // gate: GEM이 DeviceOpened를 처리하기 전에 온 그 연결의 S1F14(COMMACK 0)와 이름. 그 DeviceOpened가 적용한다
     string modelName = "", softwareRevision = "";   // gate: 장비가 알려 준 MDLN·SOFTREV
 
     SecsFormat vidFormat = SecsFormat.U4, ceidFormat = SecsFormat.U4, rptidFormat = SecsFormat.U4, alidFormat = SecsFormat.U4, dataidFormat = SecsFormat.U4;
@@ -146,7 +146,7 @@ public partial class GemHost : IDisposable
                     pendingEstablish = null;
                     if (est.Epoch == linkEpoch)
                     {
-                        StoreModel(est.Model);
+                        StoreModel(est.ModelName, est.SoftwareRevision);
                         SetCommunicatingLocked(true);
                     }
                 }
@@ -171,10 +171,10 @@ public partial class GemHost : IDisposable
             }
             OnTransportClosed();
         };
-        handlers[S1F1] = e => Respond(e, SecsItem.L());
+        handlers[S1F1] = e => Respond(e, GemMessages.S1F2());
         handlers[S1F13] = OnS1F13;
-        handlers[S2F17] = e => Respond(e, SecsItem.A(GemTime.Format(DateTime.Now, timeFormat)));
-        handlers[S6F5] = e => Respond(e, GemItems.Ack(GemAck.GrantGranted));
+        handlers[S2F17] = e => Respond(e, GemMessages.S2F18(DateTime.Now, timeFormat));
+        handlers[S6F5] = e => Respond(e, GemMessages.S6F6(GemAck.GrantGranted));
         AddEventHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
@@ -263,6 +263,9 @@ public partial class GemHost : IDisposable
     public long DroppedEventCount { get { lock (gate) return lastApp?.Dropped ?? 0; } }
 
     bool IsRunning { get { lock (gate) return running; } }
+
+    // GemMessages 빌더·해석기에 넘길 지금 ID 포맷 설정(실행 중에는 바뀌지 않음). Start 전 호출(연결 없음 예외 전의 인자 검사)도 지금 설정을 따르도록 부를 때마다 만든다
+    GemFormats Formats => GemFormats.Of(vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat);
 
     // 테스트 전용: GEM이 연결을 아는가(디스패처가 DeviceOpened를 처리한 뒤 true, DeviceClosed 뒤 false)
     internal bool LinkUp { get { lock (gate) return linkUp; } }
@@ -411,11 +414,11 @@ public partial class GemHost : IDisposable
         catch (Exception ex) { Error($"S{m.Stream}F{m.Function} 처리 중 오류: {ex.Message}"); }
     }
 
-    // 자동 응답(W비트일 때만). 실패는 ProtocolError
-    void Respond(SecsPrimaryEventArgs e, SecsItem? body)
+    // 자동 응답(W비트일 때만, 본문은 GemMessages 빌더가 만든 응답). 실패는 ProtocolError
+    void Respond(SecsPrimaryEventArgs e, SecsMessage reply)
     {
         if (!e.Message.ReplyExpected) return;
-        ReplyNow(e, new SecsMessage(e.Message.Stream, e.Message.Function + 1, false, body), $"S{e.Message.Stream}F{e.Message.Function}");
+        ReplyNow(e, reply, $"S{e.Message.Stream}F{e.Message.Function}");
     }
 
     void ReplyNow(SecsPrimaryEventArgs e, SecsMessage reply, string what)
@@ -428,19 +431,20 @@ public partial class GemHost : IDisposable
     // (먼저 표시하면 CommunicationStateChanged 핸들러의 명령이 장비가 S1F14를 받기 전에 도착해 S1F0이 될 수 있음)
     void OnS1F13(SecsPrimaryEventArgs e)
     {
-        Respond(e, SecsItem.L(GemItems.Ack(GemAck.CommackAccepted), SecsItem.L()));
-        StoreModel(e.Message.Item);
+        Respond(e, GemMessages.S1F14(GemAck.CommackAccepted));
+        var (model, revision) = GemMessages.ParseS1F13(e.Message);
+        StoreModel(model, revision);
         SetCommunicating(true);
     }
 
-    // <L MDLN SOFTREV>이면 장비 이름을 기억한다(모양이 다르면 그대로 둠)
-    void StoreModel(SecsItem? item)
+    // 장비 이름을 기억한다. null(받은 모양이 <L MDLN SOFTREV>가 아님: ParseS1F13·ParseS1F14)이면 그대로 둠
+    void StoreModel(string? model, string? revision)
     {
-        if (item is not { Format: SecsFormat.List, Count: 2 } || item.Items[0].Format != SecsFormat.ASCII || item.Items[1].Format != SecsFormat.ASCII) return;
+        if (model == null || revision == null) return;
         lock (gate)
         {
-            modelName = item.Items[0].GetString();
-            softwareRevision = item.Items[1].GetString();
+            modelName = model;
+            softwareRevision = revision;
         }
     }
 
@@ -588,25 +592,14 @@ public partial class GemHost : IDisposable
         return task.GetAwaiter().GetResult();
     }
 
-    // 응답 본문이 기대와 다름(메시지에 응답 SML)
-    static FormatException Unexpected(SecsMessage reply, string expected)
-        => new($"S{reply.Stream}F{reply.Function} 응답 본문이 기대({expected})와 다릅니다: {GemItems.Sml(reply)}");
-
-    // ack 하나(숫자 아이템, 0~255). 아니면 응답 SML을 담은 FormatException
-    static byte AckOf(SecsItem? item, SecsMessage reply, string expected)
+    // 응답 <L 항목…>을 2층 해석기로 읽는다. 3층 규칙: 본문 없음은 지금처럼 구조 오류(2층은 빈 목록으로 읽음, 문장은 2층과 같음),
+    // 요청한 ID가 있으면 항목 수가 같아야 한다(순서로 짝지으므로. 항목 해석보다 먼저 봄)
+    static IReadOnlyList<T> Entries<T>(SecsMessage reply, IReadOnlyList<GemId>? requested, string expected, Func<SecsMessage, IReadOnlyList<T>> parse)
     {
-        try { return GemItems.ReadAck(item); }
-        catch (FormatException) { throw Unexpected(reply, expected); }
+        if (reply.Item is not { Format: SecsFormat.List } list) throw GemMessages.Fail(reply, expected);
+        if (requested is { Count: > 0 } && list.Count != requested.Count)
+            throw new FormatException($"S{reply.Stream}F{reply.Function} 응답 항목이 {list.Count}개로 요청({requested.Count}개)과 다릅니다: {GemItems.Sml(reply)}");
+        return parse(reply);
     }
-
-    // 받은 ID(장비가 보낸 포맷 무엇이든: 정수 8종·A). 아니면 응답 SML을 담은 FormatException
-    static GemId IdOf(SecsItem item, SecsMessage reply, string expected)
-    {
-        try { return GemId.FromItem(item); }
-        catch (FormatException) { throw Unexpected(reply, expected); }
-    }
-
-    // 보낼 ID 목록 <L ID…> (설정 포맷). null = 빈 목록
-    static SecsItem IdList(IReadOnlyList<GemId>? ids, SecsFormat format) => SecsItem.L([.. (ids ?? []).Select(i => i.ToItem(format))]);
     #endregion
 }

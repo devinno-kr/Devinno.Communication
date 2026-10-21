@@ -66,62 +66,50 @@ public partial class GemHost
     // S6F11 <L DATAID CEID <L <L RPTID <L V…>>…>> → 해석이 되면 ACKC6 0 → EventReceived. 해석이 안 되면 응답하지 않음(SxF0)
     void OnS6F11(SecsPrimaryEventArgs e)
     {
-        var report = DecodeEventReport(e.Message.Item, out var warning);
-        Respond(e, GemItems.Ack(GemAck.Ackc6Accepted));
+        var report = DecodeEventReport(e.Message, GemMessages.ParseS6F11, out var warning);
+        Respond(e, GemMessages.S6F12(GemAck.Ackc6Accepted));
         if (warning != null) Error(warning);
         Raise(EventReceived, new GemEventReportEventArgs(report, e.Message));
     }
 
-    // 이벤트 리포트 본문 해석(S6F11·S6F16). 해석 표는 받은 순간의 것을 쓴다. 구조 오류는 FormatException(SML은 앞부분만),
-    // 값 개수가 정의와 다른 리포트는 모두 모아 알림 문장 하나(없으면 null) — 장비가 그런 리포트를 많이 보내도 앱 이벤트 대기열을 채우지 않게
-    GemEventReport DecodeEventReport(SecsItem? body, out string? warning)
+    // 이벤트 리포트 해석(2층 ParseS6F11·ParseS6F16, 구조 오류는 2층 FormatException). 3층 규칙: 해석 표는 받은 순간의 것(gate 안에서 해석, 열쇠는 RptidFormat 기준 GemItems.Key),
+    // 표에 있는데 값 개수가 정의와 다른 리포트(2층이 VID 없이 줌)는 모두 모아 알림 문장 하나(없으면 null) — 장비가 그런 리포트를 많이 보내도 앱 이벤트 대기열을 채우지 않게
+    GemEventReport DecodeEventReport(SecsMessage m, Func<SecsMessage, IReadOnlyDictionary<GemId, IReadOnlyList<GemId>>?, GemFormats?, GemEventReport> parse, out string? warning)
     {
         warning = null;
-        if (body is not { Format: SecsFormat.List, Count: 3 } || body.Items[2].Format != SecsFormat.List)
-            throw new FormatException($"이벤트 리포트 본문은 <L DATAID CEID <L <L RPTID <L V…>>…>>입니다: {GemItems.Sml(body)}");
-        var ceid = GemId.FromItem(body.Items[1]);
-        var reports = new List<GemReportData>();
+        GemEventReport report;
         int mismatches = 0;
         List<string>? listed = null;
-        foreach (var r in body.Items[2].Items)
+        lock (gate)
         {
-            if (r is not { Format: SecsFormat.List, Count: 2 } || r.Items[1].Format != SecsFormat.List)
-                throw new FormatException($"리포트는 <L RPTID <L V…>>입니다: {GemItems.Sml(r)}");
-            var rptid = GemId.FromItem(r.Items[0]);
-            var values = r.Items[1].Items;
-            var vids = KnownReport(rptid);
-            if (vids != null && vids.Count != values.Count)
+            report = parse(m, reportTable, Formats);
+            foreach (var r in report.Reports)
             {
-                if (mismatches++ < MismatchListed) (listed ??= []).Add($"{GemItems.IdText(rptid)}(값 {values.Count}개/정의 {vids.Count}개)");
-                vids = null;
+                var vids = reportTable.GetValueOrDefault(GemItems.Key(r.Rptid, rptidFormat));
+                if (vids == null || vids.Count == r.Values.Count) continue;
+                if (mismatches++ < MismatchListed) (listed ??= []).Add($"{GemItems.IdText(r.Rptid)}(값 {r.Values.Count}개/정의 {vids.Count}개)");
             }
-            reports.Add(new GemReportData(rptid, [.. values.Select((v, i) => new GemReportValue(vids?[i], v))]));
         }
         if (mismatches > 0)
-            warning = $"CEID {GemItems.IdText(ceid)}: 리포트 {mismatches}개의 값 개수가 정의와 달라 VID 없이 줍니다: {string.Join(", ", listed!)}{(mismatches > MismatchListed ? ", …" : "")}";
-        return new GemEventReport(body.Items[0], ceid, reports);
+            warning = $"CEID {GemItems.IdText(report.Ceid)}: 리포트 {mismatches}개의 값 개수가 정의와 달라 VID 없이 줍니다: {string.Join(", ", listed!)}{(mismatches > MismatchListed ? ", …" : "")}";
+        return report;
     }
 
     // S5F1 <L ALCD ALID ALTX> → ACKC5 0 → AlarmReceived
     void OnS5F1(SecsPrimaryEventArgs e)
     {
-        if (e.Message.Item is not { Format: SecsFormat.List, Count: 3 } body || body.Items[2].Format != SecsFormat.ASCII)
-            throw new FormatException("S5F1 본문은 <L ALCD ALID ALTX>입니다.");
-        byte alcd = GemItems.ReadAck(body.Items[0]);
-        var alid = GemId.FromItem(body.Items[1]);
-        Respond(e, GemItems.Ack(GemAck.Ackc5Accepted));
-        Raise(AlarmReceived, new GemAlarmEventArgs(alid, alcd, body.Items[2].GetString()));
+        var alarm = GemMessages.ParseS5F1(e.Message);
+        Respond(e, GemMessages.S5F2(GemAck.Ackc5Accepted));
+        Raise(AlarmReceived, new GemAlarmEventArgs(alarm.Alid, alarm.Alcd, alarm.Text));
     }
 
     // S10F1 <L TID TEXT> → ACKC10 (구독자 없으면 2) → TerminalReceived
     void OnS10F1(SecsPrimaryEventArgs e)
     {
-        if (e.Message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.ASCII)
-            throw new FormatException("S10F1 본문은 <L TID TEXT>입니다.");
-        byte tid = GemItems.ReadAck(body.Items[0]);
+        var (tid, text) = GemMessages.ParseS10F1(e.Message);
         var handler = TerminalReceived;
-        Respond(e, GemItems.Ack(handler == null ? GemAck.Ackc10TerminalNotAvailable : GemAck.Ackc10Accepted));
-        Raise(handler, new GemTerminalEventArgs(tid, [body.Items[1].GetString()]));
+        Respond(e, GemMessages.S10F2(handler == null ? GemAck.Ackc10TerminalNotAvailable : GemAck.Ackc10Accepted));
+        Raise(handler, new GemTerminalEventArgs(tid, [text]));
     }
     #endregion
 
@@ -136,7 +124,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body cannot be interpreted.</exception>
-    public GemEventReport RequestEventReport(GemId ceid) => EventReportReply(Ask(new SecsMessage(6, 15, true, ceid.ToItem(ceidFormat))));
+    public GemEventReport RequestEventReport(GemId ceid) => EventReportReply(Ask(GemMessages.S6F15(ceid, Formats)));
 
     /// <summary>Requests an event report with the current values of a CE (S6F15). The rules and exceptions are the same as for <see cref="RequestEventReport"/>.</summary>
     /// <param name="ceid">CEID</param>
@@ -144,16 +132,13 @@ public partial class GemHost
     /// <returns>The interpreted report.</returns>
     public async Task<GemEventReport> RequestEventReportAsync(GemId ceid, CancellationToken cancellationToken = default)
     {
-        var request = new SecsMessage(6, 15, true, ceid.ToItem(ceidFormat));
+        var request = GemMessages.S6F15(ceid, Formats);
         return EventReportReply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
 
     GemEventReport EventReportReply(SecsMessage reply)
     {
-        GemEventReport report;
-        string? warning;
-        try { report = DecodeEventReport(reply.Item, out warning); }
-        catch (FormatException) { throw Unexpected(reply, "<L DATAID CEID <L <L RPTID <L V…>>…>>"); }
+        var report = DecodeEventReport(reply, GemMessages.ParseS6F16, out var warning);
         if (warning != null) Error(warning);
         return report;
     }
@@ -168,7 +153,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body is not a list.</exception>
-    public IReadOnlyList<SecsItem> RequestReport(GemId rptid) => ReportValuesReply(Ask(new SecsMessage(6, 19, true, rptid.ToItem(rptidFormat))));
+    public IReadOnlyList<SecsItem> RequestReport(GemId rptid) => ReportValuesReply(Ask(GemMessages.S6F19(rptid, Formats)));
 
     /// <summary>Requests the current values of a single report (S6F19). The rules and exceptions are the same as for <see cref="RequestReport"/>.</summary>
     /// <param name="rptid">RPTID</param>
@@ -176,12 +161,11 @@ public partial class GemHost
     /// <returns>The list of values.</returns>
     public async Task<IReadOnlyList<SecsItem>> RequestReportAsync(GemId rptid, CancellationToken cancellationToken = default)
     {
-        var request = new SecsMessage(6, 19, true, rptid.ToItem(rptidFormat));
+        var request = GemMessages.S6F19(rptid, Formats);
         return ReportValuesReply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
 
-    static IReadOnlyList<SecsItem> ReportValuesReply(SecsMessage reply)
-        => reply.Item is { Format: SecsFormat.List } list ? [.. list.Items] : throw Unexpected(reply, "<L V…>");
+    static IReadOnlyList<SecsItem> ReportValuesReply(SecsMessage reply) => [.. Entries(reply, null, "<L V…>", GemMessages.ParseS6F20)];
     #endregion
 
     #region S5F3 / S5F5 / S5F7
@@ -196,7 +180,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public byte EnableAlarm(GemId? alid, bool enable) => Ackc5Reply(Ask(EnableAlarmRequest(alid, enable)));
+    public byte EnableAlarm(GemId? alid, bool enable) => GemMessages.ParseS5F4(Ask(GemMessages.S5F3(enable, alid, Formats)));
 
     /// <summary>Enables or disables alarm reporting (S5F3). The rules and exceptions are the same as for <see cref="EnableAlarm"/>.</summary>
     /// <param name="alid">The ALID (if null, all alarms).</param>
@@ -205,17 +189,9 @@ public partial class GemHost
     /// <returns>ACKC5.</returns>
     public async Task<byte> EnableAlarmAsync(GemId? alid, bool enable, CancellationToken cancellationToken = default)
     {
-        var request = EnableAlarmRequest(alid, enable);
-        return Ackc5Reply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+        var request = GemMessages.S5F3(enable, alid, Formats);
+        return GemMessages.ParseS5F4(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
-
-    SecsMessage EnableAlarmRequest(GemId? alid, bool enable)
-    {
-        var id = alid is { } a ? a.ToItem(alidFormat) : GemItems.Empty(alidFormat);
-        return new SecsMessage(5, 3, true, SecsItem.L(SecsItem.B(enable ? GemAck.AledEnable : (byte)0), id));
-    }
-
-    static byte Ackc5Reply(SecsMessage reply) => AckOf(reply.Item, reply, "ACKC5");
 
     /// <summary>Reads the alarm list (S5F5).</summary>
     /// <param name="alids">The ALIDs to read (if none, all alarms). If <see cref="AlidFormat"/> is numeric, they are sent as a single array; if A, only zero or one is allowed.</param>
@@ -227,7 +203,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected, or the number of entries differs from the request.</exception>
-    public IReadOnlyList<GemAlarmInfo> ListAlarms(params GemId[] alids) => AlarmList(Ask(ListAlarmsRequest(alids ??= [])), alids);
+    public IReadOnlyList<GemAlarmInfo> ListAlarms(params GemId[] alids) => AlarmListReply(Ask(GemMessages.S5F5(alids, Formats)), alids);
 
     /// <summary>Reads the alarm list (S5F5). The rules and exceptions are the same as for <see cref="ListAlarms"/>.</summary>
     /// <param name="alids">The ALIDs to read (null or an empty list means all alarms).</param>
@@ -235,19 +211,11 @@ public partial class GemHost
     /// <returns>The list of alarm information.</returns>
     public async Task<IReadOnlyList<GemAlarmInfo>> ListAlarmsAsync(IReadOnlyList<GemId>? alids = null, CancellationToken cancellationToken = default)
     {
-        alids ??= [];
-        var request = ListAlarmsRequest(alids);
-        return AlarmList(await AskAsync(request, cancellationToken).ConfigureAwait(false), alids);
+        var request = GemMessages.S5F5(alids, Formats);
+        return AlarmListReply(await AskAsync(request, cancellationToken).ConfigureAwait(false), alids);
     }
 
-    SecsMessage ListAlarmsRequest(IReadOnlyList<GemId> alids)
-    {
-        SecsItem request;
-        if (alidFormat != SecsFormat.ASCII) request = GemItems.IdList(alids, alidFormat);
-        else if (alids.Count <= 1) request = alids.Count == 0 ? SecsItem.A("") : alids[0].ToItem(SecsFormat.ASCII);
-        else throw new ArgumentException("AlidFormat이 A면 ALID는 0개 또는 1개만 보낼 수 있습니다(A 배열 없음).", nameof(alids));
-        return new SecsMessage(5, 5, true, request);
-    }
+    static IReadOnlyList<GemAlarmInfo> AlarmListReply(SecsMessage reply, IReadOnlyList<GemId>? alids) => Entries(reply, alids, "<L <L ALCD ALID ALTX>…>", GemMessages.ParseS5F6);
 
     /// <summary>Reads the list of alarms whose reporting is enabled (S5F7).</summary>
     /// <returns>The list of alarm information.</returns>
@@ -257,27 +225,18 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public IReadOnlyList<GemAlarmInfo> ListEnabledAlarms() => AlarmList(Ask(new SecsMessage(5, 7, true)), null);
+    public IReadOnlyList<GemAlarmInfo> ListEnabledAlarms() => EnabledAlarmsReply(Ask(GemMessages.S5F7()));
 
     /// <summary>Reads the list of alarms whose reporting is enabled (S5F7). The rules and exceptions are the same as for <see cref="ListEnabledAlarms"/>.</summary>
     /// <param name="cancellationToken">Cancels waiting for the reply.</param>
     /// <returns>The list of alarm information.</returns>
     public async Task<IReadOnlyList<GemAlarmInfo>> ListEnabledAlarmsAsync(CancellationToken cancellationToken = default)
     {
-        return AlarmList(await AskAsync(new SecsMessage(5, 7, true), cancellationToken).ConfigureAwait(false), null);
+        return EnabledAlarmsReply(await AskAsync(GemMessages.S5F7(), cancellationToken).ConfigureAwait(false));
     }
 
-    // <L <L ALCD ALID ALTX>…>. 장비가 모르는 ALID는 ALCD가 길이 0(→ 0)
-    static IReadOnlyList<GemAlarmInfo> AlarmList(SecsMessage reply, IReadOnlyList<GemId>? requested)
-    {
-        const string expected = "<L <L ALCD ALID ALTX>…>";
-        return [.. Entries(reply, requested, expected).Select(e =>
-        {
-            if (e is not { Format: SecsFormat.List, Count: 3 } || e.Items[2].Format != SecsFormat.ASCII) throw Unexpected(reply, expected);
-            byte alcd = e.Items[0] is { Count: 0, Format: not (SecsFormat.List or SecsFormat.ASCII) } ? (byte)0 : AckOf(e.Items[0], reply, expected);
-            return new GemAlarmInfo(IdOf(e.Items[1], reply, expected), alcd, e.Items[2].GetString());
-        })];
-    }
+    // 장비가 모르는 ALID는 ALCD가 길이 0(→ 0, 2층 규칙)
+    static IReadOnlyList<GemAlarmInfo> EnabledAlarmsReply(SecsMessage reply) => Entries(reply, null, "<L <L ALCD ALID ALTX>…>", GemMessages.ParseS5F8);
     #endregion
 
     #region S10F3
@@ -293,7 +252,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public byte SendTerminal(byte tid, string text) => Ackc10Reply(Ask(TerminalRequest(tid, text)));
+    public byte SendTerminal(byte tid, string text) => GemMessages.ParseS10F4(Ask(GemMessages.S10F3(tid, text)));
 
     /// <summary>Sends text to the equipment terminal (S10F3). The rules and exceptions are the same as for <see cref="SendTerminal"/>.</summary>
     /// <param name="tid">The terminal number.</param>
@@ -302,17 +261,9 @@ public partial class GemHost
     /// <returns>ACKC10.</returns>
     public async Task<byte> SendTerminalAsync(byte tid, string text, CancellationToken cancellationToken = default)
     {
-        var request = TerminalRequest(tid, text);
-        return Ackc10Reply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+        var request = GemMessages.S10F3(tid, text);
+        return GemMessages.ParseS10F4(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
-
-    static SecsMessage TerminalRequest(byte tid, string text)
-    {
-        GemDefinitionCheck.Ascii(text, nameof(text));
-        return new SecsMessage(10, 3, true, SecsItem.L(SecsItem.B(tid), SecsItem.A(text)));
-    }
-
-    static byte Ackc10Reply(SecsMessage reply) => AckOf(reply.Item, reply, "ACKC10");
     #endregion
 
     #region S2F41
@@ -329,7 +280,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public GemCommandResult RemoteCommand(string command, params (string Name, SecsItem Value)[] parameters) => CommandReply(Ask(CommandRequest(command, parameters)));
+    public GemCommandResult RemoteCommand(string command, params (string Name, SecsItem Value)[] parameters) => GemMessages.ParseS2F42(Ask(GemMessages.S2F41(command, parameters)));
 
     /// <summary>Sends a remote command (S2F41). The rules and exceptions are the same as for <see cref="RemoteCommand"/>.</summary>
     /// <remarks>SecsTimeoutException, SecsDisconnectedException, cancellation, and even HCACK 2 do not prove the command was not executed. Check the equipment state (for example S1F3) before sending it again.</remarks>
@@ -339,36 +290,8 @@ public partial class GemHost
     /// <returns>The result.</returns>
     public async Task<GemCommandResult> RemoteCommandAsync(string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters = null, CancellationToken cancellationToken = default)
     {
-        var request = CommandRequest(command, parameters);
-        return CommandReply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+        var request = GemMessages.S2F41(command, parameters);
+        return GemMessages.ParseS2F42(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
-
-    static SecsMessage CommandRequest(string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters)
-    {
-        GemDefinitionCheck.Ascii(command, nameof(command));
-        var ps = new List<SecsItem>();
-        foreach (var (name, value) in parameters ?? [])
-        {
-            GemDefinitionCheck.Ascii(name, nameof(parameters));
-            ArgumentNullException.ThrowIfNull(value, nameof(parameters));
-            ps.Add(SecsItem.L(SecsItem.A(name), value));
-        }
-        return new SecsMessage(2, 41, true, SecsItem.L(SecsItem.A(command), SecsItem.L([.. ps])));
-    }
-
-    static GemCommandResult CommandReply(SecsMessage reply)
-    {
-        const string expected = "<L HCACK <L <L CPNAME CPACK>…>>";
-        if (reply.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List) throw Unexpected(reply, expected);
-        byte hcack = AckOf(body.Items[0], reply, expected);
-        var acks = body.Items[1].Items.Select(p => p is { Format: SecsFormat.List, Count: 2 }
-            ? (Name: ParameterName(p.Items[0], reply, expected), Cpack: AckOf(p.Items[1], reply, expected))
-            : throw Unexpected(reply, expected)).ToList();
-        return new GemCommandResult(hcack, acks);
-    }
-
-    // CPNAME: A(관대하게 정수 하나도 10진 문자열)
-    static string ParameterName(SecsItem item, SecsMessage reply, string expected)
-        => item.Format == SecsFormat.ASCII ? item.GetString() : IdOf(item, reply, expected).ToString();
     #endregion
 }

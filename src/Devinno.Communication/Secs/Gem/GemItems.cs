@@ -72,28 +72,40 @@ internal static class GemItems
     public static GemId ReadId(SecsItem? item, SecsFormat f)
     {
         if (item == null) throw new FormatException("ID 아이템이 없습니다.");
-        var id = GemId.FromItem(item);
+        return ExpectFormat(GemId.FromItem(item), item.Format, f);
+    }
+
+    // 3층 엄격 검사: 받은 ID가 설정 포맷과 맞는지(숫자 설정이면 정수 ID, A 설정이면 A ID). 아니면 FormatException
+    public static GemId ExpectFormat(GemId id, SecsFormat itemFormat, SecsFormat f)
+    {
         if (f == SecsFormat.ASCII ? !id.IsText : id.IsText)
-            throw new FormatException($"ID 포맷이 {FormatName(f)}인데 {FormatName(item.Format)} 아이템을 받았습니다.");
+            throw new FormatException($"ID 포맷이 {FormatName(f)}인데 {FormatName(itemFormat)} 아이템을 받았습니다.");
         return id;
     }
 
+    // 3층 엄격 검사: ID 목록은 <L …>만(정수 배열·A 하나는 받지 않음). 아니면 FormatException
+    public static SecsItem ExpectIdList(SecsItem? item)
+        => item is { Format: SecsFormat.List } ? item : throw new FormatException("ID 목록은 리스트여야 합니다.");
+
     // <L ID…> 목록
-    public static List<GemId> ReadIdList(SecsItem? item, SecsFormat f)
-    {
-        if (item is not { Format: SecsFormat.List }) throw new FormatException("ID 목록은 리스트여야 합니다.");
-        return [.. item.Items.Select(i => ReadId(i, f))];
-    }
+    public static List<GemId> ReadIdList(SecsItem? item, SecsFormat f) => [.. ExpectIdList(item).Items.Select(i => ReadId(i, f))];
 
     // ID 여러 개(S5F5 ALID): 숫자 포맷이면 정수 배열 아이템 하나, A면 A 하나, 또는 <L ID…>(secsgem 방식). 길이 0이면 빈 목록(= 전체)
     public static List<GemId> ReadIdVector(SecsItem? item, SecsFormat f)
     {
         if (item == null) throw new FormatException("ID 아이템이 없습니다.");
-        if (item.Format == SecsFormat.List) return ReadIdList(item, f);
+        return ReadIds(item, i => ReadId(i, f), integerArray: f != SecsFormat.ASCII);
+    }
+
+    // ID 목록의 세 모양(<L ID…>·정수 배열 하나·ID 하나) 읽기 규칙 한 곳. 길이 0 A·정수 = 빈 목록. 각 ID는 read로(설정 포맷 검사 여부는 부르는 쪽:
+    // 3층 ReadIdVector는 ReadId, 2층 GemMessages.IdVector는 포맷 검사 없이). integerArray = 정수 배열을 ID 여러 개로 읽을지. 틀리면 FormatException
+    public static List<GemId> ReadIds(SecsItem item, Func<SecsItem, GemId> read, bool integerArray)
+    {
+        if (item.Format == SecsFormat.List) return [.. item.Items.Select(read)];
         if (item.Count == 0 && (item.Format == SecsFormat.ASCII || IsInteger(item.Format))) return [];
-        if (f != SecsFormat.ASCII && IsInteger(item.Format))
+        if (integerArray && IsInteger(item.Format))
         {
-            var list = new List<GemId>();
+            var list = new List<GemId>(item.Count);
             foreach (var v in item.RawValues)
             {
                 if (v is ulong u && u > long.MaxValue) throw new FormatException($"ID {u}는 long 범위를 넘습니다.");
@@ -101,7 +113,7 @@ internal static class GemItems
             }
             return list;
         }
-        return [ReadId(item, f)];
+        return [read(item)];
     }
 
     // 보낼 ID 목록 값(EventsEnabled 등): 숫자 포맷이면 그 포맷의 배열 아이템 하나, A면 <L <A>…>

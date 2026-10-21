@@ -1,4 +1,3 @@
-using System.Globalization;
 using Devinno.Communication.Secs.Data;
 
 namespace Devinno.Communication.Secs.Gem;
@@ -35,23 +34,12 @@ public static partial class GemMessages
         catch (FormatException) { throw Fail(m, expected); }
     }
 
-    // ID 목록: <L ID…>·정수 배열·A 하나(GemItems.ReadIdVector와 같은 세 모양, 설정 포맷 검사 없음). 본문 없음·길이 0 = 빈 목록
+    // ID 목록: <L ID…>·정수 배열·A 하나(읽기 규칙은 GemItems.ReadIds 한 곳, 설정 포맷 검사 없음). 본문 없음·길이 0 = 빈 목록
     internal static IReadOnlyList<GemId> IdVector(SecsItem? item, SecsMessage m, string expected)
     {
         if (item == null) return [];
-        if (item.Format == SecsFormat.List) return [.. item.Items.Select(i => Id(i, m, expected))];
-        if (item.Count == 0 && (item.Format == SecsFormat.ASCII || GemItems.IsInteger(item.Format))) return [];
-        if (GemItems.IsInteger(item.Format))
-        {
-            var list = new List<GemId>(item.Count);
-            foreach (var v in item.RawValues)
-            {
-                if (v is ulong u && u > long.MaxValue) throw Fail(m, expected);
-                list.Add(new GemId(Convert.ToInt64(v, CultureInfo.InvariantCulture)));
-            }
-            return list;
-        }
-        return [Id(item, m, expected)];
+        try { return GemItems.ReadIds(item, i => Id(i, m, expected), integerArray: true); }
+        catch (FormatException) { throw Fail(m, expected); }
     }
 
     // 보낼 ID 목록 <L ID…>(그 포맷). null = 빈 목록. 범위 밖이면 ArgumentOutOfRangeException, 숫자 포맷에 문자열 ID면 ArgumentException

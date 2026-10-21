@@ -116,14 +116,17 @@ public partial class GemHost
         lock (gate) return reportTable.GetValueOrDefault(GemItems.Key(rptid, rptidFormat));
     }
 
-    // DATAID: Start마다 1부터, DataidFormat의 최댓값을 넘으면 1로(A면 10진 문자열)
-    SecsItem NextDataId()
+    // DATAID: Start마다 1부터, DataidFormat의 최댓값을 넘으면 1로(빌더가 formats.Dataid로 만듦, A면 10진 문자열).
+    // build가 예외를 던지면(인자 오류) 번호를 쓰지 않는다. 번호 매기기와 만들기를 gate 안에서 함께 해 동시에 불러도 번호가 겹치지 않는다(gate 안: 메시지 만들기만, 전송 없음)
+    SecsMessage WithNextDataId(Func<GemId, SecsMessage> build)
     {
         lock (gate)
         {
             long max = dataidFormat == SecsFormat.ASCII ? long.MaxValue : GemItems.IntegerRange(dataidFormat).Max;
-            dataId = dataId >= max ? 1 : dataId + 1;
-            return new GemId(dataId).ToItem(dataidFormat);
+            long next = dataId >= max ? 1 : dataId + 1;
+            var message = build(new GemId(next));
+            dataId = next;
+            return message;
         }
     }
     #endregion
@@ -156,21 +159,15 @@ public partial class GemHost
 
     SecsMessage DefineReportsRequest(IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
     {
-        ArgumentNullException.ThrowIfNull(reports);
-        var items = new List<SecsItem>();
-        foreach (var (rptid, vids) in reports)
-        {
-            ArgumentNullException.ThrowIfNull(vids, nameof(reports));
-            items.Add(SecsItem.L(rptid.ToItem(rptidFormat), IdList(vids, vidFormat)));
-        }
-        return new SecsMessage(2, 33, true, SecsItem.L(NextDataId(), SecsItem.L([.. items])));
+        var formats = Formats;
+        return WithNextDataId(id => GemMessages.S2F33(id, reports, formats));
     }
 
     // DRACK 0이면 해석 표 갱신을 디스패처 대기열에 넣는다(기다리지 않음, H3): S2F34보다 먼저 받은 S6F11은 옛 표로, 메서드가 돌아온 뒤에 받은 것은 새 표로 해석된다(그 사이에 받은 것은 어느 쪽일 수도 있음).
     // 디스패처가 멈춰 있으면 버려진다(Start가 표를 비움). transport.Post는 GEM gate 밖에서
     byte DefineReportsReply(SecsMessage reply, IReadOnlyList<(GemId Rptid, IReadOnlyList<GemId> Vids)> reports)
     {
-        byte ack = AckOf(reply.Item, reply, "DRACK");
+        byte ack = GemMessages.ParseS2F34(reply);
         if (ack != GemAck.DrackAccepted) return ack;
         int r;
         lock (gate) r = run;
@@ -205,7 +202,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public byte LinkEvents(IReadOnlyList<(GemId Ceid, IReadOnlyList<GemId> Rptids)> links) => LrackReply(Ask(LinkEventsRequest(links)));
+    public byte LinkEvents(IReadOnlyList<(GemId Ceid, IReadOnlyList<GemId> Rptids)> links) => GemMessages.ParseS2F36(Ask(LinkEventsRequest(links)));
 
     /// <summary>Links reports to CEs (S2F35). The rules and exceptions are the same as for <see cref="LinkEvents"/>.</summary>
     /// <param name="links">The list of (CEID, RPTID list) pairs.</param>
@@ -214,22 +211,14 @@ public partial class GemHost
     public async Task<byte> LinkEventsAsync(IReadOnlyList<(GemId Ceid, IReadOnlyList<GemId> Rptids)> links, CancellationToken cancellationToken = default)
     {
         var request = LinkEventsRequest(links);
-        return LrackReply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+        return GemMessages.ParseS2F36(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
 
     SecsMessage LinkEventsRequest(IReadOnlyList<(GemId Ceid, IReadOnlyList<GemId> Rptids)> links)
     {
-        ArgumentNullException.ThrowIfNull(links);
-        var items = new List<SecsItem>();
-        foreach (var (ceid, rptids) in links)
-        {
-            ArgumentNullException.ThrowIfNull(rptids, nameof(links));
-            items.Add(SecsItem.L(ceid.ToItem(ceidFormat), IdList(rptids, rptidFormat)));
-        }
-        return new SecsMessage(2, 35, true, SecsItem.L(NextDataId(), SecsItem.L([.. items])));
+        var formats = Formats;
+        return WithNextDataId(id => GemMessages.S2F35(id, links, formats));
     }
-
-    static byte LrackReply(SecsMessage reply) => AckOf(reply.Item, reply, "LRACK");
 
     /// <summary>Enables or disables CE reporting (S2F37 &lt;L CEED &lt;L CEID…&gt;&gt;).</summary>
     /// <param name="enable">true = enable, false = disable.</param>
@@ -242,7 +231,7 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public byte EnableEvents(bool enable, params GemId[] ceids) => ErackReply(Ask(EnableEventsRequest(enable, ceids)));
+    public byte EnableEvents(bool enable, params GemId[] ceids) => GemMessages.ParseS2F38(Ask(GemMessages.S2F37(enable, ceids, Formats)));
 
     /// <summary>Enables or disables CE reporting (S2F37). The rules and exceptions are the same as for <see cref="EnableEvents"/>.</summary>
     /// <param name="enable">true = enable, false = disable.</param>
@@ -251,13 +240,9 @@ public partial class GemHost
     /// <returns>ERACK</returns>
     public async Task<byte> EnableEventsAsync(bool enable, IReadOnlyList<GemId>? ceids = null, CancellationToken cancellationToken = default)
     {
-        var request = EnableEventsRequest(enable, ceids);
-        return ErackReply(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+        var request = GemMessages.S2F37(enable, ceids, Formats);
+        return GemMessages.ParseS2F38(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
-
-    SecsMessage EnableEventsRequest(bool enable, IReadOnlyList<GemId>? ceids) => new(2, 37, true, SecsItem.L(SecsItem.Boolean(enable), IdList(ceids, ceidFormat)));
-
-    static byte ErackReply(SecsMessage reply) => AckOf(reply.Item, reply, "ERACK");
     #endregion
 
     #region ConfigureReports
@@ -312,18 +297,18 @@ public partial class GemHost
             {
                 byte del = DefineReportsReply(await ask(DefineReportsRequest([])).ConfigureAwait(false), []);
                 if (del != GemAck.DrackAccepted) return new GemReportSetupResult(GemReportSetupStep.DeleteReports, del);
-                ErackReply(await ask(EnableEventsRequest(false, null)).ConfigureAwait(false));     // 남은 CE 잡음 방지(ack는 보지 않음)
+                GemMessages.ParseS2F38(await ask(GemMessages.S2F37(false, null, Formats)).ConfigureAwait(false));     // 남은 CE 잡음 방지(ack는 보지 않음)
             }
             if (defs.Count > 0)
             {
                 byte drack = DefineReportsReply(await ask(DefineReportsRequest(defs)).ConfigureAwait(false), defs);
                 if (drack != GemAck.DrackAccepted) return new GemReportSetupResult(GemReportSetupStep.DefineReports, drack);
-                byte lrack = LrackReply(await ask(LinkEventsRequest(links)).ConfigureAwait(false));
+                byte lrack = GemMessages.ParseS2F36(await ask(LinkEventsRequest(links)).ConfigureAwait(false));
                 if (lrack != GemAck.LrackAccepted) return new GemReportSetupResult(GemReportSetupStep.LinkEvents, lrack);
             }
             if (subs.Count > 0)
             {
-                byte erack = ErackReply(await ask(EnableEventsRequest(true, [.. subs.Select(s => s.Ceid)])).ConfigureAwait(false));
+                byte erack = GemMessages.ParseS2F38(await ask(GemMessages.S2F37(true, [.. subs.Select(s => s.Ceid)], Formats)).ConfigureAwait(false));
                 if (erack != GemAck.ErackAccepted) return new GemReportSetupResult(GemReportSetupStep.EnableEvents, erack);
             }
             return new GemReportSetupResult(GemReportSetupStep.None, null);

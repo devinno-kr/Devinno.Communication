@@ -2,9 +2,14 @@ using Devinno.Communication.Secs.Data;
 
 namespace Devinno.Communication.Secs.Gem;
 
-// S6: 이벤트 리포트(S6F11~S6F20), 3층용 internal S6F11Body
+// S6: 이벤트 리포트(S6F11~S6F20), 3층용 internal S6F6·S6F11Body
 public static partial class GemMessages
 {
+    #region S6F5 / S6F6 (internal, 3층용)
+    // Host의 자동 응답 S6F6 <B GRANT6>(S6F5는 어느 층도 보내지 않음)
+    internal static SecsMessage S6F6(byte grant6) => new(6, 6, false, GemItems.Ack(grant6));
+    #endregion
+
     #region S6F11 / S6F12
     /// <summary>Builds S6F11 Event Report Send &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;.</summary>
     /// <param name="dataId">The DATAID (uses <see cref="GemFormats.Dataid"/>).</param>

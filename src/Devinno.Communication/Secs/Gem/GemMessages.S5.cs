@@ -28,7 +28,7 @@ public static partial class GemMessages
     public static GemAlarmInfo ParseS5F1(SecsMessage message)
     {
         Check(message, 5, 1);
-        return Alarm(message.Item, message, "<L ALCD ALID ALTX>");
+        return Alarm(message.Item, message, "<L ALCD ALID ALTX>", emptyAlcd: false);
     }
 
     /// <summary>Builds S5F2 Alarm Report Acknowledge &lt;B ACKC5&gt;.</summary>
@@ -207,18 +207,18 @@ public static partial class GemMessages
         })]);
     }
 
-    // <L ALCD ALID ALTX> 하나. ALCD 길이 0 숫자 아이템(모르는 ALID) = 0
-    static GemAlarmInfo Alarm(SecsItem? e, SecsMessage m, string expected)
+    // <L ALCD ALID ALTX> 하나. emptyAlcd면 ALCD 길이 0 숫자 아이템(S5F6·S5F8의 모르는 ALID) = 0, 아니면(S5F1) ALCD 값이 있어야 한다
+    static GemAlarmInfo Alarm(SecsItem? e, SecsMessage m, string expected, bool emptyAlcd)
     {
         if (e is not { Format: SecsFormat.List, Count: 3 } || e.Items[2].Format != SecsFormat.ASCII) throw Fail(m, expected);
-        byte alcd = e.Items[0] is { Count: 0, Format: not (SecsFormat.List or SecsFormat.ASCII) } ? (byte)0 : Ack(e.Items[0], m, expected);
+        byte alcd = emptyAlcd && e.Items[0] is { Count: 0, Format: not (SecsFormat.List or SecsFormat.ASCII) } ? (byte)0 : Ack(e.Items[0], m, expected);
         return new GemAlarmInfo(Id(e.Items[1], m, expected), alcd, e.Items[2].GetString());
     }
 
     static IReadOnlyList<GemAlarmInfo> AlarmEntries(SecsMessage m)
     {
         const string expected = "<L <L ALCD ALID ALTX>…>";
-        return [.. Entries(m, expected).Select(e => Alarm(e, m, expected))];
+        return [.. Entries(m, expected).Select(e => Alarm(e, m, expected, emptyAlcd: true))];
     }
     #endregion
 }

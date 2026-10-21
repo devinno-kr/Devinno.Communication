@@ -526,26 +526,21 @@ public partial class GemEquipment : IDisposable
         ReplyNow(e, reply, $"S{e.Message.Stream}F{e.Message.Function}");
     }
 
-    // 받은 ID가 설정 포맷과 맞는지(D2: 2층은 정수·A 무엇이든 받으므로 3층이 검사). 숫자 설정이면 정수 ID, A 설정이면 A ID. 아니면 FormatException
-    static GemId Expect(GemId id, SecsFormat itemFormat, SecsFormat f)
-    {
-        if (f == SecsFormat.ASCII ? !id.IsText : id.IsText)
-            throw new FormatException($"ID 포맷이 {GemItems.FormatName(f)}인데 {GemItems.FormatName(itemFormat)} 아이템을 받았습니다.");
-        return id;
-    }
+    // 받은 ID가 설정 포맷과 맞는지(D2: 2층은 정수·A 무엇이든 받으므로 3층이 검사). 규칙은 GemItems.ExpectFormat 한 곳
+    static GemId Expect(GemId id, SecsFormat itemFormat, SecsFormat f) => GemItems.ExpectFormat(id, itemFormat, f);
 
     // 2층이 <L ID…>에서 읽은 ID 목록을 3층 규칙으로: 받은 아이템이 리스트가 아니면 FormatException(정수 배열·A 하나는 받지 않음), 각 ID는 Expect
     static List<GemId> ExpectList(SecsItem? list, IReadOnlyList<GemId> ids, SecsFormat f)
     {
-        if (list is not { Format: SecsFormat.List }) throw new FormatException("ID 목록은 리스트여야 합니다.");
-        return [.. ids.Select((id, i) => Expect(id, list.Items[i].Format, f))];
+        var l = GemItems.ExpectIdList(list);
+        return [.. ids.Select((id, i) => Expect(id, l.Items[i].Format, f))];
     }
 
-    // ID 목록 요청(S1F3·S1F11·S1F21·S1F23·S2F13·S2F29): 본문이 없으면 빈 목록(= 전체), <L ID…>만, 각 ID는 설정 포맷
+    // ID 목록 요청(S1F3·S1F11·S1F21·S1F23·S2F13·S2F29): 본문이 없으면 빈 목록(= 전체), <L ID…>만(2층 해석 전에 검사), 각 ID는 설정 포맷
     static List<GemId> RequestedIds(SecsMessage m, Func<SecsMessage, IReadOnlyList<GemId>> parse, SecsFormat f)
     {
         if (m.Item == null) return [];
-        if (m.Item.Format != SecsFormat.List) throw new FormatException("ID 목록은 리스트여야 합니다.");
+        GemItems.ExpectIdList(m.Item);
         return ExpectList(m.Item, parse(m), f);
     }
 

@@ -231,7 +231,7 @@ public partial class GemHost
                 try
                 {
                     int epoch = SendEpoch();
-                    ack = EstablishReply(await ask(EstablishRequest()).ConfigureAwait(false), epoch);
+                    ack = EstablishReply(await ask(GemMessages.S1F13()).ConfigureAwait(false), epoch);
                     if (ack == GemAck.CommackAccepted) break;
                 }
                 catch (Exception ex) when (ex is SecsTimeoutException or SecsAbortException or SecsErrorException or FormatException) { failure = ex; }
@@ -247,14 +247,14 @@ public partial class GemHost
             if (connectRequestOnline)
             {
                 step = GemConnectStep.RequestOnline;
-                byte onlack = OnlineReply(await ask(OnlineRequest()).ConfigureAwait(false));
+                byte onlack = GemMessages.ParseS1F18(await ask(GemMessages.S1F17()).ConfigureAwait(false));
                 if (onlack is not (GemAck.OnlackAccepted or GemAck.OnlackAlreadyOnline)) return new GemConnectResult(step, onlack, null, null);
             }
             // 3. 시계 맞춤: 거절은 경고만
             if (connectSetClock)
             {
                 step = GemConnectStep.SetClock;
-                byte tiack = TiackReply(await ask(SetTimeRequest(null)).ConfigureAwait(false));
+                byte tiack = GemMessages.ParseS2F32(await ask(GemMessages.S2F31(DateTime.Now, timeFormat)).ConfigureAwait(false));
                 if (tiack != GemAck.TiackAccepted) ErrorIn(r, $"접속 시퀀스: 장비가 시계 맞춤을 거절했습니다(TIACK {tiack}).");
             }
             // 4. 리포트 설정: 거절은 실패
@@ -268,7 +268,7 @@ public partial class GemHost
             if (connectEnableAlarms)
             {
                 step = GemConnectStep.EnableAlarms;
-                byte ackc5 = Ackc5Reply(await ask(EnableAlarmRequest(null, true)).ConfigureAwait(false));
+                byte ackc5 = GemMessages.ParseS5F4(await ask(GemMessages.S5F3(true, null, Formats)).ConfigureAwait(false));
                 if (ackc5 != GemAck.Ackc5Accepted) ErrorIn(r, $"접속 시퀀스: 장비가 알람 보고 켜기를 거절했습니다(ACKC5 {ackc5}).");
             }
             return new GemConnectResult(GemConnectStep.None, null, null, reports);
