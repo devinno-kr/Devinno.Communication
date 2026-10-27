@@ -105,12 +105,17 @@ public class SecsSerialTests
     [Fact]
     public async Task T3_Timeout_LinkKept()
     {
-        var (eq, host, _, _) = await Pair(e => e.PrimaryReceived += (s, a) => { if (a.Message.Stream == 5) Thread.Sleep(600); Echo(s, a); }, h => h.T3 = 300);
+        // 장비는 Host가 T3로 끝난 뒤에야 응답한다. 고정 지연(Sleep)으로 하면 부하로 ACK가 T2를 넘겨 블록을 재전송할 때
+        // T3가 그만큼 늦게 시작돼(마지막 ACK부터) 늦은 응답이 T3 안에 들어와 버린다
+        using var timedOut = new ManualResetEventSlim(false);
+        var (eq, host, _, _) = await Pair(e => e.PrimaryReceived += (s, a) => { if (a.Message.Stream == 5) timedOut.Wait(10000); Echo(s, a); }, h => h.T3 = 300);
         using (eq) using (host)
         {
             await Assert.ThrowsAsync<SecsTimeoutException>(() => host.SendAsync(new SecsMessage(5, 5, true)));
             Assert.True(host.IsOpen);
+            timedOut.Set();   // 늦은 응답(짝 없음)을 보내게 한 뒤에도 링크가 살아 있는지
             await Task.Delay(500);
+            host.T3 = 10000;   // 여기서는 링크 유지만 본다
             Assert.NotNull(await host.SendAsync(new SecsMessage(1, 1, true)));
         }
     }

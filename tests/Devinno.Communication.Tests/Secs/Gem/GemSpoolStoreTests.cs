@@ -206,17 +206,18 @@ public class GemSpoolStoreTests
             var s = GemSpoolStore.Open(dir);
             s.BeforeWrite = () => { entered.Set(); gate.Wait(10000); };
             s.Add(0, Msg(0, true));
-            Assert.True(entered.Wait(3000));
+            Assert.True(entered.Wait(10000));
 
+            // 호출 스레드에서 파일을 쓰면(Flush(true)) 1000개에 수 초가 걸린다. 부하가 걸린 PC를 감안해 넉넉히 잡는다
             var sw = System.Diagnostics.Stopwatch.StartNew();
             for (var i = 1; i <= 1000; i++) s.Add(i, Msg(i, true));
             sw.Stop();
-            Assert.True(sw.ElapsedMilliseconds < 50, $"Add 1000번에 {sw.ElapsedMilliseconds}ms");
+            Assert.True(sw.ElapsedMilliseconds < 500, $"Add 1000번에 {sw.ElapsedMilliseconds}ms");
             Assert.False(s.IsWriterThread);
 
             s.BeforeWrite = null;
             gate.Set();
-            s.Close(10000);
+            s.Close(60000);   // 파일 1001개를 Flush하며 쓰면 평소에도 수 초 걸린다. 다 쓰면 바로 돌아오므로 넉넉히 잡는다
             using var r = GemSpoolStore.Open(dir);
             Assert.Equal(1001, r.Messages.Count);
         }
