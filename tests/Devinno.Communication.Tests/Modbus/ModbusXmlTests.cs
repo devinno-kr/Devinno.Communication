@@ -70,10 +70,22 @@ public class ModbusXmlTests
     [Fact]
     public void TcpSlave_RoundTrip()
     {
-        var a = new ModbusTCPSlave { LocalPort = 1502, Slave = 3, MaxClients = 4 };
+        var a = new ModbusTCPSlave { LocalIP = "10.0.0.5", LocalPort = 1502, Slave = 3, MaxClients = 4 };
         var b = new ModbusTCPSlave();
         b.FromXml(a.ToXml());
-        Assert.Equal((1502, 3, 4), (b.LocalPort, b.Slave, b.MaxClients));
+        Assert.Equal(("10.0.0.5", 1502, 3, 4), (b.LocalIP, b.LocalPort, b.Slave, b.MaxClients));
+    }
+
+    [Theory]
+    [InlineData("""<ModbusTCPSlave LocalIP="abc" />""")]
+    [InlineData("""<TextCommTCPSlave LocalIP="" />""")]
+    public void TcpSlave_InvalidLocalIP_Throws(string xml)
+    {
+        var e = System.Xml.Linq.XElement.Parse(xml);
+        var ex = e.Name == "ModbusTCPSlave"
+            ? Assert.Throws<FormatException>(() => new ModbusTCPSlave().FromXml(e))
+            : Assert.Throws<FormatException>(() => new Devinno.Communication.TextComm.TCP.TextCommTCPSlave().FromXml(e));
+        Assert.Contains("LocalIP", ex.Message);
     }
 
     [Fact]

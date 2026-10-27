@@ -52,6 +52,8 @@ public class ModbusTCPSlave : IDisposable
     #endregion
 
     #region Properties
+    /// <summary>Local IP on which to listen (default: "0.0.0.0" = all interfaces). Use "127.0.0.1" to accept only local connections. It is read on Start.</summary>
+    public string LocalIP { get; set; } = DefaultLocalIP;
     /// <summary>Listening port (default: 502).</summary>
     public int LocalPort { get; set; } = 502;
     /// <summary>Unit ID of this slave, 1 to 247 (default: 1). It also always responds to 0 and 255.</summary>
@@ -82,8 +84,8 @@ public class ModbusTCPSlave : IDisposable
 
     internal int BoundPort { get; private set; }
 
-    // 접속을 받을 로컬 주소. 기본은 모든 인터페이스. 테스트는 루프백으로 바꿔 Windows 방화벽 확인 창을 피한다.
-    internal static IPAddress BindAddress { get; set; } = IPAddress.Any;
+    // 새로 만든 객체의 LocalIP 기본값. 테스트는 루프백으로 바꿔 Windows 방화벽 확인 창을 피한다.
+    internal static string DefaultLocalIP { get; set; } = "0.0.0.0";
     #endregion
 
     #region Member Variable
@@ -109,13 +111,14 @@ public class ModbusTCPSlave : IDisposable
     #region Start / Stop
     /// <summary>Binds to the port and starts accepting connections. Does nothing if it is already running.</summary>
     /// <exception cref="SocketException">The port is already in use by another program.</exception>
+    /// <exception cref="FormatException"><see cref="LocalIP"/> is not an IP address.</exception>
     public void Start()
     {
         lock (lifeLock)
         {
             ObjectDisposedException.ThrowIf(IsDisposed, this);
             if (IsStart) return;
-            var l = new TcpListener(BindAddress, LocalPort);
+            var l = new TcpListener(IPAddress.Parse(LocalIP), LocalPort);
             l.Start();
             listener = l;
             BoundPort = ((IPEndPoint)l.LocalEndpoint).Port;
@@ -165,6 +168,7 @@ public class ModbusTCPSlave : IDisposable
     /// <returns>The configuration object.</returns>
     public ModbusTCPSlaveConfig ToConfig() => new()
     {
+        LocalIP = LocalIP,
         LocalPort = LocalPort,
         Slave = Slave,
         MaxClients = MaxClients,
@@ -180,6 +184,7 @@ public class ModbusTCPSlave : IDisposable
         ArgumentNullException.ThrowIfNull(config);
         if (IsStart) throw new InvalidOperationException("실행 중에는 설정을 바꿀 수 없습니다. Stop() 후 호출하세요.");
         config.Validate();
+        LocalIP = config.LocalIP;
         LocalPort = config.LocalPort;
         Slave = config.Slave;
         MaxClients = config.MaxClients;

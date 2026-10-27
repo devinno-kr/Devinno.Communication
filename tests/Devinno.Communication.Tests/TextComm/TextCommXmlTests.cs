@@ -72,11 +72,11 @@ public class TextCommXmlTests
             (r2.Port, r2.Baudrate, r2.Parity, r2.DataBits, r2.StopBits, r2.AutoReconnect, r2.MessageEncoding.WebName));
         Assert.Equal(r.ToXml().ToString(), r2.ToXml().ToString());
 
-        var t = new TextCommTCPSlave { LocalPort = 7000, MaxClients = 3, MessageEncoding = Encoding.UTF8 };
+        var t = new TextCommTCPSlave { LocalIP = "10.0.0.5", LocalPort = 7000, MaxClients = 3, MessageEncoding = Encoding.UTF8 };
         var t2 = new TextCommTCPSlave();
         t2.FromXml(t.ToXml());
-        Assert.Equal((7000, 3, "utf-8"), (t2.LocalPort, t2.MaxClients, t2.MessageEncoding.WebName));
-        Assert.Equal("""<TextCommTCPSlave LocalPort="7000" MaxClients="3" MessageEncoding="utf-8" />""", t.ToXml().ToString());
+        Assert.Equal(("10.0.0.5", 7000, 3, "utf-8"), (t2.LocalIP, t2.LocalPort, t2.MaxClients, t2.MessageEncoding.WebName));
+        Assert.Equal("""<TextCommTCPSlave LocalIP="10.0.0.5" LocalPort="7000" MaxClients="3" MessageEncoding="utf-8" />""", t.ToXml().ToString());
     }
 
     [Theory]

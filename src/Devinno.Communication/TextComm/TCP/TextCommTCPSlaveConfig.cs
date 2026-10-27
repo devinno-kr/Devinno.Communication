@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Xml.Serialization;
 using Devinno.Communication.Internal;
@@ -13,12 +14,14 @@ namespace Devinno.Communication.TextComm.TCP;
 /// </remarks>
 /// <example>
 /// <code>
-/// &lt;TextCommTCPSlave LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" /&gt;
+/// &lt;TextCommTCPSlave LocalIP="0.0.0.0" LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" /&gt;
 /// </code>
 /// </example>
 [XmlRoot(nameof(TextCommTCPSlave))]
 public class TextCommTCPSlaveConfig
 {
+    /// <summary>Local IP on which to listen, an IP address (default: "0.0.0.0" = all interfaces; "127.0.0.1" = local connections only).</summary>
+    [XmlAttribute] public string LocalIP { get; set; } = "0.0.0.0";
     /// <summary>Listening port, 1 to 65535 (default: 7897).</summary>
     [XmlAttribute] public int LocalPort { get; set; } = 7897;
     /// <summary>Maximum number of simultaneous connections, 1 to 1000 (default: 10).</summary>
@@ -30,6 +33,7 @@ public class TextCommTCPSlaveConfig
     internal Encoding Validate()
     {
         const string e = nameof(TextCommTCPSlave);
+        if (!IPAddress.TryParse(LocalIP, out _)) throw XmlConfig.Invalid(e, nameof(LocalIP), LocalIP ?? "", "IP 주소가 아님");
         XmlConfig.Range(e, nameof(LocalPort), LocalPort, 1, 65535);
         XmlConfig.Range(e, nameof(MaxClients), MaxClients, 1, 1000);
         return TextCommXml.Encoding(e, MessageEncoding);

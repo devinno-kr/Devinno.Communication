@@ -196,13 +196,16 @@ Class `Devinno.Communication.Modbus.TCP.ModbusTCPSlave`, config `ModbusTCPSlaveC
 
 | Attribute | Type | Required | Default | Range / values |
 |---|---|---|---|---|
+| `LocalIP` | string | no | `0.0.0.0` | IP address (not a host name) to listen on; `0.0.0.0` = all interfaces, `127.0.0.1` = this PC only |
 | `LocalPort` | int | no | `502` | 0 – 65535 (listening port) |
 | `Slave` | int | no | `1` | 1 – 247 (this slave's unit ID) |
 | `MaxClients` | int | no | `10` | 1 – 1000 simultaneous connections |
 
 ```xml
-<ModbusTCPSlave LocalPort="502" Slave="1" MaxClients="10" />
+<ModbusTCPSlave LocalIP="0.0.0.0" LocalPort="502" Slave="1" MaxClients="10" />
 ```
+
+A simulator or test whose master runs on the same PC should use `LocalIP="127.0.0.1"`. Listening on all interfaces makes Windows Firewall ask for permission for each new executable path.
 
 ---
 
@@ -779,12 +782,13 @@ Class `Devinno.Communication.TextComm.TCP.TextCommTCPSlave`, config `TextCommTCP
 
 | Attribute | Type | Required | Default | Range / values |
 |---|---|---|---|---|
+| `LocalIP` | string | no | `0.0.0.0` | IP address (not a host name) to listen on; `0.0.0.0` = all interfaces, `127.0.0.1` = this PC only (avoids the Windows Firewall prompt) |
 | `LocalPort` | int | no | `7897` | 1 – 65535 |
 | `MaxClients` | int | no | `10` | 1 – 1000 |
 | `MessageEncoding` | string | no | `us-ascii` | encoding web name |
 
 ```xml
-<TextCommTCPSlave LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" />
+<TextCommTCPSlave LocalIP="0.0.0.0" LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" />
 ```
 
 ---

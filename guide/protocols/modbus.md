@@ -12,6 +12,7 @@
   * 마스터가 쓰기를 하면 배열에 반영한 다음 Written 이벤트로 알림
   * 범위를 벗어난 주소에는 Modbus 예외 응답 02, 지원하지 않는 Function에는 01로 응답
   * Modbus TCP Slave는 여러 클라이언트의 동시 접속을 지원
+  * TCP Slave가 듣는 주소는 `LocalIP` (기본 `"0.0.0.0"` = 모든 인터페이스). 같은 PC 안에서만 쓰는 시뮬레이터·테스트는 `"127.0.0.1"`로 하면 Windows 방화벽 허용 창이 뜨지 않음. `Start()` 때 읽으므로 실행 중 바꾸면 다시 시작해야 반영
 
 ## 이름 있는 쓰기
   * Master XML에 `<Write>`로 쓰기 영역에 이름을 붙이고(Auto 요소 뒤에 작성), 코드에서 `NamedWrite("이름", 값)`으로 쓴다 (`ContainsNamedWrite`로 등록 여부 확인)

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Xml.Serialization;
 using Devinno.Communication.Internal;
 
@@ -9,12 +10,14 @@ namespace Devinno.Communication.Modbus.TCP;
 /// <remarks>Omitted attributes use their default values.</remarks>
 /// <example>
 /// <code>
-/// &lt;ModbusTCPSlave LocalPort="502" Slave="1" MaxClients="10" /&gt;
+/// &lt;ModbusTCPSlave LocalIP="0.0.0.0" LocalPort="502" Slave="1" MaxClients="10" /&gt;
 /// </code>
 /// </example>
 [XmlRoot(nameof(ModbusTCPSlave))]
 public class ModbusTCPSlaveConfig
 {
+    /// <summary>Local IP on which to listen, an IP address (default: "0.0.0.0" = all interfaces; "127.0.0.1" = local connections only).</summary>
+    [XmlAttribute] public string LocalIP { get; set; } = "0.0.0.0";
     /// <summary>Listening port, 0 to 65535 (default: 502).</summary>
     [XmlAttribute] public int LocalPort { get; set; } = 502;
     /// <summary>Unit ID of this slave, 1 to 247 (default: 1).</summary>
@@ -25,6 +28,7 @@ public class ModbusTCPSlaveConfig
     internal void Validate()
     {
         const string e = nameof(ModbusTCPSlave);
+        if (!IPAddress.TryParse(LocalIP, out _)) throw XmlConfig.Invalid(e, nameof(LocalIP), LocalIP ?? "", "IP 주소가 아님");
         XmlConfig.Range(e, nameof(LocalPort), LocalPort, 0, 65535);
         XmlConfig.Range(e, nameof(Slave), Slave, 1, 247);
         XmlConfig.Range(e, nameof(MaxClients), MaxClients, 1, 1000);

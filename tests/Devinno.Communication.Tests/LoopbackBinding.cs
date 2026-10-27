@@ -12,8 +12,8 @@ internal static class LoopbackBinding
     [ModuleInitializer]
     internal static void Init()
     {
-        ModbusTCPSlave.BindAddress = IPAddress.Loopback;
-        TextCommTCPSlave.BindAddress = IPAddress.Loopback;
+        ModbusTCPSlave.DefaultLocalIP = "127.0.0.1";
+        TextCommTCPSlave.DefaultLocalIP = "127.0.0.1";
     }
 }
 
@@ -22,11 +22,31 @@ public class LoopbackBindingTests
     [Fact]
     public void TcpSlaves_BindToLoopbackInTests()
     {
-        Assert.Equal(IPAddress.Loopback, ModbusTCPSlave.BindAddress);
-        Assert.Equal(IPAddress.Loopback, TextCommTCPSlave.BindAddress);
+        Assert.Equal("127.0.0.1", new ModbusTCPSlave().LocalIP);
+        Assert.Equal("127.0.0.1", new TextCommTCPSlave().LocalIP);
         using var slave = new ModbusTCPSlave { LocalPort = 0 };
         slave.Start();
         Assert.Contains(System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners(),
             ep => ep.Port == slave.BoundPort && ep.Address.Equals(IPAddress.Loopback));
+    }
+
+    [Fact]
+    public void TextCommSlave_LocalIP_IsUsedForBinding()
+    {
+        using var slave = new TextCommTCPSlave { LocalIP = "127.0.0.1", LocalPort = 0 };
+        slave.Start();
+        Assert.Contains(System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners(),
+            ep => ep.Port == slave.BoundPort && ep.Address.Equals(IPAddress.Loopback));
+    }
+
+    [Fact]
+    public void TcpSlaves_InvalidLocalIP_StartThrows()
+    {
+        using var m = new ModbusTCPSlave { LocalIP = "abc", LocalPort = 0 };
+        Assert.Throws<FormatException>(m.Start);
+        Assert.False(m.IsStart);
+        using var t = new TextCommTCPSlave { LocalIP = "abc", LocalPort = 0 };
+        Assert.Throws<FormatException>(t.Start);
+        Assert.False(t.IsStart);
     }
 }

@@ -3253,6 +3253,7 @@
         <member name="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.ClientEventArgs.RemoteEndPoint" en-hash="a967e51ea16ececc">
             <summary>클라이언트 주소 (예: "192.168.0.5:51234")</summary>
         </member>
+        <member name="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.LocalIP" en-hash="6c7a8216e4b6de05"><summary>접속을 받을 로컬 IP (기본값: "0.0.0.0" = 모든 인터페이스). "127.0.0.1"로 하면 이 PC의 접속만 받습니다. Start할 때 읽습니다.</summary></member>
         <member name="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.LocalPort" en-hash="503462c3bdedbf99">
             <summary>수신 대기 포트 (기본값: 502)</summary>
         </member>
@@ -3302,10 +3303,9 @@
         <member name="E:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.ClientDisconnected" en-hash="90c08332ab46d618">
             <summary>클라이언트 접속이 끊겼을 때 발생합니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.Start" en-hash="75bc8d71ccd82643">
-            <summary>포트에 바인드하고 접속을 받기 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
+        <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.Start" en-hash="492e0bc45b227aaa"><summary>포트에 바인드하고 접속을 받기 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <exception cref="T:System.Net.Sockets.SocketException">포트를 이미 다른 프로그램이 쓰고 있는 경우</exception>
-        </member>
+            <exception cref="T:System.FormatException"><see cref="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.LocalIP" />가 IP 주소가 아닌 경우</exception></member>
         <member name="M:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.Stop" en-hash="83cba84d976596be">
             <summary>접속 대기를 멈추고 모든 클라이언트 연결을 끊습니다.</summary>
             <remarks>Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
@@ -3347,17 +3347,16 @@
             <summary>XML 파일에서 설정을 불러옵니다. 규칙은 <see cref="M:Devinno.Communication.Modbus.TCP.ModbusTCPSlave.FromXml(System.Xml.Linq.XElement)" />와 같습니다.</summary>
             <param name="path">파일 경로</param>
         </member>
-        <member name="T:Devinno.Communication.Modbus.TCP.ModbusTCPSlaveConfig" en-hash="3da9530ec76bbde9">
-            <summary>
+        <member name="T:Devinno.Communication.Modbus.TCP.ModbusTCPSlaveConfig" en-hash="84560b1de896d47f"><summary>
             <see cref="T:Devinno.Communication.Modbus.TCP.ModbusTCPSlave" />의 설정입니다. XML에서는 &lt;ModbusTCPSlave&gt; 요소입니다. 메모리 배열은 포함하지 않습니다.
             </summary>
             <remarks>생략한 속성은 기본값을 씁니다.</remarks>
             <example>
             <code>
-            &lt;ModbusTCPSlave LocalPort="502" Slave="1" MaxClients="10" /&gt;
+            &lt;ModbusTCPSlave LocalIP="0.0.0.0" LocalPort="502" Slave="1" MaxClients="10" /&gt;
             </code>
-            </example>
-        </member>
+            </example></member>
+        <member name="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlaveConfig.LocalIP" en-hash="294d6a4a12b4d70e"><summary>접속을 받을 로컬 IP 주소 (기본값: "0.0.0.0" = 모든 인터페이스, "127.0.0.1" = 이 PC의 접속만)</summary></member>
         <member name="P:Devinno.Communication.Modbus.TCP.ModbusTCPSlaveConfig.LocalPort" en-hash="6d552aea0d22c848">
             <summary>수신 대기 포트 0~65535 (기본값: 502)</summary>
         </member>
@@ -11464,6 +11463,7 @@
         <member name="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.ClientEventArgs.RemoteEndPoint" en-hash="a967e51ea16ececc">
             <summary>클라이언트 주소 (예: "192.168.0.5:51234")</summary>
         </member>
+        <member name="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.LocalIP" en-hash="6c7a8216e4b6de05"><summary>접속을 받을 로컬 IP (기본값: "0.0.0.0" = 모든 인터페이스). "127.0.0.1"로 하면 이 PC의 접속만 받습니다. Start할 때 읽습니다.</summary></member>
         <member name="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.LocalPort" en-hash="c637e4a63e194718">
             <summary>수신 대기 포트 (기본값: 7897)</summary>
         </member>
@@ -11495,10 +11495,9 @@
         <member name="E:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.ClientDisconnected" en-hash="90c08332ab46d618">
             <summary>클라이언트 접속이 끊겼을 때 발생합니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.Start" en-hash="75bc8d71ccd82643">
-            <summary>포트에 바인드하고 접속을 받기 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
+        <member name="M:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.Start" en-hash="bce04b282853862b"><summary>포트에 바인드하고 접속을 받기 시작합니다. 이미 실행 중이면 아무것도 하지 않습니다.</summary>
             <exception cref="T:System.Net.Sockets.SocketException">포트를 이미 다른 프로그램이 쓰고 있는 경우</exception>
-        </member>
+            <exception cref="T:System.FormatException"><see cref="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.LocalIP" />가 IP 주소가 아닌 경우</exception></member>
         <member name="M:Devinno.Communication.TextComm.TCP.TextCommTCPSlave.Stop" en-hash="83cba84d976596be">
             <summary>접속 대기를 멈추고 모든 클라이언트 연결을 끊습니다.</summary>
             <remarks>Stop()이 돌아온 직후에도 이미 진행 중이던 이벤트가 잠깐 더 발생할 수 있습니다.</remarks>
@@ -11541,8 +11540,7 @@
             <param name="path">파일 경로</param>
         </member>
         
-        <member name="T:Devinno.Communication.TextComm.TCP.TextCommTCPSlaveConfig" en-hash="c0e23b52c82da8aa">
-            <summary>
+        <member name="T:Devinno.Communication.TextComm.TCP.TextCommTCPSlaveConfig" en-hash="b25dc5f7bdc35c92"><summary>
             <see cref="T:Devinno.Communication.TextComm.TCP.TextCommTCPSlave" />의 설정입니다. XML에서는 &lt;TextCommTCPSlave&gt; 요소입니다.
             </summary>
             <remarks>
@@ -11551,10 +11549,10 @@
             </remarks>
             <example>
             <code>
-            &lt;TextCommTCPSlave LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" /&gt;
+            &lt;TextCommTCPSlave LocalIP="0.0.0.0" LocalPort="7897" MaxClients="10" MessageEncoding="utf-8" /&gt;
             </code>
-            </example>
-        </member>
+            </example></member>
+        <member name="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlaveConfig.LocalIP" en-hash="294d6a4a12b4d70e"><summary>접속을 받을 로컬 IP 주소 (기본값: "0.0.0.0" = 모든 인터페이스, "127.0.0.1" = 이 PC의 접속만)</summary></member>
         <member name="P:Devinno.Communication.TextComm.TCP.TextCommTCPSlaveConfig.LocalPort" en-hash="7af2c2953c356077">
             <summary>수신 대기 포트 1~65535 (기본값: 7897)</summary>
         </member>
