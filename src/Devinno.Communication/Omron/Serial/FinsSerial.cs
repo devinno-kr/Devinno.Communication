@@ -153,7 +153,7 @@ public class FinsSerial : IDisposable
     /// <exception cref="ArgumentOutOfRangeException">Outside 1 to 266.</exception>
     public int MaxWordsPerRequest { get => Volatile.Read(ref maxWords); set => Volatile.Write(ref maxWords, Check(value, 1, FinsFrame.SerialMaxWords, nameof(MaxWordsPerRequest))); }
 
-    /// <summary>Response timeout in ms (default: 1000). A per-job timeout, if given, takes precedence. For a split block read/write, it applies to each chunk.</summary>
+    /// <summary>Response timeout in ms (default: 1000). It must cover receiving the whole response frame at the serial speed: at 9600 bps 7E2 a 266-word response alone takes about 1.25 s, so for large block reads at low speeds raise it (for example to 2000) or lower <see cref="MaxWordsPerRequest"/>. A per-job timeout, if given, takes precedence. For a split block read/write, it applies to each chunk.</summary>
     public int Timeout { get; set; } = 1000;
     /// <summary>Wait between jobs in ms (default: 10).</summary>
     public int Interval { get; set; } = 10;

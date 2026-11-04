@@ -4814,8 +4814,8 @@
             <summary>연속 읽기/쓰기 한 요청의 최대 개수(워드 또는 비트) 1~266 (기본값: 266 = Host Link 프레임 한계). 실행할 때 읽습니다.</summary>
             <exception cref="T:System.ArgumentOutOfRangeException">1~266 밖인 경우</exception>
         </member>
-        <member name="P:Devinno.Communication.Omron.Serial.FinsSerial.Timeout" en-hash="a93865b087f0b1b1">
-            <summary>응답 타임아웃 ms (기본값: 1000). 작업별 timeout이 있으면 그 값을 씁니다. 나눠 보내는 연속 읽기/쓰기는 조각마다 적용됩니다.</summary>
+        <member name="P:Devinno.Communication.Omron.Serial.FinsSerial.Timeout" en-hash="f9dba693674ad5f4">
+            <summary>응답 타임아웃 ms (기본값: 1000). 응답 프레임을 시리얼 속도로 끝까지 받는 시간까지 들어가야 합니다. 9600bps 7E2에서는 266워드 응답만 받는 데 약 1.25초가 걸리므로, 낮은 속도에서 큰 연속 읽기를 할 때는 값을 늘리거나(예: 2000) <see cref="P:Devinno.Communication.Omron.Serial.FinsSerial.MaxWordsPerRequest" />를 줄이세요. 작업별 timeout이 있으면 그 값을 씁니다. 나눠 보내는 연속 읽기/쓰기는 조각마다 적용됩니다.</summary>
         </member>
         <member name="P:Devinno.Communication.Omron.Serial.FinsSerial.Interval" en-hash="e773ddb6aea3623a">
             <summary>작업 사이 대기 ms (기본값: 10)</summary>
