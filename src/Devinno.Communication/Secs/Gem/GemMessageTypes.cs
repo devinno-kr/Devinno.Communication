@@ -225,3 +225,16 @@ public sealed class GemDownloadResult
     /// <summary>Gets a value indicating whether the equipment accepted the process program (ACKC7 0).</summary>
     public bool IsSuccess => Ackc7 == GemAck.Ackc7Accepted;
 }
+
+/// <summary>The result of an enhanced remote command (S2F49). A nonzero HCACK is also a value, not an exception.</summary>
+/// <param name="hcack">HCACK</param>
+/// <param name="parameterAcks">The list of parameter errors (CPNAME, CEPACK item) (copied and kept read-only).</param>
+public sealed class GemEnhancedCommandResult(byte hcack, IReadOnlyList<(string Name, SecsItem Cepack)> parameterAcks)
+{
+    /// <summary>Gets the HCACK (0 = executed, 1 = unknown command, 2 = cannot be done now, 3 = parameter error, 4 = accepted, will finish later, 6 = no such object).</summary>
+    public byte Hcack { get; } = hcack;
+    /// <summary>Gets the list of parameter errors (CPNAME, CEPACK). A CEPACK is a number (1 = unknown name, 2 = invalid value, 3 = invalid format, 4 = not valid as used) or a list shaped like the CEPVAL list.</summary>
+    public IReadOnlyList<(string Name, SecsItem Cepack)> ParameterAcks { get; } = Array.AsReadOnly(parameterAcks.ToArray());
+    /// <summary>Gets a value indicating whether the equipment accepted the command (HCACK 0 or 4).</summary>
+    public bool IsAccepted => Hcack is GemAck.HcackAccepted or GemAck.HcackAcceptedLater;
+}

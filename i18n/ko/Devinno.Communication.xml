@@ -5796,6 +5796,30 @@
         <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7ModeUnsupported" en-hash="d9abd59339f8ba9f">
             <summary>ACKC7 5: 지원하지 않는 모드 (S7F4)</summary>
         </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.CepackNoError" en-hash="4cff706da702d9d6">
+            <summary>CEPACK 0: 오류 없음 (S2F50)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.CepackUnknownName" en-hash="3fe45b05157729ce">
+            <summary>CEPACK 1: 파라미터 이름(CPNAME)이 없음 (S2F50)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.CepackIllegalValue" en-hash="209ddaf74fcb1a59">
+            <summary>CEPACK 2: CEPVAL 값이 잘못됨 (S2F50)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.CepackIllegalFormat" en-hash="16f19285a194ccb2">
+            <summary>CEPACK 3: CEPVAL 포맷이 잘못됨 (S2F50)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.CepackNotValidAsUsed" en-hash="df5f68d8702662e8">
+            <summary>CEPACK 4: 파라미터 이름을 그렇게 쓸 수 없음 (S2F50)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Grant6Granted" en-hash="ed24203521b9354c">
+            <summary>GRANT6 0: 허락 (S6F6)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Grant6Busy" en-hash="c3cbc8d3334a923d">
+            <summary>GRANT6 1: 바쁨, 다시 시도 (S6F6)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Grant6NotInterested" en-hash="c045135f9c3abd44">
+            <summary>GRANT6 2: 관심 없음 (S6F6)</summary>
+        </member>
         
         
         
@@ -8433,6 +8457,25 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.IsSuccess" en-hash="71d13a91f52580bd">
             <summary>장비가 레시피를 받아들였는지(ACKC7 0)를 가져옵니다.</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult" en-hash="d45e4d501d3094e7">
+            <summary>확장 리모트 명령(S2F49)의 결과. 0이 아닌 HCACK도 예외가 아니라 값입니다.</summary>
+            <param name="hcack">HCACK</param>
+            <param name="parameterAcks">파라미터 오류 목록(CPNAME, CEPACK 아이템)(복사해 읽기 전용으로 보관).</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult.#ctor(System.Byte,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}})" en-hash="d45e4d501d3094e7">
+            <summary>확장 리모트 명령(S2F49)의 결과. 0이 아닌 HCACK도 예외가 아니라 값입니다.</summary>
+            <param name="hcack">HCACK</param>
+            <param name="parameterAcks">파라미터 오류 목록(CPNAME, CEPACK 아이템)(복사해 읽기 전용으로 보관).</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult.Hcack" en-hash="b0e1dfe513f2d3ee">
+            <summary>HCACK을 가져옵니다(0 = 실행함, 1 = 모르는 명령, 2 = 지금 못 함, 3 = 파라미터 오류, 4 = 받았고 나중에 끝냄, 6 = 그런 객체 없음).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult.ParameterAcks" en-hash="667511a0fe3d220c">
+            <summary>파라미터 오류 목록(CPNAME, CEPACK)을 가져옵니다. CEPACK은 숫자(1 = 모르는 이름, 2 = 잘못된 값, 3 = 잘못된 포맷, 4 = 그렇게 쓸 수 없음)이거나 CEPVAL 리스트와 같은 모양의 리스트입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult.IsAccepted" en-hash="e3fff500bd6b0eb8">
+            <summary>장비가 명령을 받아들였는지(HCACK 0 또는 4)를 가져옵니다.</summary>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.IGemProcessProgramStore" en-hash="2f7bce1289621072">
             <summary><c>GemEquipment</c>가 레시피(Process Program)를 두는 곳. 레시피를 앱이 정한 곳에 두려면 직접 구현하고, 아니면 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" />를 쓰세요.</summary>
             <remarks>GEM은 저장소를 늘 자기 lock 하나 안에서 부릅니다(Host 요청은 앱 이벤트 스레드, 앱 메서드는 부른 스레드). 그래서 GEM에 대해서는 저장소가 스레드 안전하지 않아도 됩니다. 앱이 저장소를 직접 부르기도 하면 그 동기화는 앱이 합니다. 저장소가 던진 예외는 거절(ACKC7 1, 또는 빈 S7F6/S7F20)로 답하고 <c>ProtocolError</c>로 알립니다.</remarks>
@@ -9227,6 +9270,44 @@
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F42가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;가 아닌 경우</exception>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F49(Devinno.Communication.Secs.Gem.GemId,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="980e3a1859692ab8">
+            <summary>S2F49 Enhanced Remote Command &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="dataId">DATAID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" />로 보냄).</param>
+            <param name="objectSpec">OBJSPEC, 대상 객체("" = 장비 자체).</param>
+            <param name="command">RCMD.</param>
+            <param name="parameters">파라미터(순서대로, null = 없음). 값은 리스트여도 됩니다.</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F49 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="objectSpec" />, <paramref name="command" />, 이름이나 값이 null입니다.</exception>
+            <exception cref="T:System.ArgumentException">문자열에 255를 넘는 문자가 있습니다.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="dataId" />가 그 포맷의 범위 밖입니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F49(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="7de539d4258de938">
+            <summary>S2F49 Enhanced Remote Command를 읽습니다.</summary>
+            <remarks>DATAID는 정수 포맷 무엇이든 또는 A, RCMD·CPNAME은 A나 정수 하나(10진 문자열로 읽음), OBJSPEC은 A만 받습니다.</remarks>
+            <param name="message">받은 S2F49.</param>
+            <returns>DATAID, OBJSPEC, 명령 이름, 받은 순서대로의 파라미터(이름, 값).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F49이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F50(System.Byte,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}})" en-hash="9ce925353d7fd4e5">
+            <summary>S2F50 Enhanced Remote Command Acknowledge &lt;L HCACK &lt;L &lt;L CPNAME CEPACK&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="hcack">HCACK(<see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 <c>Hcack...</c> 값 참고).</param>
+            <param name="parameterAcks">오류가 있는 파라미터(CPNAME, CEPACK 아이템: <c>SecsItem.U1(code)</c> 또는 CEPVAL 리스트와 같은 모양의 리스트). null = 없음.</param>
+            <returns>S2F50 메시지.</returns>
+            <exception cref="T:System.ArgumentNullException">이름이나 CEPACK이 null입니다.</exception>
+            <exception cref="T:System.ArgumentException">이름에 255를 넘는 문자가 있습니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F50(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="da8e5b6e62d38de7">
+            <summary>S2F50 Enhanced Remote Command Acknowledge를 읽습니다.</summary>
+            <remarks>HCACK은 숫자 포맷 무엇이든(0~255) 받습니다. CEPACK은 받은 아이템(숫자 또는 리스트) 그대로 돌려줍니다. CPNAME은 A나 정수 하나입니다.</remarks>
+            <param name="message">받은 S2F50.</param>
+            <returns>HCACK과 파라미터 응답.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F50이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CEPACK&gt;…&gt;&gt;가 아닙니다.</exception>
+        </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F43(System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,System.Collections.Generic.IReadOnlyList{System.Byte}}})" en-hash="03e17dccb0f381c2">
             <summary>S2F43 Reset Spooling Streams and Functions &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;를 만듭니다.</summary>
             <remarks>빈 목록은 모든 스트림·기능의 스풀링을 멈추라는 뜻입니다(E30 7.12). STRID와 FCNID는 <c>U1</c>로 씁니다.</remarks>
@@ -9380,6 +9461,35 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F8가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F5(Devinno.Communication.Secs.Gem.GemId,System.UInt32,Devinno.Communication.Secs.Gem.GemFormats)" en-hash="8951b6522a9596a1">
+            <summary>S6F5 Multi-block Data Send Inquire &lt;L DATAID &lt;U4 DATALENGTH&gt;&gt;를 만듭니다.</summary>
+            <param name="dataId">DATAID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" />로 보냄): 뒤따를 메시지의 DATAID.</param>
+            <param name="dataLength">뒤따를 메시지의 바이트 길이.</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S6F5 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="dataId" />가 그 포맷의 범위 밖입니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F5(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="a334cb342ded2b4d">
+            <summary>S6F5 Multi-block Data Send Inquire를 읽습니다.</summary>
+            <param name="message">받은 S6F5.</param>
+            <returns>DATAID(정수 포맷 무엇이든 또는 A)와 DATALENGTH(정수 포맷 무엇이든, 음수 아님).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F5이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID DATALENGTH&gt;가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F6(System.Byte)" en-hash="3bb2d0777a8893fb">
+            <summary>S6F6 Multi-block Grant &lt;B GRANT6&gt;를 만듭니다.</summary>
+            <param name="grant6">GRANT6(0 허락, 1 바쁨, 2 관심 없음, <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고).</param>
+            <returns>S6F6 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F6(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="256effa1ec47df0a">
+            <summary>S6F6 Multi-block Grant를 읽습니다.</summary>
+            <param name="message">받은 S6F6.</param>
+            <returns>GRANT6(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F6이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닙니다.</exception>
         </member>
 <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F11(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem}}},Devinno.Communication.Secs.Gem.GemFormats,System.Boolean)" en-hash="c660774982f4ac37">
             <summary>S6F11 Event Report Send &lt;L DATAID CEID &lt;L &lt;L RPTID &lt;L V…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>

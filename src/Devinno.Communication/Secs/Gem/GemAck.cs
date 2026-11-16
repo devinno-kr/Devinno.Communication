@@ -165,4 +165,22 @@ public static class GemAck
     public const byte Ackc7PpidNotFound = 4;
     /// <summary>ACKC7 5: mode unsupported (S7F4)</summary>
     public const byte Ackc7ModeUnsupported = 5;
+
+    /// <summary>CEPACK 0: no error (S2F50)</summary>
+    public const byte CepackNoError = 0;
+    /// <summary>CEPACK 1: the parameter name (CPNAME) does not exist (S2F50)</summary>
+    public const byte CepackUnknownName = 1;
+    /// <summary>CEPACK 2: illegal value for CEPVAL (S2F50)</summary>
+    public const byte CepackIllegalValue = 2;
+    /// <summary>CEPACK 3: illegal format for CEPVAL (S2F50)</summary>
+    public const byte CepackIllegalFormat = 3;
+    /// <summary>CEPACK 4: the parameter name is not valid as used (S2F50)</summary>
+    public const byte CepackNotValidAsUsed = 4;
+
+    /// <summary>GRANT6 0: permission granted (S6F6)</summary>
+    public const byte Grant6Granted = 0;
+    /// <summary>GRANT6 1: busy, try again (S6F6)</summary>
+    public const byte Grant6Busy = 1;
+    /// <summary>GRANT6 2: not interested (S6F6)</summary>
+    public const byte Grant6NotInterested = 2;
 }

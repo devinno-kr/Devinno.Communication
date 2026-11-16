@@ -5,9 +5,51 @@ namespace Devinno.Communication.Secs.Gem;
 // S6: 이벤트 리포트(S6F11~S6F20), 3층용 internal S6F6·S6F11Body
 public static partial class GemMessages
 {
-    #region S6F5 / S6F6 (internal, 3층용)
-    // Host의 자동 응답 S6F6 <B GRANT6>(S6F5는 어느 층도 보내지 않음)
-    internal static SecsMessage S6F6(byte grant6) => new(6, 6, false, GemItems.Ack(grant6));
+    #region S6F5 / S6F6
+    /// <summary>Builds S6F5 Multi-block Data Send Inquire &lt;L DATAID &lt;U4 DATALENGTH&gt;&gt;.</summary>
+    /// <param name="dataId">DATAID (sent in <see cref="GemFormats.Dataid"/>): the DATAID of the message that will follow.</param>
+    /// <param name="dataLength">The length in bytes of the message that will follow.</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S6F5 message (W-bit set).</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dataId"/> is out of the range of its format.</exception>
+    public static SecsMessage S6F5(GemId dataId, uint dataLength, GemFormats? formats = null) => S6F5(dataId.ToItem(F(formats).Dataid), dataLength);
+
+    // 장비용: 뒤따르는 S6F11의 DATAID 아이템 그대로
+    internal static SecsMessage S6F5(SecsItem dataIdItem, uint dataLength) => new(6, 5, true, SecsItem.L(dataIdItem, SecsItem.U4(dataLength)));
+
+    /// <summary>Reads S6F5 Multi-block Data Send Inquire.</summary>
+    /// <param name="message">The received S6F5.</param>
+    /// <returns>DATAID (any integer format or A) and DATALENGTH (any integer format, not negative).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F5.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L DATAID DATALENGTH&gt;.</exception>
+    public static (GemId DataId, ulong DataLength) ParseS6F5(SecsMessage message)
+    {
+        Check(message, 6, 5);
+        const string expected = "<L DATAID DATALENGTH>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 2 } l || !GemItems.IsInteger(l.Items[1].Format) || l.Items[1].Count != 1) throw Fail(message, expected);
+        long n;
+        try { n = l.Items[1].GetInt64(); }
+        catch (OverflowException) { return (Id(l.Items[0], message, expected), l.Items[1].GetUInt64()); }
+        return n < 0 ? throw Fail(message, expected) : (Id(l.Items[0], message, expected), (ulong)n);
+    }
+
+    /// <summary>Builds S6F6 Multi-block Grant &lt;B GRANT6&gt;.</summary>
+    /// <param name="grant6">GRANT6 (0 granted, 1 busy, 2 not interested; see <see cref="GemAck"/>).</param>
+    /// <returns>The S6F6 message.</returns>
+    public static SecsMessage S6F6(byte grant6) => new(6, 6, false, GemItems.Ack(grant6));
+
+    /// <summary>Reads S6F6 Multi-block Grant.</summary>
+    /// <param name="message">The received S6F6.</param>
+    /// <returns>GRANT6 (any numeric format, 0 to 255).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F6.</exception>
+    /// <exception cref="FormatException">The body is not a single number from 0 to 255.</exception>
+    public static byte ParseS6F6(SecsMessage message)
+    {
+        Check(message, 6, 6);
+        return Ack(message.Item, message, "GRANT6");
+    }
     #endregion
 
     #region S6F11 / S6F12

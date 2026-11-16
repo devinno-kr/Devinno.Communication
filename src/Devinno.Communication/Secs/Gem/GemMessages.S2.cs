@@ -469,6 +469,91 @@ public static partial class GemMessages
     }
     #endregion
 
+    #region S2F49 / S2F50
+    /// <summary>Builds S2F49 Enhanced Remote Command &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;.</summary>
+    /// <param name="dataId">DATAID (sent in <see cref="GemFormats.Dataid"/>).</param>
+    /// <param name="objectSpec">OBJSPEC, the target object ("" = the equipment itself).</param>
+    /// <param name="command">RCMD.</param>
+    /// <param name="parameters">The parameters in order (null = none). A value may be a list.</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F49 message (W-bit set).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="objectSpec"/>, <paramref name="command"/>, a name, or a value is null.</exception>
+    /// <exception cref="ArgumentException">A text has a character above 255.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="dataId"/> is out of the range of its format.</exception>
+    public static SecsMessage S2F49(GemId dataId, string objectSpec, string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters = null, GemFormats? formats = null)
+    {
+        GemDefinitionCheck.Ascii(objectSpec, nameof(objectSpec));
+        var rc = S2F41(command, parameters).Item!;
+        return new(2, 49, true, SecsItem.L(dataId.ToItem(F(formats).Dataid), SecsItem.A(objectSpec), rc.Items[0], rc.Items[1]));
+    }
+
+    /// <summary>Reads S2F49 Enhanced Remote Command.</summary>
+    /// <remarks>DATAID may be any integer format or A; RCMD and CPNAME an A item or a single integer item (read as a decimal string); OBJSPEC must be A.</remarks>
+    /// <param name="message">The received S2F49.</param>
+    /// <returns>DATAID, OBJSPEC, the command name, and the parameters (name, value) in the order received.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F49.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;.</exception>
+    public static (GemId DataId, string ObjectSpec, string Command, IReadOnlyList<(string Name, SecsItem Value)> Parameters) ParseS2F49(SecsMessage message)
+    {
+        var (dataId, command, parameters, objectSpec) = ReadS2F49(message);
+        return (dataId, objectSpec, command, [.. parameters.Select(p => (p.Name, p.Value))]);
+    }
+
+    // 장비용: 받은 CPNAME 아이템도 함께(CEPACK에 그대로 되돌리기, D3). DATAID는 읽지만 쓰지 않음
+    internal static (string Command, IReadOnlyList<(SecsItem NameItem, string Name, SecsItem Value)> Parameters, string ObjectSpec) ParseS2F49Raw(SecsMessage message)
+    {
+        var (_, command, parameters, objectSpec) = ReadS2F49(message);
+        return (command, parameters, objectSpec);
+    }
+
+    static (GemId DataId, string Command, IReadOnlyList<(SecsItem NameItem, string Name, SecsItem Value)> Parameters, string ObjectSpec) ReadS2F49(SecsMessage message)
+    {
+        Check(message, 2, 49);
+        const string expected = "<L DATAID OBJSPEC RCMD <L <L CPNAME CEPVAL>…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 4 } body || body.Items[1].Format != SecsFormat.ASCII || body.Items[3].Format != SecsFormat.List) throw Fail(message, expected);
+        var dataId = Id(body.Items[0], message, expected);
+        string command = NameText(body.Items[2], message, expected);
+        return (dataId, command, [.. body.Items[3].Items.Select(p =>
+            p is { Format: SecsFormat.List, Count: 2 } ? (p.Items[0], NameText(p.Items[0], message, expected), p.Items[1]) : throw Fail(message, expected))], body.Items[1].GetString());
+    }
+
+    /// <summary>Builds S2F50 Enhanced Remote Command Acknowledge &lt;L HCACK &lt;L &lt;L CPNAME CEPACK&gt;…&gt;&gt;.</summary>
+    /// <param name="hcack">HCACK (see the <c>Hcack...</c> values of <see cref="GemAck"/>).</param>
+    /// <param name="parameterAcks">The parameters with an error (CPNAME, CEPACK item: <c>SecsItem.U1(code)</c>, or a list shaped like the CEPVAL list); null = none.</param>
+    /// <returns>The S2F50 message.</returns>
+    /// <exception cref="ArgumentNullException">A name or a CEPACK is null.</exception>
+    /// <exception cref="ArgumentException">A name has a character above 255.</exception>
+    public static SecsMessage S2F50(byte hcack, IReadOnlyList<(string Name, SecsItem Cepack)>? parameterAcks = null)
+        => S2F50(hcack, [.. (parameterAcks ?? []).Select(a => (SecsItem.A(GemDefinitionCheck.Ascii(a.Name, nameof(parameterAcks))), a.Cepack ?? throw new ArgumentNullException(nameof(parameterAcks))))]);
+
+    // 장비용: 받은 CPNAME 아이템 그대로(D3)
+    internal static SecsMessage S2F50(byte hcack, IReadOnlyList<(SecsItem Name, SecsItem Cepack)> parameterAcks)
+    {
+        ArgumentNullException.ThrowIfNull(parameterAcks);
+        return new(2, 50, false, SecsItem.L(GemItems.Ack(hcack), SecsItem.L([.. parameterAcks.Select(a => SecsItem.L(a.Name, a.Cepack))])));
+    }
+
+    /// <summary>Reads S2F50 Enhanced Remote Command Acknowledge.</summary>
+    /// <remarks>HCACK may be in any numeric format (0 to 255). A CEPACK is returned as the item received (a number or a list). CPNAME may be an A item or a single integer item.</remarks>
+    /// <param name="message">The received S2F50.</param>
+    /// <returns>HCACK and the parameter acknowledgements.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F50.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L HCACK &lt;L &lt;L CPNAME CEPACK&gt;…&gt;&gt;.</exception>
+    public static GemEnhancedCommandResult ParseS2F50(SecsMessage message)
+    {
+        Check(message, 2, 50);
+        const string expected = "<L HCACK <L <L CPNAME CEPACK>…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List) throw Fail(message, expected);
+        byte hcack = Ack(body.Items[0], message, expected);
+        var acks = body.Items[1].Items.Select(p => p is { Format: SecsFormat.List, Count: 2 }
+            ? (Name: NameText(p.Items[0], message, expected), Cepack: p.Items[1])
+            : throw Fail(message, expected)).ToList();
+        return new GemEnhancedCommandResult(hcack, acks);
+    }
+    #endregion
+
     #region S2F43 / S2F44
     /// <summary>Builds S2F43 Reset Spooling Streams and Functions &lt;L &lt;L STRID &lt;L FCNID…&gt;&gt;…&gt;.</summary>
     /// <remarks>An empty list asks the equipment to stop spooling every stream and function (E30 7.12). STRID and FCNID are written as <c>U1</c>.</remarks>
