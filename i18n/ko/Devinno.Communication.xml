@@ -7983,6 +7983,30 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>결과</returns>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" en-hash="933fcdb9cb72e613">
+            <summary>확장 리모트 명령(S2F49 &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;)을 보냅니다. DATAID는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineReports(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}})" />도 쓰는 카운터의 다음 번호이고, RCMD·CPNAME은 A로 보내며 값은 리스트여도 됩니다.</summary>
+            <remarks>장비는 S2F50(HCACK과 오류 파라미터마다 CEPACK, 숫자 또는 리스트 값 CEPVAL과 같은 모양의 리스트)으로 답합니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />와 같습니다. SecsTimeoutException, SecsDisconnectedException, 취소, 그리고 HCACK 2조차 명령이 실행되지 않았다는 증거가 아닙니다.</remarks>
+            <param name="objectSpec">OBJSPEC, 대상 객체("" = 장비 자체).</param>
+            <param name="command">명령 이름 RCMD(ASCII).</param>
+            <param name="parameters">파라미터(CPNAME, CEPVAL).</param>
+            <returns>결과(HCACK과 CEPACK 목록).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="objectSpec" />, <paramref name="command" />, 파라미터 이름이나 값이 null입니다.</exception>
+            <exception cref="T:System.ArgumentException">문자열에 ASCII(Latin-1) 밖의 문자가 있습니다.</exception>
+            <exception cref="T:System.InvalidOperationException">연결되지 않았습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 답했습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답했습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 사이 연결이 끊겼습니다.</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다릅니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommandAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},System.Threading.CancellationToken)" en-hash="1b8cf17615a65341">
+            <summary>확장 리모트 명령(S2F49)을 보냅니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />과 같습니다.</summary>
+            <param name="objectSpec">OBJSPEC("" = 장비 자체).</param>
+            <param name="command">명령 이름 RCMD.</param>
+            <param name="parameters">파라미터(CPNAME, CEPVAL). null이면 없음.</param>
+            <param name="cancellationToken">응답 기다리기를 취소합니다.</param>
+            <returns>결과.</returns>
+        </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemHost.ProcessProgramReceived" en-hash="0c64d9b19b824f7e">
             <summary>장비가 S7F1(문의) 또는 S7F3(레시피)을 보냈을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ack" />로 응답합니다.</summary>
             <remarks>구독자가 없으면 이 메시지는 전처럼 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" />로 갑니다. 핸들러 예외는 거절(PPGNT 4, ACKC7 1)하고 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" />로 알립니다.</remarks>

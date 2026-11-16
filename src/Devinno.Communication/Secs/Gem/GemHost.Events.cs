@@ -293,5 +293,41 @@ public partial class GemHost
         var request = GemMessages.S2F41(command, parameters);
         return GemMessages.ParseS2F42(await AskAsync(request, cancellationToken).ConfigureAwait(false));
     }
+
+    /// <summary>Sends an enhanced remote command (S2F49 &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;). DATAID is the next number of the counter also used by <see cref="DefineReports"/>; RCMD and CPNAME are sent as A, and a value may be a list.</summary>
+    /// <remarks>The equipment answers with S2F50 (HCACK and a CEPACK per parameter in error, a number or a list shaped like a list-valued CEPVAL). The rules and exceptions are the same as for <see cref="RemoteCommand"/>: SecsTimeoutException, SecsDisconnectedException, cancellation, and even HCACK 2 do not prove the command was not executed.</remarks>
+    /// <param name="objectSpec">OBJSPEC, the target object ("" = the equipment itself).</param>
+    /// <param name="command">The command name RCMD (ASCII).</param>
+    /// <param name="parameters">The parameters (CPNAME, CEPVAL).</param>
+    /// <returns>The result (HCACK and the CEPACK list).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="objectSpec"/>, <paramref name="command"/>, or a parameter name or value, is null.</exception>
+    /// <exception cref="ArgumentException">A text contains characters outside ASCII (Latin-1).</exception>
+    /// <exception cref="InvalidOperationException">Not connected.</exception>
+    /// <exception cref="SecsTimeoutException">No reply within T3.</exception>
+    /// <exception cref="SecsAbortException">The equipment replied with S2F0.</exception>
+    /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
+    /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
+    /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
+    public GemEnhancedCommandResult SendEnhancedRemoteCommand(string objectSpec, string command, params (string Name, SecsItem Value)[] parameters)
+        => GemMessages.ParseS2F50(Ask(EnhancedRequest(objectSpec, command, parameters)));
+
+    /// <summary>Sends an enhanced remote command (S2F49). The rules and exceptions are the same as for <see cref="SendEnhancedRemoteCommand"/>.</summary>
+    /// <param name="objectSpec">OBJSPEC ("" = the equipment itself).</param>
+    /// <param name="command">The command name RCMD.</param>
+    /// <param name="parameters">The parameters (CPNAME, CEPVAL); null means none.</param>
+    /// <param name="cancellationToken">Cancels waiting for the reply.</param>
+    /// <returns>The result.</returns>
+    public async Task<GemEnhancedCommandResult> SendEnhancedRemoteCommandAsync(string objectSpec, string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters = null, CancellationToken cancellationToken = default)
+    {
+        var request = EnhancedRequest(objectSpec, command, parameters);
+        return GemMessages.ParseS2F50(await AskAsync(request, cancellationToken).ConfigureAwait(false));
+    }
+
+    // S2F49: DATAID는 S2F33·S2F35와 같은 카운터(빌더가 인자 오류로 던지면 번호를 쓰지 않음)
+    SecsMessage EnhancedRequest(string objectSpec, string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters)
+    {
+        var formats = Formats;
+        return WithNextDataId(id => GemMessages.S2F49(id, objectSpec, command, parameters, formats));
+    }
     #endregion
 }
