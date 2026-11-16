@@ -188,6 +188,7 @@ public partial class GemEquipment
         {
             linkUp = false;
             ++linkEpoch;
+            ppGrants.Clear();                       // S7F1 허락은 그 연결에서만
             if (!running) return;
             // 그 연결에 속한 일을 여기서 모두 끝낸다(끊김으로 끝난 송신 완료는 상태를 바꾸지 않으므로 순서와 무관)
             if (commState == GemCommunicationState.Communicating) CommunicationLostLocked(connected: false);   // 전이 14

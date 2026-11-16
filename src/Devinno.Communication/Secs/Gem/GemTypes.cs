@@ -92,3 +92,14 @@ public enum GemSpoolState
     /// <summary>Spooled messages are being sent to the Host (SPOOL ACTIVE, TRANSMIT).</summary>
     Transmit,
 }
+
+/// <summary>What the Host asked to change in the process program store.</summary>
+public enum GemProcessProgramChangeKind
+{
+    /// <summary>S7F1: the Host asks whether it may send a process program (the reply is PPGNT).</summary>
+    Inquire,
+    /// <summary>S7F3: the Host sends a process program to store (the reply is ACKC7).</summary>
+    Download,
+    /// <summary>S7F17: the Host asks to delete process programs (the reply is ACKC7).</summary>
+    Delete,
+}

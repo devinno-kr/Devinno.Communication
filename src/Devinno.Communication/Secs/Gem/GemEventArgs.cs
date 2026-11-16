@@ -65,3 +65,27 @@ public class GemSpoolStateEventArgs(GemSpoolState previous, GemSpoolState curren
     /// <summary>The number of messages in the spool</summary>
     public int Count { get; } = count;
 }
+
+/// <summary>Arguments for when the Host asked to change the process program store (S7F1, S7F3, S7F17). If the handler sets <see cref="Ack"/> to a nonzero value, the request is refused with that value.</summary>
+/// <remarks>GEM has already checked the PPID, the size, that the PPIDs to delete exist, and that the selected process program is not overwritten or deleted. Refuse here what only the application knows, such as a process program that is executing (recommended: ACKC7 1, or PPGNT 4 for an inquire).</remarks>
+public class GemProcessProgramChangeEventArgs : EventArgs
+{
+    internal GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind kind, IReadOnlyList<string> ppids, GemProcessProgram? program, ulong length)
+    {
+        Kind = kind;
+        Ppids = ppids;
+        Program = program;
+        Length = length;
+    }
+
+    /// <summary>What is asked</summary>
+    public GemProcessProgramChangeKind Kind { get; }
+    /// <summary>The PPIDs concerned: one for Inquire and Download; for Delete the PPIDs to delete (a request for all is expanded to every stored PPID)</summary>
+    public IReadOnlyList<string> Ppids { get; }
+    /// <summary>The process program sent by the Host (Download only, otherwise null)</summary>
+    public GemProcessProgram? Program { get; }
+    /// <summary>The announced length in bytes (Inquire only, otherwise 0)</summary>
+    public ulong Length { get; }
+    /// <summary>The reply (default: 0 = accept). PPGNT for Inquire, ACKC7 for Download and Delete; see <see cref="GemAck"/>.</summary>
+    public byte Ack { get; set; }
+}

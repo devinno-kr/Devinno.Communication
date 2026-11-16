@@ -6472,6 +6472,14 @@
             <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
         </member>
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.ProcessProgramChangeRequested" en-hash="9255a45ba63b187a">
+            <summary>Host가 레시피 저장소를 바꾸려 하고(S7F1 문의, S7F3 다운로드, S7F17 삭제) GEM 자체 검사를 통과했을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Ack" />로 응답하고, 0이면 저장소를 바꿉니다.</summary>
+            <remarks>
+            <para>GEM이 먼저 답하는 경우(앱을 부르지 않음): 잘못된 PPID, <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.MaxProcessProgramSize" />나 S7F1로 허락한 길이보다 큰 본문, 선택된 레시피의 덮어쓰기·삭제(ACKC7 1), 없는 PPID의 삭제(ACKC7 4, 아무것도 지우지 않음). S7F5와 S7F19는 이 이벤트 없이 저장소로 답합니다.</para>
+            <para>구독자가 없으면 받아들입니다. 핸들러 예외는 거절(ACKC7 1, PPGNT 4)하고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알립니다. 핸들러와 저장소가 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" /> 안에 끝나지 않으면 GEM이 거절로 대신 답합니다. 리모트 명령과 마찬가지로, 늦게 끝난 저장소 변경도 반영됩니다(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알림).</para>
+            <para>Host가 바꾼 것에는 ProcessProgramChange 이벤트를 내지 않습니다(E30은 운전자 변경에만 씀). Host가 원하면 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />를 직접 부르세요.</para>
+            </remarks>
+        </member>
         
         
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.EventsEnabledByDefault" en-hash="66c768de692596b2">
@@ -7101,6 +7109,25 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemSpoolStateEventArgs.Count" en-hash="0b4c5a113a929315">
             <summary>스풀에 있는 메시지 수</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs" en-hash="d6349abb9647b9e0">
+            <summary>Host가 레시피 저장소를 바꾸려 할 때(S7F1, S7F3, S7F17)의 인자입니다. 핸들러가 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Ack" />를 0이 아닌 값으로 정하면 그 값으로 거절합니다.</summary>
+            <remarks>GEM은 PPID, 크기, 지울 PPID가 있는지, 선택된 레시피를 덮어쓰거나 지우지 않는지를 이미 검사했습니다. 실행 중인 레시피처럼 앱만 아는 것을 여기서 거절하세요(권장: ACKC7 1, 문의면 PPGNT 4).</remarks>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Kind" en-hash="1752562c9f102a62">
+            <summary>무엇을 요청했는지</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Ppids" en-hash="05b1e8949e87ccd9">
+            <summary>관련 PPID: Inquire·Download는 1개, Delete는 지울 PPID(전부 지우기 요청은 저장된 모든 PPID로 펼침)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Program" en-hash="4c8472a1a8115913">
+            <summary>Host가 보낸 레시피(Download만, 그 밖에는 null)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Length" en-hash="62a3f2fdac71ea73">
+            <summary>알려 온 바이트 길이(Inquire만, 그 밖에는 0)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramChangeEventArgs.Ack" en-hash="4b12c30ee8839f53">
+            <summary>응답(기본: 0 = 받아들임). Inquire는 PPGNT, Download·Delete는 ACKC7. <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고.</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemFormats" en-hash="0d0cbc4c7d3d925d">
             <summary><see cref="T:Devinno.Communication.Secs.Gem.GemMessages" /> 빌더가 GEM ID를 보낼 때 쓰는 아이템 포맷입니다.</summary>
@@ -9710,6 +9737,18 @@
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemSpoolState.Transmit" en-hash="4e066a1e00473d72">
             <summary>스풀한 메시지를 Host로 보내는 중인 상태(SPOOL ACTIVE, TRANSMIT)</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgramChangeKind" en-hash="5364b4e0b24ad868">
+            <summary>Host가 레시피 저장소에 요청한 변경의 종류.</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemProcessProgramChangeKind.Inquire" en-hash="d16c158a5636ead1">
+            <summary>S7F1: Host가 레시피를 보내도 되는지 묻습니다(응답은 PPGNT).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemProcessProgramChangeKind.Download" en-hash="b425fa3f6fba8fdb">
+            <summary>S7F3: Host가 저장할 레시피를 보냅니다(응답은 ACKC7).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemProcessProgramChangeKind.Delete" en-hash="50d0cc3b2c03a3f7">
+            <summary>S7F17: Host가 레시피 삭제를 요청합니다(응답은 ACKC7).</summary>
         </member>
         
         
