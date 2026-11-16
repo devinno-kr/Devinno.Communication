@@ -28,7 +28,7 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 * E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함
 
 ### 스풀링 (SEMI E30 7.12)
-기본은 꺼짐. `GemEquipment.SpoolDirectory`에 폴더를 정하면 켜짐(`MaxSpoolMessages` 1~1,000,000, 기본 1000). 통신이 실패하면(제어 상태와 상관없이) 스풀이 ACTIVE가 되고, ACTIVE인 동안 Host가 S2F43으로 고른 S5F1·S6F11·S10F1을 `SendFailed`로 버리는 대신 그 폴더에 쌓고(OFF-LINE이면 보내지 않으므로 쌓지도 않음), Host가 S6F23으로 되찾아 감(오래된 것부터 하나씩, 응답이 와야 다음). 켜면 표준 SV(SpoolCountActual 1009 · SpoolCountTotal 1010 · SpoolFullTime 1011 · SpoolStartTime 1012)·EC(EnableSpooling 1103 · MaxSpoolTransmit 1104 · OverWriteSpool 1105)·CE(SpoolingActivated 1307 · SpoolingDeactivated 1308 · SpoolTransmitFailure 1309)가 카탈로그에 들어가고 S2F43·S6F23을 GEM이 직접 처리함(`RegisterMessage`로 등록 불가). 상태는 `SpoolState`·`IsSpoolFull`·`SpoolCount`·`SpoolStateChanged`. 스풀이 가득 차 버려진 메시지는 `SendFailed(SpoolFull)`(`OverWriteSpool`이 true면 가장 오래된 것을 버림). EnableSpooling을 false로 하면 새 활성화만 막고 이미 ACTIVE인 스풀은 그대로임.
+기본은 꺼짐. `GemEquipment.SpoolDirectory`에 폴더를 정하면 켜짐(`MaxSpoolMessages` 1~1,000,000, 기본 1000). 통신이 실패하면(제어 상태와 상관없이) 스풀이 ACTIVE가 되고, ACTIVE인 동안 Host가 S2F43으로 고른 S5F1·S6F1·S6F11·S10F1을 `SendFailed`로 버리는 대신 그 폴더에 쌓고(OFF-LINE이면 보내지 않으므로 쌓지도 않음), Host가 S6F23으로 되찾아 감(오래된 것부터 하나씩, 응답이 와야 다음). 켜면 표준 SV(SpoolCountActual 1009 · SpoolCountTotal 1010 · SpoolFullTime 1011 · SpoolStartTime 1012)·EC(EnableSpooling 1103 · MaxSpoolTransmit 1104 · OverWriteSpool 1105)·CE(SpoolingActivated 1307 · SpoolingDeactivated 1308 · SpoolTransmitFailure 1309)가 카탈로그에 들어가고 S2F43·S6F23을 GEM이 직접 처리함(`RegisterMessage`로 등록 불가). 상태는 `SpoolState`·`IsSpoolFull`·`SpoolCount`·`SpoolStateChanged`. 스풀이 가득 차 버려진 메시지는 `SendFailed(SpoolFull)`(`OverWriteSpool`이 true면 가장 오래된 것을 버림). EnableSpooling을 false로 하면 새 활성화만 막고 이미 ACTIVE인 스풀은 그대로임.
 Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F23)을 씀.
 
 * **Host가 S6F23을 보내야 함**: 스풀이 ACTIVE인 동안에는 통신이 다시 수립돼도 고른 메시지가 실시간으로 나가지 않고 스풀 끝에 쌓임. Host가 S6F23(전송 또는 지우기)을 보내기 전에는 다시 실시간으로 돌아오지 않음
@@ -50,7 +50,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 ### 확장 리모트 명령(S2F49)과 다중 블록 문의(S6F5)
 * **S2F49**는 S2F41과 같은 명령 정의(`AddRemoteCommand`)와 같은 `RemoteCommandReceived`로 받고 S2F50으로 답함. `e.ObjectSpec`에 대상 객체(OBJSPEC), `e.IsEnhanced`가 true. 리스트 값 파라미터도 받고(정의 포맷이 null이면 아무 포맷, `SecsFormat.List`면 리스트만), 리스트 CEPACK은 `e.SetParameterAck(name, SecsItem)`. 대상이 없으면 HCACK 6(`GemAck.HcackNoSuchObject`)은 앱이 정함. 앱이 `RegisterMessage(2, 49)`를 했으면 앱이 처리. S2F21은 처리하지 않음
 * GemHost: `SendEnhancedRemoteCommand(objectSpec, rcmd, params…)`(DATAID는 S2F33과 같은 카운터)
-* **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11·S6F1(트레이스 보고) 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 S6F11, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
+* **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11·S6F1(트레이스 보고) 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 그 메시지, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
 
 ### 트레이스 데이터 수집(S2F23·S6F1)
 * Host가 S2F23으로 트레이스를 정의하면 GEM이 받아서 처리함. 앱이 트레이스를 시작하는 API는 없음(Host가 정하는 능력). 대상은 SV만(앱 SV + 표준 SV), DV·EC는 TIAACK 4
@@ -66,6 +66,17 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * `DisableCommunication`·`Stop`이면 모든 트레이스를 지움(영속하지 않음). `MaxTraces = 0`이면 트레이스를 끔(S2F23에 S9F5). 앱이 `RegisterMessage(2, 23)`를 했으면 앱이 처리
 * `TraceReplyExpected`(기본 true) = S6F1 W비트, ACKC6 ≠ 0이면 `SendFailed(NotAcknowledged)`. `ActiveTraces`는 진단용 복사본
 * GemHost: `InitializeTrace(trid, period, totalSamples, groupSize, svids)`(주기는 `hhmmsscc`로 보냄, 1/100초 미만 버림) → TIAACK, `StopTrace(trid)`(TOTSMP 0). `TraceDataReceived`는 값을 표본별로 나눠 줌(자기가 시작한 TRID의 SVID 수로 나눔, 모르면 값 전체가 한 항목). 구독자가 없으면 S6F1은 `MessageReceived`로
+
+### 리밋 모니터링(S2F45·S2F47)
+* 숫자 SV(정수·F4·F8)에 `new GemStatusVariable(…, limitCount: n, limitMin, limitMax, limitCeid: ceid)`(XML `<SV LimitCount LimitMin LimitMax LimitCeid>`)를 주면 Host가 그 변수에 리밋을 정할 수 있음. LIMITID는 1~n. LIMITMIN·LIMITMAX를 안 주면 그 포맷의 범위 끝
+* 리밋 SV가 하나라도 있으면 GEM이 표준 DV LimitVariable 1204·EventLimit 1205(`<L <B id>…>`)·TransitionType 1206(B, 0 = 아래→위, 1 = 위→아래)과 SV마다 CE "Limit Zone Transition {이름}"(그 `limitCeid`)을 정의함. 리밋 SV가 없으면 아무것도 생기지 않음. `limitCeid`가 다른 CE와 겹치면 `Start` 실패
+* S2F45: 전부 검사하고 하나라도 틀리면 **아무것도 바꾸지 않음**(VLAACK 1). VID마다 첫 오류 하나. 검사 순서는 LVACK 1(변수 없음) → 2(리밋 불가, DV·EC 포함) → 3(VID 반복), 리밋마다 LIMITACK 1(LIMITID 범위) → 7(LIMITID 반복) → 5(포맷: 숫자·A가 아님, 정수 SV에 소수 숫자) → 6(A인데 숫자 아님, 정수 SV에 소수 A) → 2(UPPERDB > LIMITMAX) → 3(LOWERDB < LIMITMIN) → 4(UPPERDB < LOWERDB). 값은 SV 포맷으로 바꿔 저장. 해제: VID 목록이 비면 전부, VID의 리밋 목록이 비면 그 VID, `<L LIMITID <L>>`이면 그 LIMITID
+* S2F47: 빈 목록이면 리밋 가능한 SV 전부. 모르는·리밋 불가 VID는 `<L VID <L>>`
+* 판정은 `SetValue` 때만(폴링 없음). 값 ≥ UPPERDB면 위 구역, 값 ≤ LOWERDB면 아래 구역, 그 사이(데드밴드)는 구역 유지. **아래 ↔ 위로 넘어갈 때만** CE. 정의 직후와 NO ZONE에서 처음 구역에 들어갈 때는 CE 없음. 한 번의 `SetValue`에서 여러 LIMITID가 넘어가면 방향별로 CE 하나(EventLimit = 넘어간 LIMITID 목록). 리밋 SV 값이 숫자 하나가 아니면(배열·길이 0) 판정하지 않음
+* CE는 `TriggerEvent` 규칙 그대로(활성·ON-LINE·통신, 스풀). OFF-LINE이나 CE를 꺼서 안 가도 구역은 갱신됨
+* 리밋 정의는 `StateDirectory`(gem.state)에 저장. 복원한 리밋은 NO ZONE으로 시작하므로 재시작 뒤 첫 `SetValue`는 CE를 내지 않음. `GetLimits(vid)`는 진단용(리밋과 구역)
+* 앱이 `RegisterMessage(2, 45)`나 `(2, 47)`을 했으면 리밋 능력 전체를 끄고 등록한 것은 앱에, 다른 하나는 S9F5
+* GemHost: `DefineLimits([(vid, [(limitId, upper, lower)…])…])` → (VLAACK, 오류 목록)(Limits null = 그 VID 해제, upper·lower null = 그 LIMITID 해제, 빈 목록 = 전부 해제), `ReadLimits(vids…)` → `GemLimitInfo` 목록
 
 ### 레시피 관리 (언포맷 Process Program, S7)
 기본은 꺼짐. `GemEquipment.ProcessProgramStore`에 저장소(`GemProcessProgramFolder` 또는 직접 만든 `IGemProcessProgramStore`)를 정하면 켜짐. 켜면 GEM이 Stream 7을 직접 처리하고 표준 SV(PPExecName 1013 · PPFormat 1014)·DV(PPChangeName 1202 · PPChangeStatus 1203)·CE(ProcessProgramChange 1310 · ProcessProgramSelected 1311)와 리모트 명령 PP-SELECT(파라미터 PPID)가 생김.
@@ -88,7 +99,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 ## 메시징 층 (GemMessages)
 `GemMessages`는 정적 클래스로, 만들기 `S1F13(...)`는 `SecsMessage`를 돌려주고 해석 `ParseS6F11(...)`는 값이나 기존 정보 형식(`GemEventReport`·`GemAlarmInfo` 등)을 돌려줌. 메서드 이름이 SEMI 메시지 이름이라 IntelliSense에서 `GemMessages.S6`으로 찾을 수 있음. S1·S2·S5·S6·S10의 주요 메시지를 지원함.
 
-* 1차 메시지(홀수 Function)는 W비트가 켜짐. E5에서 응답이 선택인 S5F1·S6F11·S10F1·S10F3만 `replyExpected`(기본 true) 인자가 있음. 응답 빌더(짝수 Function)는 W비트 없이 `e.Reply(GemMessages.S1F14(...))`로 씀
+* 1차 메시지(홀수 Function)는 W비트가 켜짐. E5에서 응답이 선택인 S5F1·S6F1·S6F11·S10F1·S10F3만 `replyExpected`(기본 true) 인자가 있음. 응답 빌더(짝수 Function)는 W비트 없이 `e.Reply(GemMessages.S1F14(...))`로 씀
 * 해석기는 Stream/Function이 다르면 `ArgumentException`(프로그램 오류), 본문 모양이 다르면 `FormatException`(문장에 앞 2048자 SML). 본문이 없는 메시지(S1F3 등)는 빈 목록
 * **받을 때 관대하게**: ID는 정수 8종·A 무엇이든(`GemId`), ack는 숫자 포맷 무엇이든 0~255, ID 목록은 `<L ID…>`·정수 배열·A 하나. **보낼 때 엄격하게**: ID는 `GemFormats`의 포맷(기본 모두 U4)으로, 범위를 넘으면 `ArgumentOutOfRangeException`, ack는 `B` 1바이트(`byte`와 `GemAck` 상수)
 * ID가 설정한 포맷에 맞는지, 요청 개수, 텍스트 길이(MDLN 20자, ALTX 120자 등)는 검사하지 않음 — 호출자 몫
@@ -169,7 +180,7 @@ Host 앱은 `PrimaryReceived`에서 `GemMessages.ParseS6F11(e.Message, table, fo
 |---|---|
 | E1 | GEM 상태(통신·제어)는 와이어 순서로 바뀜. Host 1차 메시지 처리(자동 응답, `RemoteCommandReceived` 등)와 GEM 송신 결과(`SendFailed`, S1F2 → `ControlStateChanged`, S2F18 → `ClockSet`, S1F14 → `CommunicationStateChanged`)는 장비가 그 메시지들을 받은 순서대로 일어나고 그 순서로 이벤트가 나감 |
 | E2a | 끊김·`DisableCommunication`: ① 버린 메시지의 `SendFailed`(NotCommunicating 또는 Disabled, 원래 보낼 순서대로 — 응답 대기 중이던 것 먼저, 다음 대기열 앞부터, 장비 S1F13은 알리지 않음) → ② `CommunicationStateChanged` → ③ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
-| E2b | S5F1·S6F11·S10F1·S2F17의 T3: ① 그 메시지의 `SendFailed(Timeout)` → ② 남은 대기열의 `SendFailed(NotCommunicating)` → ③ `CommunicationStateChanged` → ④ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
+| E2b | S5F1·S6F1·S6F11·S10F1·S2F17의 T3: ① 그 메시지의 `SendFailed(Timeout)` → ② 남은 대기열의 `SendFailed(NotCommunicating)` → ③ `CommunicationStateChanged` → ④ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
 | E2c | `GoOnline`의 S1F1 T3: ① `SendFailed(Timeout)` → ② `ControlStateChanged`(→ `OnlineFailedState`) → ③ 남은 대기열의 `SendFailed(NotCommunicating)` → ④ `CommunicationStateChanged` |
 | E2d | 장비 S1F13의 T3·실패: `ProtocolError`만(통신 실패 아님) |
 | E2 참고 | E2a·E2b에서 `SendFailed`가 `CommunicationStateChanged`보다 먼저이므로 `SendFailed` 핸들러 안에서 `CommunicationState`가 아직 Communicating일 수 있음 |

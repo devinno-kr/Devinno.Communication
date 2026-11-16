@@ -119,6 +119,32 @@ SECS/GEM은 세 층입니다: 전송(`SecsHsms`/`SecsSerial`), 상태 없는 메
 * Modbus Function : FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16, FC26
 * **S7-1200/1500은 PLC에서 PUT/GET 허용과 "최적화된 블록 액세스" 해제가 필요**
 
+### GEM 능력
+<!-- en-hash: 83be77e18460c242 -->
+
+`GemEquipment`와 `GemHost`가 처리하는 것입니다. "secsgem"은 저장소 테스트에서 Python secsgem 라이브러리와 그 메시지를 실제로 주고받았다는 뜻입니다(우리 장비 ↔ secsgem Host, 또는 우리 Host ↔ secsgem 장비). 모든 능력에는 따로 원시 메시지 테스트도 있습니다.
+
+| 능력 | 메시지 | GemEquipment | GemHost | secsgem과 교차 확인 |
+|---|---|---|---|---|
+| 통신 수립, 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE) | S1F1, S1F13, S1F15, S1F17 | 지원 | 지원 | 장비·Host |
+| 상태·데이터 변수 | S1F3, S1F11, S1F21, S1F23 | 지원 | 지원 | 장비·Host (S1F3) |
+| 이벤트 리포트 | S2F33, S2F35, S2F37, S6F11, S6F15, S6F19 | 지원 | 지원 | 장비·Host |
+| 알람 | S5F1, S5F3, S5F5, S5F7 | 지원 | 지원 | 장비·Host |
+| 장비 상수(EC) | S2F13, S2F15, S2F29 | 지원 | 지원 | 장비·Host |
+| 시계 | S2F17, S2F31 | 지원 | 지원 | — |
+| 리모트 명령 | S2F41 | 지원 | 지원 | 장비·Host |
+| 확장 리모트 명령 | S2F49 | 지원 | 지원 | — |
+| 터미널 서비스 | S10F1, S10F3, S10F5 | 지원 | 지원(S10F5는 보내지 않음) | 장비 |
+| 스풀링(기본 꺼짐) | S2F43, S6F23 | 지원 | 지원 | 장비 |
+| 언포맷 레시피(기본 꺼짐) | S7F1, S7F3, S7F5, S7F17, S7F19 | 지원 | 지원 | 장비 |
+| 트레이스 데이터 수집 | S2F23, S6F1 | 지원 | 지원 | — |
+| 리밋 모니터링 | S2F45, S2F47 | 지원 | 지원 | — |
+| 다중 블록 문의(SECS-I, 기본 꺼짐) | S6F5 | 지원 | 응답 | — |
+| Host 설정 영속화(기본 꺼짐) | — | 지원 | — | — |
+| GEM300(E39/E40/E87/E90/E94), 포맷 레시피(S7F23~S7F30), 대형 레시피(S7F37~S7F44, S13), S2F21 | — | 없음 | 없음 | — |
+
+SEMI E30 원문과 대조하지 않았고, 실제 MES·장비와 시험하지 않았습니다.
+
 ## 핵심 개념
 <!-- en-hash: d948057c237a352a -->
 
@@ -177,11 +203,11 @@ string xsd = ConfigSchema.Get<ModbusTCPMasterConfig>();
 자세한 내용 → [공통 개념](guide/concepts.md)
 
 ## 제약 사항 / 검증 상태
-<!-- en-hash: 04351a70f80266db -->
+<!-- en-hash: aa7ec367368c6a0f -->
 
   * Siemens S7 : 절대 주소만 지원. 심볼·최적화 DB·타이머/카운터 미지원
   * Omron FINS : C-mode Host Link, CIP 태그, 타이머/카운터 미지원
-  * GEM 장비 : 트레이스·리밋 아직 없음. 언포맷 레시피(S7), 스풀링(SEMI E30 7.12)과 Host 설정의 재시작 뒤 유지(영속화)는 있고 기본은 꺼짐(`GemEquipment.ProcessProgramStore`, `GemEquipment.SpoolDirectory`, `GemEquipment.StateDirectory`)
+  * GEM 장비 : 위 GEM 능력 표 참고. 언포맷 레시피(S7), 스풀링(SEMI E30 7.12), Host 설정의 재시작 뒤 유지(영속화), SECS-I 다중 블록 문의는 기본 꺼짐(`GemEquipment.ProcessProgramStore`, `GemEquipment.SpoolDirectory`, `GemEquipment.StateDirectory`, `GemEquipment.MultiBlockInquire`). 리밋은 `limitCount`를 준 상태 변수에서 씀
   * GEM 장비·Host : E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함. 실제 MES·장비와는 확인하지 못함
 
 ## 요구 사항
