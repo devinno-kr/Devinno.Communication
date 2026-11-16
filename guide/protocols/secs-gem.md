@@ -47,6 +47,11 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * **처음 상태로 되돌리기**: 멈춘 동안 `gem.state`를 지움
 * `InitialControlState`를 OnlineLocal·OnlineRemote로 정했으면 그 설정이 저장된 스위치 위치보다 우선
 
+### 확장 리모트 명령(S2F49)과 다중 블록 문의(S6F5)
+* **S2F49**는 S2F41과 같은 명령 정의(`AddRemoteCommand`)와 같은 `RemoteCommandReceived`로 받고 S2F50으로 답함. `e.ObjectSpec`에 대상 객체(OBJSPEC), `e.IsEnhanced`가 true. 리스트 값 파라미터도 받고(정의 포맷이 null이면 아무 포맷, `SecsFormat.List`면 리스트만), 리스트 CEPACK은 `e.SetParameterAck(name, SecsItem)`. 대상이 없으면 HCACK 6(`GemAck.HcackNoSuchObject`)은 앱이 정함. 앱이 `RegisterMessage(2, 49)`를 했으면 앱이 처리. S2F21은 처리하지 않음
+* GemHost: `SendEnhancedRemoteCommand(objectSpec, rcmd, params…)`(DATAID는 S2F33과 같은 카운터)
+* **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 S6F11, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
+
 ### 레시피 관리 (언포맷 Process Program, S7)
 기본은 꺼짐. `GemEquipment.ProcessProgramStore`에 저장소(`GemProcessProgramFolder` 또는 직접 만든 `IGemProcessProgramStore`)를 정하면 켜짐. 켜면 GEM이 Stream 7을 직접 처리하고 표준 SV(PPExecName 1013 · PPFormat 1014)·DV(PPChangeName 1202 · PPChangeStatus 1203)·CE(ProcessProgramChange 1310 · ProcessProgramSelected 1311)와 리모트 명령 PP-SELECT(파라미터 PPID)가 생김.
 
