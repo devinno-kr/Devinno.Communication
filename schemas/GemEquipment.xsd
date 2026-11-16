@@ -38,6 +38,7 @@
     <xs:attribute name="StateDirectory" type="xs:string" use="optional" />
     <xs:attribute name="ProcessProgramDirectory" type="xs:string" use="optional" />
     <xs:attribute default="4194304" name="MaxProcessProgramSize" type="xs:int" use="optional" />
+    <xs:attribute default="false" name="MultiBlockInquire" type="xs:boolean" use="optional" />
   </xs:complexType>
   <xs:complexType name="SecsHsmsConfig">
     <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />

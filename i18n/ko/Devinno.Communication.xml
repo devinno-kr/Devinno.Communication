@@ -6485,6 +6485,11 @@
             <exception cref="T:System.ArgumentException">정의되지 않은 VID인 경우</exception>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MultiBlockInquire" en-hash="a18805e00b2db503">
+            <summary>SECS-I에서 본문이 블록 하나(244바이트)보다 큰 S6F11 앞에 S6F5 Multi-block Data Send Inquire를 보낼지 정합니다(기본: false).</summary>
+            <remarks>Host가 GRANT6 0으로 답하면 바로 S6F11을 보냅니다. 아니면 보내지 않고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />(<see cref="F:Devinno.Communication.Secs.Gem.GemSendFailure.NotGranted" />, Ack = GRANT6)를 내며 다시 시도하지 않습니다. 이렇게 거절된 스풀 S6F11은 스풀에서 지우고 내보내기를 이어 갑니다. HSMS에서는 true여도 아무것도 바뀌지 않습니다(HSMS에는 블록이 없음).</remarks>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.ProcessProgramStore" en-hash="55d9e7eee8cd20b9">
             <summary>레시피(Process Program)를 두는 곳(기본: null = 레시피 끔). 지정하면 다음 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" />부터 레시피 관리(S7)가 켜집니다.</summary>
             <remarks>
@@ -6853,6 +6858,9 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxProcessProgramSize" en-hash="e076a767ff4116d4">
             <summary>레시피 본문의 바이트 상한, 1~16777215(기본: 4194304).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MultiBlockInquire" en-hash="9ceeb9a0941773c1">
+            <summary>SECS-I에서 블록 하나보다 큰 S6F11 앞에 S6F5를 보낼지(기본: false).</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.Hsms" en-hash="d4e2da6323e65a03">
             <summary>HSMS 전송 설정 (&lt;SecsHsms&gt;, 생략하면 전송 설정을 바꾸지 않음). Role은 Equipment만 됩니다.</summary>
@@ -10061,6 +10069,9 @@
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.SpoolFull" en-hash="0cabca9a0206b0d7">
             <summary>스풀이 가득 차서 버림(OverWriteSpool이 false이면 새 메시지, true이면 가장 오래된 메시지)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemSendFailure.NotGranted" en-hash="eea39a8a62a84ecc">
+            <summary>Host가 다중 블록 문의를 거절함(S6F6 GRANT6이 0이 아님, 값은 <c>Ack</c>). 메시지는 보내지 않았습니다(<c>GemEquipment.MultiBlockInquire</c> 참고).</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemSpoolState" en-hash="1aea40e861f771fb">
             <summary>스풀링 상태(E30 스풀링 상태 모델, 장비 쪽).</summary>

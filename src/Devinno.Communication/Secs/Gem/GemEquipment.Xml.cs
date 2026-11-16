@@ -45,6 +45,7 @@ public partial class GemEquipment
                 StateDirectory = stateDirectory,
                 ProcessProgramDirectory = (ppStoreSetting as GemProcessProgramFolder)?.Directory,
                 MaxProcessProgramSize = maxProcessProgramSize,
+                MultiBlockInquire = multiBlockInquire,
             };
             if (transport.Target is SecsHsms h) c.Hsms = h.ToConfig();
             else c.Serial = ((SecsSerial)transport.Target).ToConfig();
@@ -163,6 +164,7 @@ public partial class GemEquipment
             // XML로 나타낼 수 없는 앱 저장소(코드로 정함)는 속성이 없으면 그대로 둔다
             ppStoreSetting = config.ProcessProgramDirectory != null ? new GemProcessProgramFolder(config.ProcessProgramDirectory) : ppStoreSetting is GemProcessProgramFolder ? null : ppStoreSetting;
             maxProcessProgramSize = config.MaxProcessProgramSize;
+            multiBlockInquire = config.MultiBlockInquire;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();
             definitions.StatusVariables.AddRange(defs.StatusVariables);

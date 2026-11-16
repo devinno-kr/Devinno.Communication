@@ -77,6 +77,8 @@ public class GemEquipmentConfig
     [XmlAttribute] public string? ProcessProgramDirectory { get; set; }
     /// <summary>Upper limit of a process program body in bytes, 1 to 16777215 (default: 4194304).</summary>
     [XmlAttribute] public int MaxProcessProgramSize { get; set; } = 4194304;
+    /// <summary>Over SECS-I, send S6F5 before an S6F11 larger than one block (default: false).</summary>
+    [XmlAttribute] public bool MultiBlockInquire { get; set; }
 
     /// <summary>HSMS transport settings (&lt;SecsHsms&gt;; if omitted the transport settings are not changed). Only Equipment is allowed for Role.</summary>
     [XmlElement("SecsHsms")] public SecsHsmsConfig? Hsms { get; set; }

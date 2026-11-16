@@ -279,6 +279,24 @@ public partial class GemEquipment
         }
     }
 
+    // S6F5 거절로 보내지 않는 스풀 머리(gate 안): 6I.5의 "ack ≠ 0" 줄과 같게 지우고 알리고 세고 이어 간다(CE 없음, 6J.6.2)
+    void RefusedSpoolHeadLocked(Outgoing o, GemSendFailedEventArgs failed)
+    {
+        if (o.Run != run) return;
+        if (spoolSending == o.SpoolSeq) spoolSending = null;
+        var node = spool.First;
+        while (node != null && node.Value.Seq != o.SpoolSeq) node = node.Next;
+        if (node == null) return;
+        spool.Remove(node);
+        spoolStore?.Remove(node.Value.Seq);
+        Raise(SendFailed, failed);
+        if (spoolState != GemSpoolState.Transmit) return;
+        transmittedSinceRequest++;
+        if (spool.Count == 0) DeactivateSpoolLocked();
+        else if (MaxSpoolTransmitLocked > 0 && transmittedSinceRequest >= MaxSpoolTransmitLocked) StopUnloadLocked(commFailure: false);
+        else worker?.Post(Pump);
+    }
+
     // 전이 6·6′(gate 안): TRANSMIT → NO OUTPUT. 보내던 머리는 스풀에 남는다. 통신 실패(전이 14)면 SpoolTransmitFailure CE
     // (NOT COMMUNICATING이므로 S6이 대상이면 스풀 끝에 들어감). 개수 도달·IOException·통신 끔·OFF-LINE은 CE 없음
     void StopUnloadLocked(bool commFailure)

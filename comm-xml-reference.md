@@ -927,6 +927,7 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `StateDirectory` | string | no | — | folder for `gem.state`; omitted = persistence off (otherwise the Host's reports, links, CE/alarm enables, EC values and the LOCAL/REMOTE switch are restored at Start) |
 | `ProcessProgramDirectory` | string | no | — | folder of a `GemProcessProgramFolder` recipe store; omitted = process programs off (otherwise GEM handles Stream 7 and the standard PP SV/DV/CE exist). A store set in code is not written |
 | `MaxProcessProgramSize` | int | no | `4194304` | 1 – 16777215 bytes (encoded PPBODY) |
+| `MultiBlockInquire` | bool | no | `false` | over SECS-I, send S6F5 before an S6F11 larger than one block (244 bytes); ignored over HSMS |
 
 ### `<SecsHsms>` / `<SecsSerial>` (child)
 

@@ -78,6 +78,8 @@ public enum GemSendFailure
     Disabled,
     /// <summary>Dropped because the spool was full (a new message when OverWriteSpool is false, or the oldest one when it is true).</summary>
     SpoolFull,
+    /// <summary>The Host refused the multi-block inquire (S6F6 GRANT6 not 0, the value is in <c>Ack</c>); the message was not sent (see <c>GemEquipment.MultiBlockInquire</c>).</summary>
+    NotGranted,
 }
 
 /// <summary>
