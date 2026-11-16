@@ -226,6 +226,43 @@ public sealed class GemDownloadResult
     public bool IsSuccess => Ackc7 == GemAck.Ackc7Accepted;
 }
 
+/// <summary>A trace request read from S2F23 (Trace Initialize Send).</summary>
+/// <param name="trid">TRID</param>
+/// <param name="period">DSPER as received (<c>hhmmss</c> or <c>hhmmsscc</c>, not checked)</param>
+/// <param name="totalSamples">TOTSMP (0 = stop the trace)</param>
+/// <param name="groupSize">REPGSZ</param>
+/// <param name="svids">The SVIDs (copied and kept read-only)</param>
+public sealed class GemTraceRequest(GemId trid, string period, ulong totalSamples, ulong groupSize, IReadOnlyList<GemId> svids)
+{
+    /// <summary>Gets the trace ID (TRID).</summary>
+    public GemId Trid { get; } = trid;
+    /// <summary>Gets the sampling period text (DSPER) as received.</summary>
+    public string Period { get; } = period;
+    /// <summary>Gets the total number of samples (TOTSMP). 0 asks to stop the trace.</summary>
+    public ulong TotalSamples { get; } = totalSamples;
+    /// <summary>Gets the number of samples per report (REPGSZ).</summary>
+    public ulong GroupSize { get; } = groupSize;
+    /// <summary>Gets the SVIDs to sample.</summary>
+    public IReadOnlyList<GemId> Svids { get; } = Array.AsReadOnly(svids.ToArray());
+}
+
+/// <summary>Trace data read from S6F1 (Trace Data Send).</summary>
+/// <param name="trid">TRID</param>
+/// <param name="sampleNumber">SMPLN</param>
+/// <param name="time">STIME as received</param>
+/// <param name="values">The values (copied and kept read-only)</param>
+public sealed class GemTraceData(GemId trid, ulong sampleNumber, string time, IReadOnlyList<SecsItem> values)
+{
+    /// <summary>Gets the trace ID (TRID).</summary>
+    public GemId Trid { get; } = trid;
+    /// <summary>Gets the number of the last sample in this report (SMPLN, from 1).</summary>
+    public ulong SampleNumber { get; } = sampleNumber;
+    /// <summary>Gets the time of the first sample in this report (STIME) as GEM TIME text, as received.</summary>
+    public string Time { get; } = time;
+    /// <summary>Gets the values, sample after sample in SVID order.</summary>
+    public IReadOnlyList<SecsItem> Values { get; } = Array.AsReadOnly(values.ToArray());
+}
+
 /// <summary>The result of an enhanced remote command (S2F49). A nonzero HCACK is also a value, not an exception.</summary>
 /// <param name="hcack">HCACK</param>
 /// <param name="parameterAcks">The list of parameter errors (CPNAME, CEPACK item) (copied and kept read-only).</param>

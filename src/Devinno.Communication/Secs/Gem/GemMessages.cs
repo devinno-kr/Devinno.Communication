@@ -94,6 +94,19 @@ public static partial class GemMessages
 
     internal static GemFormats F(GemFormats? f) => f ?? GemFormats.Default;
 
+    // 음수가 아닌 정수 하나(정수 포맷 8종). 아니면 Fail
+    internal static ulong Count(SecsItem? item, SecsMessage m, string expected)
+    {
+        if (item == null || !GemItems.IsInteger(item.Format) || item.Count != 1) throw Fail(m, expected);
+        long n;
+        try { n = item.GetInt64(); }
+        catch (OverflowException) { return item.GetUInt64(); }
+        return n < 0 ? throw Fail(m, expected) : (ulong)n;
+    }
+
+    // 보낼 TRID: 숫자면 U4, 글자면 A
+    internal static SecsItem TridItem(GemId trid) => trid.ToItem(trid.IsText ? SecsFormat.ASCII : SecsFormat.U4);
+
     // <L …> 본문의 항목. 본문 없음 = 빈 목록, 리스트가 아니면 Fail
     internal static IReadOnlyList<SecsItem> Entries(SecsMessage m, string expected) => m.Item switch
     {

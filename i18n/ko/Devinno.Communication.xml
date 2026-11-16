@@ -5820,6 +5820,25 @@
         <member name="F:Devinno.Communication.Secs.Gem.GemAck.Grant6NotInterested" en-hash="c045135f9c3abd44">
             <summary>GRANT6 2: 관심 없음 (S6F6)</summary>
         </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackOk" en-hash="8ec6759c1fc629dc">
+            <summary>TIAACK 0: 모두 정상 (S2F24)</summary>
+            <remarks>TIAACK 0~5는 여러 공개 자료로 확인했습니다. SEMI E5 원문과는 대조하지 않았습니다.</remarks>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackTooManySvids" en-hash="e5c4b27b9a3a5391">
+            <summary>TIAACK 1: SVID가 너무 많음 (S2F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackNoMoreTraces" en-hash="8d6f6cf1c114e5c3">
+            <summary>TIAACK 2: 트레이스를 더 받을 수 없음 (S2F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackInvalidPeriod" en-hash="8adc8d080a112bc3">
+            <summary>TIAACK 3: 주기가 잘못됨 (S2F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackUnknownSvid" en-hash="6a75327534ac5999">
+            <summary>TIAACK 4: 모르는 SVID (S2F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackInvalidGroupSize" en-hash="996911a4adb1c014">
+            <summary>TIAACK 5: REPGSZ가 잘못됨 (S2F24)</summary>
+        </member>
         
         
         
@@ -8505,6 +8524,63 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.IsSuccess" en-hash="71d13a91f52580bd">
             <summary>장비가 레시피를 받아들였는지(ACKC7 0)를 가져옵니다.</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemTraceRequest" en-hash="162e594517d36cd6">
+            <summary>S2F23(Trace Initialize Send)에서 읽은 트레이스 요청.</summary>
+            <param name="trid">TRID</param>
+            <param name="period">받은 그대로의 DSPER(<c>hhmmss</c> 또는 <c>hhmmsscc</c>, 검사하지 않음)</param>
+            <param name="totalSamples">TOTSMP(0 = 트레이스 멈춤)</param>
+            <param name="groupSize">REPGSZ</param>
+            <param name="svids">SVID 목록(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTraceRequest.#ctor(Devinno.Communication.Secs.Gem.GemId,System.String,System.UInt64,System.UInt64,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId})" en-hash="162e594517d36cd6">
+            <summary>S2F23(Trace Initialize Send)에서 읽은 트레이스 요청.</summary>
+            <param name="trid">TRID</param>
+            <param name="period">받은 그대로의 DSPER(<c>hhmmss</c> 또는 <c>hhmmsscc</c>, 검사하지 않음)</param>
+            <param name="totalSamples">TOTSMP(0 = 트레이스 멈춤)</param>
+            <param name="groupSize">REPGSZ</param>
+            <param name="svids">SVID 목록(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceRequest.Trid" en-hash="16e1ee54a6e315e5">
+            <summary>트레이스 ID(TRID)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceRequest.Period" en-hash="87ebf79955728caa">
+            <summary>받은 그대로의 표본 주기 텍스트(DSPER)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceRequest.TotalSamples" en-hash="e14f51cd29f53f1f">
+            <summary>전체 표본 수(TOTSMP)를 가져옵니다. 0은 트레이스를 멈추라는 뜻입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceRequest.GroupSize" en-hash="a9750d5303d7451b">
+            <summary>보고 하나의 표본 수(REPGSZ)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceRequest.Svids" en-hash="c44e5ece107cae07">
+            <summary>표본을 뜰 SVID 목록을 가져옵니다.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemTraceData" en-hash="98bef12450a97040">
+            <summary>S6F1(Trace Data Send)에서 읽은 트레이스 데이터.</summary>
+            <param name="trid">TRID</param>
+            <param name="sampleNumber">SMPLN</param>
+            <param name="time">받은 그대로의 STIME</param>
+            <param name="values">값 목록(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTraceData.#ctor(Devinno.Communication.Secs.Gem.GemId,System.UInt64,System.String,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem})" en-hash="98bef12450a97040">
+            <summary>S6F1(Trace Data Send)에서 읽은 트레이스 데이터.</summary>
+            <param name="trid">TRID</param>
+            <param name="sampleNumber">SMPLN</param>
+            <param name="time">받은 그대로의 STIME</param>
+            <param name="values">값 목록(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceData.Trid" en-hash="16e1ee54a6e315e5">
+            <summary>트레이스 ID(TRID)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceData.SampleNumber" en-hash="1c932fae6b082c5e">
+            <summary>이 보고의 마지막 표본 번호(SMPLN, 1부터)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceData.Time" en-hash="4bc288504f18730c">
+            <summary>이 보고 첫 표본의 시각(STIME)을 받은 그대로의 GEM TIME 텍스트로 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceData.Values" en-hash="15cd10ec6f97d94b">
+            <summary>값 목록을 가져옵니다. 표본 순서대로, 표본 안에서는 SVID 순서대로입니다.</summary>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemEnhancedCommandResult" en-hash="d45e4d501d3094e7">
             <summary>확장 리모트 명령(S2F49)의 결과. 0이 아닌 HCACK도 예외가 아니라 값입니다.</summary>
             <param name="hcack">HCACK</param>
@@ -9126,6 +9202,42 @@
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F18가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 A 아이템이 아니거나 TIME으로 해석할 수 없는 경우</exception>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F23(Devinno.Communication.Secs.Gem.GemId,System.String,System.UInt64,System.UInt64,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="0397791a867fc65d">
+            <summary>S2F23 Trace Initialize Send &lt;L TRID &lt;A DSPER&gt; TOTSMP REPGSZ &lt;L SVID…&gt;&gt;를 만듭니다.</summary>
+            <remarks>숫자 TRID는 U4, 글자 TRID는 A로 보냅니다. TOTSMP와 REPGSZ는 U4로 보냅니다. TOTSMP 0은 장비에 그 트레이스를 멈추라는 뜻입니다.</remarks>
+            <param name="trid">트레이스 ID.</param>
+            <param name="period">표본 주기 DSPER: <c>hhmmss</c>(6자리) 또는 <c>hhmmsscc</c>(8자리, cc = 1/100초). 준 그대로 보냅니다.</param>
+            <param name="totalSamples">TOTSMP, 전체 표본 수(0 = 멈춤).</param>
+            <param name="groupSize">REPGSZ, S6F1 하나에 함께 보낼 표본 수.</param>
+            <param name="svids">표본을 뜰 SVID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" /> 사용).</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F23 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="period" /> 또는 <paramref name="svids" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException">글자 SVID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="totalSamples" />나 <paramref name="groupSize" />가 <see cref="F:System.UInt32.MaxValue" />보다 큼, 또는 ID가 그 포맷의 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F23(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="cc73f86ed195ae8c">
+            <summary>S2F23 Trace Initialize Send를 읽습니다.</summary>
+            <remarks>TRID와 SVID는 정수 포맷 무엇이든 또는 A, TOTSMP와 REPGSZ는 정수 포맷 무엇이든(음수 아님) 받습니다. DSPER는 받은 그대로 돌려주고 검사하지 않습니다.</remarks>
+            <param name="message">받은 S2F23.</param>
+            <returns>트레이스 요청.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F23이 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L TRID &lt;A DSPER&gt; TOTSMP REPGSZ &lt;L SVID…&gt;&gt;가 아님.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F24(System.Byte)" en-hash="91381ccc6ca062a5">
+            <summary>S2F24 Trace Initialize Acknowledge &lt;B TIAACK&gt;를 만듭니다.</summary>
+            <param name="tiaack">TIAACK(0 = 받아들임, <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고).</param>
+            <returns>S2F24 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F24(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="7a6a73444cf89c98">
+            <summary>S2F24 Trace Initialize Acknowledge를 읽습니다.</summary>
+            <param name="message">받은 S2F24.</param>
+            <returns>TIAACK(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F24가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아님.</exception>
+        </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F29(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="de1cbc08cf4bb297">
             <summary>S2F29 Equipment Constant Namelist Request &lt;L ECID…&gt;를 만듭니다.</summary>
             <param name="ecids">ECID 목록 (null이나 빈 목록 = 모든 EC)</param>
@@ -9509,6 +9621,39 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S5F8가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L &lt;L ALCD ALID ALTX&gt;…&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F1(Devinno.Communication.Secs.Gem.GemId,System.UInt64,System.String,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem},System.Boolean)" en-hash="ab0c3a6ab3527de4">
+            <summary>S6F1 Trace Data Send &lt;L TRID SMPLN STIME &lt;L SV…&gt;&gt;를 만듭니다.</summary>
+            <remarks>숫자 TRID는 U4, 글자 TRID는 A로 보냅니다. SMPLN은 U4로 보냅니다.</remarks>
+            <param name="trid">트레이스 ID.</param>
+            <param name="sampleNumber">SMPLN, 이 보고의 마지막 표본 번호(1부터).</param>
+            <param name="time">STIME, 이 보고 첫 표본의 시각(GEM TIME 텍스트).</param>
+            <param name="values">뜬 값들. 표본 순서대로, 표본 안에서는 SVID 순서대로.</param>
+            <param name="replyExpected">W비트를 켜려면 true(기본).</param>
+            <returns>S6F1 메시지.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="time" /> 또는 <paramref name="values" />가 null임.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="sampleNumber" />가 <see cref="F:System.UInt32.MaxValue" />보다 큼, 또는 숫자 TRID가 U4 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="716c0ce021ca2611">
+            <summary>S6F1 Trace Data Send를 읽습니다.</summary>
+            <param name="message">받은 S6F1.</param>
+            <returns>트레이스 데이터(TRID는 정수 포맷 무엇이든 또는 A, SMPLN은 정수 포맷 무엇이든, 값은 받은 그대로).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F1이 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L TRID SMPLN &lt;A STIME&gt; &lt;L SV…&gt;&gt;가 아님.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F2(System.Byte)" en-hash="56eb12ecad97320d">
+            <summary>S6F2 Trace Data Acknowledge &lt;B ACKC6&gt;를 만듭니다.</summary>
+            <param name="ackc6">ACKC6(0 = 받아들임).</param>
+            <returns>S6F2 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS6F2(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="ffdecd2406cea717">
+            <summary>S6F2 Trace Data Acknowledge를 읽습니다.</summary>
+            <param name="message">받은 S6F2.</param>
+            <returns>ACKC6(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F2가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아님.</exception>
         </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S6F5(Devinno.Communication.Secs.Gem.GemId,System.UInt32,Devinno.Communication.Secs.Gem.GemFormats)" en-hash="8951b6522a9596a1">
             <summary>S6F5 Multi-block Data Send Inquire &lt;L DATAID &lt;U4 DATALENGTH&gt;&gt;를 만듭니다.</summary>

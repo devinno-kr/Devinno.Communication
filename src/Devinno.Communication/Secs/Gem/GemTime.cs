@@ -89,4 +89,23 @@ public static partial class GemTime
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException) { return false; }
     }
+
+    // 트레이스 주기 DSPER: A[6] hhmmss 또는 A[8] hhmmsscc(숫자만, mm·ss < 60). 아니면 null(0도 값으로 돌려줌 — 판단은 장비)
+    internal static TimeSpan? ParseTracePeriod(string dsper)
+    {
+        if (dsper is not { Length: 6 or 8 } || !dsper.All(char.IsAsciiDigit)) return null;
+        int Two(int at) => (dsper[at] - '0') * 10 + dsper[at + 1] - '0';
+        int h = Two(0), m = Two(2), sec = Two(4), cc = dsper.Length == 8 ? Two(6) : 0;
+        if (m >= 60 || sec >= 60) return null;
+        return new TimeSpan(0, h, m, sec, cc * 10);
+    }
+
+    // 트레이스 주기 → A[8] hhmmsscc(1/100초 미만은 버림). 0 이하(버린 뒤)이거나 100시간 이상이면 ArgumentOutOfRangeException
+    internal static string FormatTracePeriod(TimeSpan period)
+    {
+        long cs = period.Ticks / TimeSpan.TicksPerMillisecond / 10;
+        if (cs <= 0 || period >= TimeSpan.FromHours(100)) throw new ArgumentOutOfRangeException(nameof(period), period, "트레이스 주기는 0.01초 이상 100시간 미만입니다.");
+        long h = cs / 360000, m = cs / 6000 % 60, sec = cs / 100 % 60, c = cs % 100;
+        return string.Create(CultureInfo.InvariantCulture, $"{h:00}{m:00}{sec:00}{c:00}");
+    }
 }

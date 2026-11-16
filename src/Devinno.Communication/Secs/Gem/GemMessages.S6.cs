@@ -5,6 +5,61 @@ namespace Devinno.Communication.Secs.Gem;
 // S6: 이벤트 리포트(S6F11~S6F20), 3층용 internal S6F6·S6F11Body
 public static partial class GemMessages
 {
+    #region S6F1 / S6F2
+    /// <summary>Builds S6F1 Trace Data Send &lt;L TRID SMPLN STIME &lt;L SV…&gt;&gt;.</summary>
+    /// <remarks>A numeric TRID is sent as U4, a text TRID as A. SMPLN is sent as U4.</remarks>
+    /// <param name="trid">The trace ID.</param>
+    /// <param name="sampleNumber">SMPLN, the number of the last sample in this report (from 1).</param>
+    /// <param name="time">STIME, the time of the first sample in this report as GEM TIME text.</param>
+    /// <param name="values">The sampled values, sample after sample in SVID order.</param>
+    /// <param name="replyExpected">true to set the W-bit (default).</param>
+    /// <returns>The S6F1 message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="time"/> or <paramref name="values"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sampleNumber"/> is larger than <see cref="uint.MaxValue"/>, or a numeric TRID is out of the U4 range.</exception>
+    public static SecsMessage S6F1(GemId trid, ulong sampleNumber, string time, IReadOnlyList<SecsItem> values, bool replyExpected = true)
+        => S6F1(TridItem(trid), sampleNumber, time, values, replyExpected);
+
+    // 장비용: S2F23에서 받은 TRID 아이템 그대로
+    internal static SecsMessage S6F1(SecsItem trid, ulong sampleNumber, string time, IReadOnlyList<SecsItem> values, bool replyExpected)
+    {
+        ArgumentNullException.ThrowIfNull(time);
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sampleNumber, uint.MaxValue);
+        return new(6, 1, replyExpected, SecsItem.L(trid, SecsItem.U4((uint)sampleNumber), SecsItem.A(time), SecsItem.L([.. values])));
+    }
+
+    /// <summary>Reads S6F1 Trace Data Send.</summary>
+    /// <param name="message">The received S6F1.</param>
+    /// <returns>The trace data (TRID any integer format or A, SMPLN any integer format, the values as received).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F1.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L TRID SMPLN &lt;A STIME&gt; &lt;L SV…&gt;&gt;.</exception>
+    public static GemTraceData ParseS6F1(SecsMessage message)
+    {
+        Check(message, 6, 1);
+        const string expected = "<L TRID SMPLN <A STIME> <L SV…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 4 } l || l.Items[2].Format != SecsFormat.ASCII || l.Items[3].Format != SecsFormat.List) throw Fail(message, expected);
+        return new GemTraceData(Id(l.Items[0], message, expected), Count(l.Items[1], message, expected), l.Items[2].GetString(), l.Items[3].Items);
+    }
+
+    /// <summary>Builds S6F2 Trace Data Acknowledge &lt;B ACKC6&gt;.</summary>
+    /// <param name="ackc6">ACKC6 (0 = accepted).</param>
+    /// <returns>The S6F2 message.</returns>
+    public static SecsMessage S6F2(byte ackc6) => new(6, 2, false, GemItems.Ack(ackc6));
+
+    /// <summary>Reads S6F2 Trace Data Acknowledge.</summary>
+    /// <param name="message">The received S6F2.</param>
+    /// <returns>ACKC6 (any numeric format, 0 to 255).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S6F2.</exception>
+    /// <exception cref="FormatException">The body is not a single number from 0 to 255.</exception>
+    public static byte ParseS6F2(SecsMessage message)
+    {
+        Check(message, 6, 2);
+        return Ack(message.Item, message, "ACKC6");
+    }
+    #endregion
+
     #region S6F5 / S6F6
     /// <summary>Builds S6F5 Multi-block Data Send Inquire &lt;L DATAID &lt;U4 DATALENGTH&gt;&gt;.</summary>
     /// <param name="dataId">DATAID (sent in <see cref="GemFormats.Dataid"/>): the DATAID of the message that will follow.</param>

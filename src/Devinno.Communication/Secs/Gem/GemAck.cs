@@ -183,4 +183,18 @@ public static class GemAck
     public const byte Grant6Busy = 1;
     /// <summary>GRANT6 2: not interested (S6F6)</summary>
     public const byte Grant6NotInterested = 2;
+
+    /// <summary>TIAACK 0: everything correct (S2F24)</summary>
+    /// <remarks>TIAACK 0 to 5 are confirmed by several public sources; the SEMI E5 original was not checked.</remarks>
+    public const byte TiaackOk = 0;
+    /// <summary>TIAACK 1: too many SVIDs (S2F24)</summary>
+    public const byte TiaackTooManySvids = 1;
+    /// <summary>TIAACK 2: no more traces allowed (S2F24)</summary>
+    public const byte TiaackNoMoreTraces = 2;
+    /// <summary>TIAACK 3: invalid period (S2F24)</summary>
+    public const byte TiaackInvalidPeriod = 3;
+    /// <summary>TIAACK 4: unknown SVID (S2F24)</summary>
+    public const byte TiaackUnknownSvid = 4;
+    /// <summary>TIAACK 5: invalid REPGSZ (S2F24)</summary>
+    public const byte TiaackInvalidGroupSize = 5;
 }

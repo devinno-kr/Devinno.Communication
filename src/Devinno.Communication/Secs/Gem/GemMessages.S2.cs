@@ -127,6 +127,70 @@ public static partial class GemMessages
     }
     #endregion
 
+    #region S2F23 / S2F24
+    /// <summary>Builds S2F23 Trace Initialize Send &lt;L TRID &lt;A DSPER&gt; TOTSMP REPGSZ &lt;L SVID…&gt;&gt;.</summary>
+    /// <remarks>A numeric TRID is sent as U4, a text TRID as A. TOTSMP and REPGSZ are sent as U4. A TOTSMP of 0 asks the equipment to stop the trace.</remarks>
+    /// <param name="trid">The trace ID.</param>
+    /// <param name="period">DSPER, the sampling period: <c>hhmmss</c> (6 digits) or <c>hhmmsscc</c> (8 digits, cc = hundredths of a second). Sent as given.</param>
+    /// <param name="totalSamples">TOTSMP, the total number of samples (0 = stop).</param>
+    /// <param name="groupSize">REPGSZ, the number of samples sent together in one S6F1.</param>
+    /// <param name="svids">The SVIDs to sample (uses <see cref="GemFormats.Vid"/>).</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F23 message (W-bit set).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="period"/> or <paramref name="svids"/> is null.</exception>
+    /// <exception cref="ArgumentException">A text SVID cannot be sent in a numeric format.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="totalSamples"/> or <paramref name="groupSize"/> is larger than <see cref="uint.MaxValue"/>, or an ID is out of the range of its format.</exception>
+    public static SecsMessage S2F23(GemId trid, string period, ulong totalSamples, ulong groupSize, IReadOnlyList<GemId> svids, GemFormats? formats = null)
+    {
+        ArgumentNullException.ThrowIfNull(period);
+        ArgumentNullException.ThrowIfNull(svids);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(totalSamples, uint.MaxValue);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(groupSize, uint.MaxValue);
+        return new(2, 23, true, SecsItem.L(TridItem(trid), SecsItem.A(period), SecsItem.U4((uint)totalSamples), SecsItem.U4((uint)groupSize), IdList(svids, F(formats).Vid)));
+    }
+
+    /// <summary>Reads S2F23 Trace Initialize Send.</summary>
+    /// <remarks>TRID and SVIDs are any integer format or A; TOTSMP and REPGSZ are any integer format (not negative). DSPER is returned as received and is not checked.</remarks>
+    /// <param name="message">The received S2F23.</param>
+    /// <returns>The trace request.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F23.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L TRID &lt;A DSPER&gt; TOTSMP REPGSZ &lt;L SVID…&gt;&gt;.</exception>
+    public static GemTraceRequest ParseS2F23(SecsMessage message)
+    {
+        var (trid, period, total, group, svids) = ParseS2F23Raw(message);
+        const string expected = "<L TRID <A DSPER> TOTSMP REPGSZ <L SVID…>>";
+        return new GemTraceRequest(Id(trid, message, expected), period, total, group, [.. svids.Items.Select(i => Id(i, message, expected))]);
+    }
+
+    // 장비용: TRID 아이템을 받은 그대로(S6F1에 돌려줌), SVID 목록은 <L …> 아이템 그대로(3층이 VidFormat으로 읽음)
+    internal static (SecsItem Trid, string Period, ulong TotalSamples, ulong GroupSize, SecsItem Svids) ParseS2F23Raw(SecsMessage message)
+    {
+        Check(message, 2, 23);
+        const string expected = "<L TRID <A DSPER> TOTSMP REPGSZ <L SVID…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 5 } l || l.Items[1].Format != SecsFormat.ASCII || l.Items[4].Format != SecsFormat.List) throw Fail(message, expected);
+        Id(l.Items[0], message, expected);
+        return (l.Items[0], l.Items[1].GetString(), Count(l.Items[2], message, expected), Count(l.Items[3], message, expected), l.Items[4]);
+    }
+
+    /// <summary>Builds S2F24 Trace Initialize Acknowledge &lt;B TIAACK&gt;.</summary>
+    /// <param name="tiaack">TIAACK (0 = accepted; see <see cref="GemAck"/>).</param>
+    /// <returns>The S2F24 message.</returns>
+    public static SecsMessage S2F24(byte tiaack) => new(2, 24, false, GemItems.Ack(tiaack));
+
+    /// <summary>Reads S2F24 Trace Initialize Acknowledge.</summary>
+    /// <param name="message">The received S2F24.</param>
+    /// <returns>TIAACK (any numeric format, 0 to 255).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F24.</exception>
+    /// <exception cref="FormatException">The body is not a single number from 0 to 255.</exception>
+    public static byte ParseS2F24(SecsMessage message)
+    {
+        Check(message, 2, 24);
+        return Ack(message.Item, message, "TIAACK");
+    }
+    #endregion
+
     #region S2F29 / S2F30
     /// <summary>Builds S2F29 Equipment Constant Namelist Request &lt;L ECID…&gt;.</summary>
     /// <param name="ecids">The ECIDs (null or empty = all ECs).</param>
