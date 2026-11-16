@@ -136,6 +136,7 @@ public partial class GemEquipment : IDisposable
     partial void AddSpoolingHandlers();
     partial void AddProcessProgramHandlers();
     partial void AddTraceHandlers();
+    partial void AddLimitHandlers();
     // Start 때 상태 초기화(gate 안, 정의 표가 만들어진 뒤, 전송 시작 전)
     partial void ResetCommunication();
     partial void ResetControl();
@@ -145,6 +146,7 @@ public partial class GemEquipment : IDisposable
     partial void ResetSpooling();
     partial void ResetProcessPrograms();
     partial void ResetTraces();
+    partial void ResetLimits();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드)
     partial void OnTransportOpened();
     partial void OnTransportClosed();
@@ -188,6 +190,7 @@ public partial class GemEquipment : IDisposable
         AddSpoolingHandlers();
         AddProcessProgramHandlers();
         AddTraceHandlers();
+        AddLimitHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -457,6 +460,7 @@ public partial class GemEquipment : IDisposable
                 ResetSpooling();
                 ResetProcessPrograms();
                 ResetTraces();
+                ResetLimits();
                 restoreDropped = RestoreStateLocked(state?.State);
             }
             w.Start();
@@ -580,8 +584,9 @@ public partial class GemEquipment : IDisposable
         // ② 지원하지 않는 Stream → S9F3, 지원 Stream의 모르는 Function → S9F5 (상태와 무관)
         bool registered = c.Messages.Contains(key);
         if (!c.Streams.Contains(m.Stream)) { SendS9(e, 3, $"지원하지 않는 Stream: {GemItems.Sml(m)}"); return; }
-        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만, Stream 7(레시피)은 레시피를 켰을 때만, S2F23(트레이스)은 MaxTraces > 0일 때만 GEM이 처리한다
-        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key) || !pp && m.Stream == 7 || !tr && key == 2 * 256 + 23)) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
+        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만, Stream 7(레시피)은 레시피를 켰을 때만, S2F23(트레이스)은 MaxTraces > 0일 때만 GEM이 처리한다.
+        // 리밋(S2F45·S2F47)은 앱이 둘 중 하나라도 등록했으면 등록하지 않은 쪽도 S9F5(능력 전체를 앱에)
+        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key) || !pp && m.Stream == 7 || !tr && key == 2 * 256 + 23 || IsLimitMessage(key) && (c.Messages.Contains(2 * 256 + 45) || c.Messages.Contains(2 * 256 + 47)))) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
         // ③ NOT COMMUNICATING: S1F13만 처리 ④ OFF-LINE: S1F13·S1F17만 처리. 나머지 W는 SxF0
         if (comm != GemCommunicationState.Communicating && key != S1F13) return;
         if (IsOffline(ctl) && key != S1F13 && key != S1F17) return;

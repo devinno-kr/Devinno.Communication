@@ -12,7 +12,8 @@ internal sealed record GemStateSnapshot(
     IReadOnlyList<(GemId Ceid, bool Enabled)> Events,
     IReadOnlyList<(GemId Alid, bool Enabled)> Alarms,
     IReadOnlyList<(GemId Ecid, SecsItem Value)> Constants,
-    GemLocalRemote Switch);
+    GemLocalRemote Switch,
+    IReadOnlyList<(GemId Vid, byte LimitId, SecsItem Upper, SecsItem Lower)>? Limits = null);
 
 // 설정 영속화 저장소(6J.4.3): gem.state(XML) 하나, gem.lock, 전용 쓰기 스레드 하나.
 // Save는 직렬화만 호출 스레드에서 하고(I/O 없음) "다음에 쓸 내용" 칸 하나를 덮어쓴다 — 밀린 쓰기는 최신 것 하나만 남는다.
@@ -92,7 +93,9 @@ internal sealed class GemStateStore : IDisposable
         var constants = root.Elements("Constant").Select(c => (ReadId(c), SecsSml.ParseItem((string?)c.Attribute("Value") ?? throw new FormatException("Value 없음")))).ToList();
         var sw = GemLocalRemote.Remote;
         if (root.Element("Switch") is { } s && !Enum.TryParse((string?)s.Attribute("Value"), false, out sw) || !Enum.IsDefined(sw)) throw new FormatException("Switch");
-        return new GemStateSnapshot(reports, links, events, alarms, constants, sw);
+        var limits = root.Elements("Limit").Select(l => (ReadId(l), byte.Parse((string?)l.Attribute("LimitId") ?? throw new FormatException("LimitId 없음"), CultureInfo.InvariantCulture),
+            SecsSml.ParseItem((string?)l.Attribute("Upper") ?? throw new FormatException("Upper 없음")), SecsSml.ParseItem((string?)l.Attribute("Lower") ?? throw new FormatException("Lower 없음")))).ToList();
+        return new GemStateSnapshot(reports, links, events, alarms, constants, sw, limits);
     }
 
     // Id(10진 long), IdText(문자열), IdSml(XML에 쓸 수 없는 문자가 든 문자열의 A 아이템 SML) 중 정확히 하나
@@ -137,7 +140,9 @@ internal sealed class GemStateStore : IDisposable
             s.Events.Select(e => Enabled("Event", e.Ceid, e.Enabled)),
             s.Alarms.Select(a => Enabled("Alarm", a.Alid, a.Enabled)),
             s.Constants.Select(c => new XElement("Constant", IdAttr(c.Ecid), new XAttribute("Value", c.Value.ToSml()))),
-            new XElement("Switch", new XAttribute("Value", s.Switch.ToString())));
+            new XElement("Switch", new XAttribute("Value", s.Switch.ToString())),
+            (s.Limits ?? []).Select(l => new XElement("Limit", IdAttr(l.Vid), new XAttribute("LimitId", l.LimitId.ToString(CultureInfo.InvariantCulture)),
+                new XAttribute("Upper", l.Upper.ToSml()), new XAttribute("Lower", l.Lower.ToSml()))));
         var ms = new MemoryStream();
         using (var w = new StreamWriter(ms, new UTF8Encoding(false))) new XDocument(root).Save(w);
         return ms.ToArray();

@@ -38,7 +38,8 @@ public partial class GemEquipment
             [.. catalog.EventList.Select(e => (e.Key, enabledEvents.Contains(e.Key)))],
             [.. catalog.AlarmList.Select(a => (a.Key, alarmsEnabled.Contains(a.Key)))],
             [.. catalog.Constants.Select(v => (v.Key, values[v.Key]))],
-            localRemote));
+            localRemote,
+            LimitSnapshotLocked()));
     }
 
     // Start 때 저장된 설정을 지금 정의에 맞는 것만 적용한다(gate 안, Reset* 뒤). 버린 항목 수를 돌려준다(6J.4.4).
@@ -83,6 +84,7 @@ public partial class GemEquipment
             if (converted == null || !GemItems.Matches(converted, v) || (GemItems.IsNumeric(v.Format) && !GemItems.InRange(converted, v.Min, v.Max))) { dropped++; continue; }
             values[key] = converted;
         }
+        dropped += RestoreLimitsLocked(s.Limits);
         // 앱이 ON-LINE 쪽 초기 상태를 정했으면 그 설정이 이긴다(버린 것으로 세지 않음)
         if (initialControlState is not (GemControlState.OnlineLocal or GemControlState.OnlineRemote)) localRemote = s.Switch;
         if (dropped > 0) SaveStateLocked();
