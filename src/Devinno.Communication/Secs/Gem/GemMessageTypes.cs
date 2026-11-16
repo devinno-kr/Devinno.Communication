@@ -168,3 +168,36 @@ public sealed class GemProcessProgram
     // 받은 PPID가 규칙에 맞는지(예외 없이)
     internal static bool IsValidPpid(string ppid) => ppid.Length is > 0 and <= MaxPpidLength && ppid.All(c => c <= 0xFF);
 }
+
+/// <summary>The result of an equipment-initiated process program upload (S7F1 then S7F3). A refusal by the Host is a value, not an exception.</summary>
+public sealed class GemUploadResult
+{
+    internal GemUploadResult(GemUploadFailure failure, byte? ppgnt = null, byte? ackc7 = null, Exception? exception = null)
+    {
+        Failure = failure;
+        Ppgnt = ppgnt;
+        Ackc7 = ackc7;
+        Exception = exception;
+    }
+
+    /// <summary>Gets the PPGNT of S7F2 (null if no S7F1 was sent or no reply came).</summary>
+    public byte? Ppgnt { get; }
+    /// <summary>Gets the ACKC7 of S7F4 (null if no S7F3 was sent or no reply came).</summary>
+    public byte? Ackc7 { get; }
+    /// <summary>Gets why the upload did not succeed (<see cref="GemUploadFailure.None"/> if the Host answered both steps).</summary>
+    public GemUploadFailure Failure { get; }
+    /// <summary>Gets the transport exception for Timeout, Aborted, Error, Disconnected, and InvalidReply (otherwise null).</summary>
+    public Exception? Exception { get; }
+    /// <summary>Gets a value indicating whether the Host accepted the process program (ACKC7 0).</summary>
+    public bool IsSuccess => Failure == GemUploadFailure.None && Ackc7 == GemAck.Ackc7Accepted;
+}
+
+/// <summary>Thrown by <c>GemEquipment.RequestProcessProgramAsync</c> when the request could not be made or answered (a denial by the Host is a null result, not this exception).</summary>
+public sealed class GemProcessProgramRequestException : Exception
+{
+    internal GemProcessProgramRequestException(GemUploadFailure failure, Exception? inner = null)
+        : base($"레시피 요청(S7F5)을 하지 못했습니다: {failure}", inner) => Failure = failure;
+
+    /// <summary>Gets why the request failed.</summary>
+    public GemUploadFailure Failure { get; }
+}

@@ -60,6 +60,8 @@ public partial class GemEquipment : IDisposable
         public int Epoch;                   // gate: 보낸 연결의 세대(linkEpoch). 지난 연결의 늦은 완료를 가려낸다
         public long? SpoolSeq;              // 스풀에서 꺼내 보내는 메시지의 순번(아니면 null). 버림 경로가 스풀에 다시 넣지 않는다
         public int Run;                     // gate: 스풀 머리를 꺼낸 실행 번호(run). Stop·Start 사이에 늦게 온 결과가 새 실행의 같은 seq를 지우지 않게 한다
+        // 레시피 전송처럼 결과를 Task로 돌려주는 송신: 보내지 못하고 버려질 때 SendFailed 대신 이것을 부른다(gate 안, null = Stop)
+        public Action<GemUploadFailure?>? Dropped;
     }
 
     // 앱이 정해야 하는 응답(리모트 명령·EC 승인·등록 메시지). 앱 결과와 기한 응답 중 먼저 온 것 하나만 보낸다. Run = 받은 실행의 번호
@@ -491,6 +493,9 @@ public partial class GemEquipment : IDisposable
         lock (gate)
         {
             running = false;
+            // 결과를 기다리는 레시피 전송은 취소로 끝낸다(다른 메시지는 지금처럼 알림 없이 버림)
+            inFlight?.Dropped?.Invoke(null);
+            foreach (var o in sendQueue) o.Dropped?.Invoke(null);
             sendQueue.Clear();
             inFlight = null;
             deferreds.Clear();
@@ -721,13 +726,15 @@ public partial class GemEquipment : IDisposable
     // 스풀에서 꺼내 보내던 메시지(SpoolSeq)는 스풀 머리에 그대로 있으므로 버리지도 다시 넣지도 않는다
     void ClearQueueLocked(GemSendFailure reason)
     {
-        if (inFlight != null && !IsS1F13(inFlight.Message) && inFlight.SpoolSeq == null) DiscardLocked(inFlight.Message, reason);
+        if (inFlight is { Dropped: { } fail }) fail(GemUploadFailure.NotCommunicating);
+        else if (inFlight != null && !IsS1F13(inFlight.Message) && inFlight.SpoolSeq == null) DiscardLocked(inFlight.Message, reason);
         inFlight = null;
         spoolSending = null;                // 보내던 스풀 머리의 결과는 이제 오지 않는다(머리는 스풀에 남음)
         while (sendQueue.Count > 0)
         {
             var o = sendQueue.Dequeue();
-            if (!IsS1F13(o.Message) && o.SpoolSeq == null) DiscardLocked(o.Message, reason);   // 장비의 S1F13은 내부 시도라 알리지 않는다
+            if (o.Dropped is { } drop) drop(GemUploadFailure.NotCommunicating);
+            else if (!IsS1F13(o.Message) && o.SpoolSeq == null) DiscardLocked(o.Message, reason);   // 장비의 S1F13은 내부 시도라 알리지 않는다
         }
     }
 

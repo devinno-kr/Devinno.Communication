@@ -125,7 +125,7 @@ public class GemProcessProgramReceiveTests
     {
         using var c = await Ctx.Start();
         c.Store.Put(new GemProcessProgram("R1", SecsItem.B(1)));
-        c.Eq.SetSelectedForTest("R1");
+        c.Eq.SelectProcessProgram("R1");
         Assert.Equal("S7F4 <B 0x01>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x09>>"));
         Assert.Equal(SecsItem.B(1), c.Store.Peek("R1")!.Body);
         Assert.Empty(c.Events);
@@ -191,7 +191,7 @@ public class GemProcessProgramReceiveTests
         using var c = await Ctx.Start();
         c.Store.Put(new GemProcessProgram("R1", SecsItem.B(1)));
         c.Store.Put(new GemProcessProgram("R2", SecsItem.B(2)));
-        c.Eq.SetSelectedForTest("R1");
+        c.Eq.SelectProcessProgram("R1");
         Assert.Equal("S7F18 <B 0x01>", await c.Ask("S7F17 W <L <A \"R1\"> <A \"R2\">>"));
         Assert.Equal(2, c.Store.Count);
         Assert.Equal("S7F18 <B 0x01>", await c.Ask("S7F17 W <L>"));        // 전부 = 선택된 것도 포함

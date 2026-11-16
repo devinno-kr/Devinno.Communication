@@ -103,3 +103,30 @@ public enum GemProcessProgramChangeKind
     /// <summary>S7F17: the Host asks to delete process programs (the reply is ACKC7).</summary>
     Delete,
 }
+
+/// <summary>Why an equipment-initiated process program transfer (upload or request) did not succeed.</summary>
+public enum GemUploadFailure
+{
+    /// <summary>No failure (the Host answered; see the ack values).</summary>
+    None,
+    /// <summary>The store has no process program with that PPID.</summary>
+    NotFound,
+    /// <summary>Communication is not established (nothing was sent, or the link was lost while waiting).</summary>
+    NotCommunicating,
+    /// <summary>The control state is OFF-LINE (nothing was sent).</summary>
+    Offline,
+    /// <summary>The send queue is full (nothing was sent).</summary>
+    QueueFull,
+    /// <summary>The Host refused (PPGNT or ACKC7 not 0).</summary>
+    Rejected,
+    /// <summary>No reply within T3.</summary>
+    Timeout,
+    /// <summary>The Host answered with SxF0.</summary>
+    Aborted,
+    /// <summary>The Host answered with S9Fx.</summary>
+    Error,
+    /// <summary>The send failed on the transport.</summary>
+    Disconnected,
+    /// <summary>The reply body was not as expected.</summary>
+    InvalidReply,
+}

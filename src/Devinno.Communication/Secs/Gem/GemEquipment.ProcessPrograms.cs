@@ -62,8 +62,202 @@ public partial class GemEquipment
     }
 
     // 테스트용
-    internal void SetSelectedForTest(string? ppid) { lock (gate) selectedPpid = ppid; }
     internal bool IsGateHeldForTest => Monitor.IsEntered(gate);
+
+    #region 앱 메서드 (운전자 변경·선택, 장비 → Host 전송)
+    /// <summary>Gets the PPID of the selected process program (PPExecName), or null if none is selected.</summary>
+    public string? SelectedProcessProgram { get { lock (gate) return selectedPpid; } }
+
+    /// <summary>The operator created or edited a process program at the equipment: writes it to the store and raises the ProcessProgramChange event (PPChangeName = PPID, PPChangeStatus 1 created or 2 edited).</summary>
+    /// <remarks>The event is sent under the same rules as <see cref="TriggerEvent"/> (enabled, ON-LINE, communicating or spooled). The store is called on this thread.</remarks>
+    /// <param name="program">The process program.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="program"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Not started, or process programs are off (<see cref="ProcessProgramStore"/> is null).</exception>
+    public void SaveProcessProgram(GemProcessProgram program)
+    {
+        ArgumentNullException.ThrowIfNull(program);
+        RequireProcessPrograms();
+        lock (ppLock)
+        {
+            bool existed = ppStore!.Read(program.Ppid) != null;
+            ppStore.Write(program);
+            lock (gate) TriggerChangeLocked(program.Ppid, existed ? (byte)2 : (byte)1);
+        }
+    }
+
+    /// <summary>The operator deleted a process program at the equipment: deletes it from the store and raises the ProcessProgramChange event (PPChangeStatus 3). Deleting the selected process program clears the selection (no ProcessProgramSelected event).</summary>
+    /// <param name="ppid">PPID</param>
+    /// <returns>true if it existed and was deleted (false: nothing happens).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="ppid"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Not started, or process programs are off.</exception>
+    public bool DeleteProcessProgram(string ppid)
+    {
+        ArgumentNullException.ThrowIfNull(ppid);
+        RequireProcessPrograms();
+        lock (ppLock)
+        {
+            if (!ppStore!.Delete(ppid)) return false;
+            lock (gate)
+            {
+                if (selectedPpid == ppid) selectedPpid = null;
+                TriggerChangeLocked(ppid, 3);
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Selects a process program for execution: updates PPExecName and raises the ProcessProgramSelected event. null clears the selection (no event).</summary>
+    /// <remarks>The Host cannot overwrite or delete the selected process program (ACKC7 1). The Host's PP-SELECT remote command calls this after the application accepts it with HCACK 0.</remarks>
+    /// <param name="ppid">PPID of a stored process program, or null.</param>
+    /// <exception cref="ArgumentException">The store has no process program with that PPID.</exception>
+    /// <exception cref="InvalidOperationException">Not started, or process programs are off.</exception>
+    public void SelectProcessProgram(string? ppid)
+    {
+        RequireProcessPrograms();
+        lock (ppLock)
+        {
+            if (ppid != null && ppStore!.Read(ppid) == null) throw new ArgumentException($"저장소에 없는 PPID {ppid}입니다.", nameof(ppid));
+            lock (gate)
+            {
+                selectedPpid = ppid;
+                if (ppid != null) TriggerLocked(catalog.Events[catalog.Std(GemStandard.ProcessProgramSelected)], null);
+            }
+        }
+    }
+
+    /// <summary>Sends a stored process program to the Host (equipment-initiated upload): S7F1 first when <paramref name="inquire"/> is true, then S7F3 if the Host grants it.</summary>
+    /// <remarks>
+    /// <para>The messages go through the GEM send queue in order with other GEM messages. Nothing is sent and the result says why when the PPID is not stored, the state is OFF-LINE, communication is not established, or the queue is full; process program transfers are never spooled. No <see cref="SendFailed"/> event is raised: the result carries the outcome.</para>
+    /// <para>The task completes on the thread pool. <see cref="Stop"/> cancels it (<see cref="OperationCanceledException"/>). The token stops only a step not yet sent.</para>
+    /// </remarks>
+    /// <param name="ppid">PPID of a stored process program.</param>
+    /// <param name="inquire">Send S7F1 before S7F3 (default true, recommended by E30).</param>
+    /// <param name="cancellationToken">Cancels a step not yet sent.</param>
+    /// <returns>The result (PPGNT, ACKC7, failure).</returns>
+    /// <exception cref="ArgumentException"><paramref name="ppid"/> breaks the PPID rules of <see cref="GemProcessProgram"/>.</exception>
+    /// <exception cref="InvalidOperationException">Not started, or process programs are off.</exception>
+    public Task<GemUploadResult> UploadProcessProgramAsync(string ppid, bool inquire = true, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            GemProcessProgram.CheckPpid(ppid, nameof(ppid));
+            RequireProcessPrograms();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (Exception ex) { return Task.FromException<GemUploadResult>(ex); }
+        GemProcessProgram? program;
+        lock (ppLock) program = ppStore!.Read(ppid);
+        if (program == null) return Task.FromResult(new GemUploadResult(GemUploadFailure.NotFound));
+        var tcs = new TaskCompletionSource<GemUploadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<GemUploadFailure?> dropped = f => { if (f is { } x) tcs.TrySetResult(new GemUploadResult(x)); else tcs.TrySetCanceled(); };
+
+        void SendProgram(byte? ppgnt)
+        {
+            var failure = EnqueueTransferLocked(GemMessages.S7F3(program), (o, t) =>
+            {
+                if (!t.IsCompletedSuccessfully) { tcs.TrySetResult(new GemUploadResult(TransferFailure(t.Exception!.InnerException!), ppgnt, null, t.Exception.InnerException)); return; }
+                try
+                {
+                    var ack = GemMessages.ParseS7F4(t.Result!);
+                    tcs.TrySetResult(new GemUploadResult(ack == GemAck.Ackc7Accepted ? GemUploadFailure.None : GemUploadFailure.Rejected, ppgnt, ack));
+                }
+                catch (Exception ex) when (ex is FormatException or NullReferenceException or ArgumentException) { tcs.TrySetResult(new GemUploadResult(GemUploadFailure.InvalidReply, ppgnt, null, ex)); }
+            }, dropped);
+            if (failure is { } f) tcs.TrySetResult(new GemUploadResult(f, ppgnt));
+        }
+
+        lock (gate)
+        {
+            if (!inquire)
+            {
+                SendProgram(null);
+                return tcs.Task;
+            }
+            var failure = EnqueueTransferLocked(GemMessages.S7F1(ppid, (uint)SecsCodec.Encode(program.Body).Length), (o, t) =>
+            {
+                if (!t.IsCompletedSuccessfully) { tcs.TrySetResult(new GemUploadResult(TransferFailure(t.Exception!.InnerException!), null, null, t.Exception.InnerException)); return; }
+                byte ppgnt;
+                try { ppgnt = GemMessages.ParseS7F2(t.Result!); }
+                catch (Exception ex) when (ex is FormatException or NullReferenceException or ArgumentException) { tcs.TrySetResult(new GemUploadResult(GemUploadFailure.InvalidReply, null, null, ex)); return; }
+                if (ppgnt != GemAck.PpgntOk) { tcs.TrySetResult(new GemUploadResult(GemUploadFailure.Rejected, ppgnt)); return; }
+                if (cancellationToken.IsCancellationRequested) { tcs.TrySetCanceled(cancellationToken); return; }
+                lock (gate) SendProgram(ppgnt);
+            }, dropped);
+            if (failure is { } f) return Task.FromResult(new GemUploadResult(f));
+        }
+        return tcs.Task;
+    }
+
+    /// <summary>Asks the Host for a process program (equipment-initiated download, S7F5). The received process program is returned, not stored; store it with <see cref="SaveProcessProgram"/> if you want it.</summary>
+    /// <remarks>The same queue, state, and threading rules as <see cref="UploadProcessProgramAsync"/> apply.</remarks>
+    /// <param name="ppid">PPID</param>
+    /// <param name="cancellationToken">Cancels the request if it has not been sent yet.</param>
+    /// <returns>The process program, or null if the Host denied the request (an empty S7F6).</returns>
+    /// <exception cref="ArgumentException"><paramref name="ppid"/> breaks the PPID rules of <see cref="GemProcessProgram"/>.</exception>
+    /// <exception cref="InvalidOperationException">Not started, or process programs are off.</exception>
+    /// <exception cref="GemProcessProgramRequestException">The request could not be sent or was not answered (see <see cref="GemProcessProgramRequestException.Failure"/>).</exception>
+    public Task<GemProcessProgram?> RequestProcessProgramAsync(string ppid, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            GemProcessProgram.CheckPpid(ppid, nameof(ppid));
+            RequireProcessPrograms();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (Exception ex) { return Task.FromException<GemProcessProgram?>(ex); }
+        var tcs = new TaskCompletionSource<GemProcessProgram?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        GemUploadFailure? failure;
+        lock (gate)
+        {
+            failure = EnqueueTransferLocked(GemMessages.S7F5(ppid), (o, t) =>
+            {
+                if (!t.IsCompletedSuccessfully) { tcs.TrySetException(new GemProcessProgramRequestException(TransferFailure(t.Exception!.InnerException!), t.Exception.InnerException)); return; }
+                try
+                {
+                    var got = GemMessages.ParseS7F6(t.Result!);
+                    tcs.TrySetResult(got is { } g ? new GemProcessProgram(g.Ppid, g.Body) : null);
+                }
+                catch (Exception ex) when (ex is FormatException or NullReferenceException or ArgumentException) { tcs.TrySetException(new GemProcessProgramRequestException(GemUploadFailure.InvalidReply, ex)); }
+            }, f => { if (f is { } x) tcs.TrySetException(new GemProcessProgramRequestException(x)); else tcs.TrySetCanceled(); });
+        }
+        if (failure is { } fl) return Task.FromException<GemProcessProgram?>(new GemProcessProgramRequestException(fl));
+        return tcs.Task;
+    }
+
+    void RequireProcessPrograms()
+    {
+        Started();
+        lock (gate) if (!processPrograms) throw new InvalidOperationException("레시피 기능이 꺼져 있습니다. ProcessProgramStore를 정해야 합니다.");
+    }
+
+    // 레시피 전송을 대기열에 넣는다(gate 안). 보낼 수 없으면 그 이유(아무것도 넣지 않음, SendFailed 없음)
+    GemUploadFailure? EnqueueTransferLocked(SecsMessage message, Action<Outgoing, Task<SecsMessage?>> done, Action<GemUploadFailure?> dropped)
+    {
+        if (!running) return GemUploadFailure.NotCommunicating;
+        if (commState != GemCommunicationState.Communicating) return GemUploadFailure.NotCommunicating;   // 통신이 먼저(OFF-LINE이어도 연결 전이면 이 이유)
+        if (IsOffline(control)) return GemUploadFailure.Offline;
+        if (sendQueue.Count >= maxPendingSends) return GemUploadFailure.QueueFull;
+        sendQueue.Enqueue(new Outgoing(message, done) { Dropped = dropped });
+        worker?.Post(Pump);
+        return null;
+    }
+
+    static GemUploadFailure TransferFailure(Exception ex) => ex switch
+    {
+        SecsTimeoutException => GemUploadFailure.Timeout,
+        SecsAbortException => GemUploadFailure.Aborted,
+        SecsErrorException => GemUploadFailure.Error,
+        _ => GemUploadFailure.Disconnected,
+    };
+
+    // ProcessProgramChange CE(gate 안): PPChangeName·PPChangeStatus는 이번 보고에만 쓰는 DV 값
+    void TriggerChangeLocked(string ppid, byte status)
+        => TriggerLocked(catalog.Events[catalog.Std(GemStandard.ProcessProgramChange)], new Dictionary<GemId, SecsItem>
+        {
+            [catalog.Std(GemStandard.PPChangeName)] = SecsItem.A(ppid),
+            [catalog.Std(GemStandard.PPChangeStatus)] = SecsItem.U1(status),
+        });
+    #endregion
 
     #region 받기 (디스패처: 해석·미룸만, 저장소·앱 코드는 앱 이벤트 스레드에서 ppLock 안에)
     // S7F1 <L PPID LENGTH> → PPGNT
