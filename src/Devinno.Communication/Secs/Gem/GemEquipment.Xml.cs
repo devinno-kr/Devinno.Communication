@@ -43,6 +43,8 @@ public partial class GemEquipment
                 SpoolDirectory = spoolDirectory,
                 MaxSpoolMessages = maxSpoolMessages,
                 StateDirectory = stateDirectory,
+                ProcessProgramDirectory = (ppStoreSetting as GemProcessProgramFolder)?.Directory,
+                MaxProcessProgramSize = maxProcessProgramSize,
             };
             if (transport.Target is SecsHsms h) c.Hsms = h.ToConfig();
             else c.Serial = ((SecsSerial)transport.Target).ToConfig();
@@ -115,6 +117,8 @@ public partial class GemEquipment
             XmlConfig.Range(Root, nameof(config.MaxPendingEvents), config.MaxPendingEvents, 1, 1000000);
             XmlConfig.Range(Root, nameof(config.MaxSpoolMessages), config.MaxSpoolMessages, 1, 1000000);
             if (config.SpoolDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.SpoolDirectory), "", "a folder path (omit to turn spooling off)");
+            XmlConfig.Range(Root, nameof(config.MaxProcessProgramSize), config.MaxProcessProgramSize, 1, MaxProcessProgramLimit);
+            if (config.ProcessProgramDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.ProcessProgramDirectory), "", "a folder path (omit to turn process programs off)");
             if (config.StateDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.StateDirectory), "", "a folder path (omit to turn persistence off)");
 
             var ids = new GemStandardIds();
@@ -124,7 +128,7 @@ public partial class GemEquipment
                 if (text != null) ids.Set(s, ParseId("Standard", s.ToString(), text, s >= GemStandard.EquipmentOffline ? ceid : vid));
             }
             var defs = BuildDefinitions(config, vid, ceid, alid);
-            try { GemCatalog.Build(defs, ids, vid, ceid, rptid, alid, dataid, config.SpoolDirectory != null); }
+            try { GemCatalog.Build(defs, ids, vid, ceid, rptid, alid, dataid, config.SpoolDirectory != null, config.ProcessProgramDirectory != null); }
             catch (InvalidOperationException ex) { throw new FormatException($"<{Root}> 정의 오류: {ex.Message}", ex); }
 
             // 2. 적용
@@ -156,6 +160,8 @@ public partial class GemEquipment
             spoolDirectory = config.SpoolDirectory;
             maxSpoolMessages = config.MaxSpoolMessages;
             stateDirectory = config.StateDirectory;
+            ppStoreSetting = config.ProcessProgramDirectory != null ? new GemProcessProgramFolder(config.ProcessProgramDirectory) : null;
+            maxProcessProgramSize = config.MaxProcessProgramSize;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();
             definitions.StatusVariables.AddRange(defs.StatusVariables);

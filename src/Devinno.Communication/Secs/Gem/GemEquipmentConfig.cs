@@ -73,6 +73,10 @@ public class GemEquipmentConfig
     [XmlAttribute] public int MaxSpoolMessages { get; set; } = 1000;
     /// <summary>Folder where the settings chosen by the Host are kept across restarts (omitted = persistence off).</summary>
     [XmlAttribute] public string? StateDirectory { get; set; }
+    /// <summary>Folder of a <see cref="GemProcessProgramFolder"/> recipe store (omitted = process programs off, or a store set in code). A store the application set in code is not written.</summary>
+    [XmlAttribute] public string? ProcessProgramDirectory { get; set; }
+    /// <summary>Upper limit of a process program body in bytes, 1 to 16777215 (default: 4194304).</summary>
+    [XmlAttribute] public int MaxProcessProgramSize { get; set; } = 4194304;
 
     /// <summary>HSMS transport settings (&lt;SecsHsms&gt;; if omitted the transport settings are not changed). Only Equipment is allowed for Role.</summary>
     [XmlElement("SecsHsms")] public SecsHsmsConfig? Hsms { get; set; }
@@ -153,6 +157,18 @@ public class GemStandardIdsConfig
     [XmlAttribute] public string? SpoolingDeactivated { get; set; }
     /// <summary>CE SpoolTransmitFailure</summary>
     [XmlAttribute] public string? SpoolTransmitFailure { get; set; }
+    /// <summary>SV PPExecName</summary>
+    [XmlAttribute] public string? PPExecName { get; set; }
+    /// <summary>SV PPFormat</summary>
+    [XmlAttribute] public string? PPFormat { get; set; }
+    /// <summary>DV PPChangeName</summary>
+    [XmlAttribute] public string? PPChangeName { get; set; }
+    /// <summary>DV PPChangeStatus</summary>
+    [XmlAttribute] public string? PPChangeStatus { get; set; }
+    /// <summary>CE ProcessProgramChange</summary>
+    [XmlAttribute] public string? ProcessProgramChange { get; set; }
+    /// <summary>CE ProcessProgramSelected</summary>
+    [XmlAttribute] public string? ProcessProgramSelected { get; set; }
 
     internal string? Get(GemStandard s) => (string?)GetType().GetProperty(s.ToString())!.GetValue(this);
     internal void Set(GemStandard s, string? value) => GetType().GetProperty(s.ToString())!.SetValue(this, value);

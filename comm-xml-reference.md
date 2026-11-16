@@ -925,6 +925,8 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `SpoolDirectory` | string | no | — | folder for spooled messages; omitted = spooling off (otherwise the standard spool SV/EC/CE exist and S2F43/S6F23 are handled by GEM) |
 | `MaxSpoolMessages` | int | no | `1000` | 1 – 1000000 |
 | `StateDirectory` | string | no | — | folder for `gem.state`; omitted = persistence off (otherwise the Host's reports, links, CE/alarm enables, EC values and the LOCAL/REMOTE switch are restored at Start) |
+| `ProcessProgramDirectory` | string | no | — | folder of a `GemProcessProgramFolder` recipe store; omitted = process programs off (otherwise GEM handles Stream 7 and the standard PP SV/DV/CE exist). A store set in code is not written |
+| `MaxProcessProgramSize` | int | no | `4194304` | 1 – 16777215 bytes (encoded PPBODY) |
 
 ### `<SecsHsms>` / `<SecsSerial>` (child)
 
@@ -948,12 +950,16 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `SpoolCountTotal` | string | no | — | SV, 1010 (spooling on) |
 | `SpoolFullTime` | string | no | — | SV, 1011 (spooling on) |
 | `SpoolStartTime` | string | no | — | SV, 1012 (spooling on) |
+| `PPExecName` | string | no | — | SV, 1013 (only when `ProcessProgramDirectory` or a store is set) |
+| `PPFormat` | string | no | — | SV, 1014 (process programs on) |
 | `EstablishCommunicationsTimeout` | string | no | — | EC, 1101 |
 | `TimeFormat` | string | no | — | EC, 1102 |
 | `EnableSpooling` | string | no | — | EC, 1103 (spooling on) |
 | `MaxSpoolTransmit` | string | no | — | EC, 1104 (spooling on) |
 | `OverWriteSpool` | string | no | — | EC, 1105 (spooling on) |
 | `AlarmID` | string | no | — | DV, 1201 |
+| `PPChangeName` | string | no | — | DV, 1202 (process programs on) |
+| `PPChangeStatus` | string | no | — | DV, 1203 (process programs on) |
 | `EquipmentOffline` | string | no | — | CE, 1301 |
 | `ControlStateLocal` | string | no | — | CE, 1302 |
 | `ControlStateRemote` | string | no | — | CE, 1303 |
@@ -963,6 +969,8 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `SpoolingActivated` | string | no | — | CE, 1307 (spooling on) |
 | `SpoolingDeactivated` | string | no | — | CE, 1308 (spooling on) |
 | `SpoolTransmitFailure` | string | no | — | CE, 1309 (spooling on) |
+| `ProcessProgramChange` | string | no | — | CE, 1310 (process programs on) |
+| `ProcessProgramSelected` | string | no | — | CE, 1311 (process programs on) |
 
 (With `VidFormat="A"`/`CeidFormat="A"` the default IDs are the attribute names as text.)
 

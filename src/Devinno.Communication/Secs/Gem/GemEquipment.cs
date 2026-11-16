@@ -125,6 +125,7 @@ public partial class GemEquipment : IDisposable
     partial void AddCommandHandlers();
     partial void AddClockHandlers();
     partial void AddSpoolingHandlers();
+    partial void AddProcessProgramHandlers();
     // Start 때 상태 초기화(gate 안, 정의 표가 만들어진 뒤, 전송 시작 전)
     partial void ResetCommunication();
     partial void ResetControl();
@@ -132,6 +133,7 @@ public partial class GemEquipment : IDisposable
     partial void ResetAlarms();
     partial void ResetClock();
     partial void ResetSpooling();
+    partial void ResetProcessPrograms();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드)
     partial void OnTransportOpened();
     partial void OnTransportClosed();
@@ -173,6 +175,7 @@ public partial class GemEquipment : IDisposable
         AddCommandHandlers();
         AddClockHandlers();
         AddSpoolingHandlers();
+        AddProcessProgramHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -395,7 +398,8 @@ public partial class GemEquipment : IDisposable
             if (IsStart) return;
             if (transport.IsStart()) throw new InvalidOperationException("전송 객체가 이미 시작되어 있습니다. 전송의 Start/Stop은 GEM이 맡습니다.");
             bool sp = spoolDirectory != null;
-            var c = GemCatalog.Build(definitions, StandardIds, vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat, sp);
+            var pps = ppStoreSetting;
+            var c = GemCatalog.Build(definitions, StandardIds, vidFormat, ceidFormat, rptidFormat, alidFormat, dataidFormat, sp, pps != null);
             // 스풀 저장소는 gate 밖에서, 스레드·전송을 시작하기 전에 연다(실패하면 예외를 그대로 던지고 아무것도 시작하지 않는다)
             var store = sp ? GemSpoolStore.Open(spoolDirectory!) : null;
             // 실행 중 첫 쓰기 실패를 한 번 알린다(쓰기 스레드에서, gate 없이 앱 이벤트 대기열에 넣기만)
@@ -419,6 +423,8 @@ public partial class GemEquipment : IDisposable
                 worker = w;
                 app = lastApp = a;
                 spooling = sp;
+                processPrograms = pps != null;
+                ppStore = pps;
                 spoolStore = store;
                 stateStore = state;
                 running = true;
@@ -437,6 +443,7 @@ public partial class GemEquipment : IDisposable
                 ResetAlarms();
                 ResetClock();
                 ResetSpooling();
+                ResetProcessPrograms();
                 restoreDropped = RestoreStateLocked(state?.State);
             }
             w.Start();

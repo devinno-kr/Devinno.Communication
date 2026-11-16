@@ -142,12 +142,17 @@ internal sealed class GemCatalog
     // 표준 변수·이벤트의 열쇠
     public GemId Std(GemStandard s) => standardKeys[s];
 
-    public static GemCatalog Build(GemDefinitionSet defs, GemStandardIds ids, SecsFormat vid, SecsFormat ceid, SecsFormat rptid, SecsFormat alid, SecsFormat dataid, bool spooling = false)
+    public static GemCatalog Build(GemDefinitionSet defs, GemStandardIds ids, SecsFormat vid, SecsFormat ceid, SecsFormat rptid, SecsFormat alid, SecsFormat dataid, bool spooling = false, bool processPrograms = false)
     {
         if (spooling)
         {
             foreach (var (st, fn) in defs.Messages)
                 if (IsSpoolingMessage(st * 256 + fn)) throw new InvalidOperationException($"스풀링을 켜면(SpoolDirectory) S{st}F{fn}은(는) GEM이 처리하므로 RegisterMessage로 등록할 수 없습니다.");
+        }
+        if (processPrograms)
+        {
+            foreach (var (st, fn) in defs.Messages)
+                if (st == 7) throw new InvalidOperationException($"레시피를 켜면(ProcessProgramStore) Stream 7은 GEM이 처리하므로 S{st}F{fn}을(를) RegisterMessage로 등록할 수 없습니다.");
         }
         var c = new GemCatalog { VidFormat = vid, CeidFormat = ceid, RptidFormat = rptid, AlidFormat = alid, DataidFormat = dataid };
         bool vidA = vid == SecsFormat.ASCII, ceidA = ceid == SecsFormat.ASCII;
@@ -172,9 +177,19 @@ internal sealed class GemCatalog
             AddStd(GemVarKind.Status, GemStandard.SpoolFullTime, SecsFormat.ASCII, SecsItem.A(""));
             AddStd(GemVarKind.Status, GemStandard.SpoolStartTime, SecsFormat.ASCII, SecsItem.A(""));
         }
+        if (processPrograms)
+        {
+            AddStd(GemVarKind.Status, GemStandard.PPExecName, SecsFormat.ASCII, SecsItem.A(""));
+            AddStd(GemVarKind.Status, GemStandard.PPFormat, SecsFormat.U1, SecsItem.U1(1));
+        }
         foreach (var sv in defs.StatusVariables)
             c.AddVar(new GemVar(GemVarKind.Status, sv.Id, c.VidKey(sv.Id, $"SV {sv.Id}"), sv.Name, sv.Units, sv.Format, sv.InitialValue), null);
         AddStd(GemVarKind.Data, GemStandard.AlarmID, alid, GemItems.Empty(alid));
+        if (processPrograms)
+        {
+            AddStd(GemVarKind.Data, GemStandard.PPChangeName, SecsFormat.ASCII, SecsItem.A(""));
+            AddStd(GemVarKind.Data, GemStandard.PPChangeStatus, SecsFormat.U1, SecsItem.U1(0));
+        }
         foreach (var dv in defs.DataVariables)
             c.AddVar(new GemVar(GemVarKind.Data, dv.Id, c.VidKey(dv.Id, $"DV {dv.Id}"), dv.Name, dv.Units, dv.Format, dv.InitialValue), null);
         AddStd(GemVarKind.Constant, GemStandard.EstablishCommunicationsTimeout, SecsFormat.U2, SecsItem.U2(10), "s", SecsItem.U2(1), SecsItem.U2(3600));
@@ -205,6 +220,11 @@ internal sealed class GemCatalog
             AddStdEvent(GemStandard.SpoolingActivated, GemStandard.SpoolStartTime);
             AddStdEvent(GemStandard.SpoolingDeactivated, GemStandard.SpoolCountTotal);
             AddStdEvent(GemStandard.SpoolTransmitFailure, GemStandard.SpoolCountActual, GemStandard.SpoolCountTotal);
+        }
+        if (processPrograms)
+        {
+            AddStdEvent(GemStandard.ProcessProgramChange, GemStandard.PPChangeName, GemStandard.PPChangeStatus);
+            AddStdEvent(GemStandard.ProcessProgramSelected, GemStandard.PPExecName);
         }
         foreach (var ce in defs.Events)
         {
@@ -237,6 +257,7 @@ internal sealed class GemCatalog
             c.Messages.Add(s * 256 + f);
             c.Streams.Add(s);
         }
+        if (processPrograms) c.Streams.Add(7);
         return c;
     }
 

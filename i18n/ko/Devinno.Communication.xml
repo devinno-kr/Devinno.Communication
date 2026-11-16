@@ -6458,6 +6458,20 @@
             <exception cref="T:System.ArgumentException">정의되지 않은 VID인 경우</exception>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.ProcessProgramStore" en-hash="291d0a179c0f93f9">
+            <summary>레시피(Process Program)를 두는 곳(기본: null = 레시피 끔). 지정하면 다음 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" />부터 레시피 관리(S7)가 켜집니다.</summary>
+            <remarks>
+            <para>null이면 GEM은 전과 똑같이 동작합니다. Stream 7은 지원 Stream이 아니고(S9F3) 앱이 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.RegisterMessage(System.Int32,System.Int32)" />로 직접 처리할 수 있습니다. 지정하면 표준 변수·이벤트 PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected가 정의되고 GEM이 Stream 7을 처리하므로, Stream 7 메시지를 등록해 두면 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" />가 실패합니다.</para>
+            <para><see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" />나 직접 만든 <see cref="T:Devinno.Communication.Secs.Gem.IGemProcessProgramStore" />를 쓰세요. 코드로 정한 저장소는 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.ToXml" />가 쓰지 않습니다. XML 속성 <c>ProcessProgramDirectory</c>는 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" />를 만듭니다.</para>
+            </remarks>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MaxProcessProgramSize" en-hash="4a6e1b38825b52d7">
+            <summary>레시피 본문(인코딩한 PPBODY)의 바이트 상한, 1~16777215(기본: 4194304). 이보다 큰 S7F1은 PPGNT 5, 큰 S7F3은 ACKC7 2로 답합니다.</summary>
+            <remarks>SECS-I는 메시지 전체가 약 8MB로 제한되므로 그보다 큰 본문은 전송이 거절합니다.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
         
         
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.EventsEnabledByDefault" en-hash="66c768de692596b2">
@@ -6738,6 +6752,12 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.StateDirectory" en-hash="96c65b93fb3418fa">
             <summary>Host가 정한 설정을 재시작 뒤에도 남겨 두는 폴더(생략 = 영속화 끔).</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.ProcessProgramDirectory" en-hash="41dee12d95aadfa5">
+            <summary><see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" /> 레시피 저장소의 폴더(생략 = 레시피 끔, 또는 코드로 정한 저장소). 앱이 코드로 정한 저장소는 쓰지 않습니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxProcessProgramSize" en-hash="e076a767ff4116d4">
+            <summary>레시피 본문의 바이트 상한, 1~16777215(기본: 4194304).</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.Hsms" en-hash="d4e2da6323e65a03">
             <summary>HSMS 전송 설정 (&lt;SecsHsms&gt;, 생략하면 전송 설정을 바꾸지 않음). Role은 Equipment만 됩니다.</summary>
         </member>
@@ -6851,6 +6871,24 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.SpoolTransmitFailure" en-hash="39e255bc57278e3a">
             <summary>CE SpoolTransmitFailure</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PPExecName" en-hash="85b01794f86086f8">
+            <summary>SV PPExecName</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PPFormat" en-hash="f549f73cb103ec50">
+            <summary>SV PPFormat</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PPChangeName" en-hash="624b080ee5bb8834">
+            <summary>DV PPChangeName</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PPChangeStatus" en-hash="662f095a458027af">
+            <summary>DV PPChangeStatus</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.ProcessProgramChange" en-hash="866ab71171ae2e12">
+            <summary>CE ProcessProgramChange</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.ProcessProgramSelected" en-hash="1b69bb0eea48dad3">
+            <summary>CE ProcessProgramSelected</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemStatusVariableConfig" en-hash="7624fc4a2482b355">
             <summary>&lt;SV&gt;: 상태 변수 정의 (필수: Id, Name, Format)</summary>
@@ -9398,9 +9436,9 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="0281c53d4f3f4f38">
+        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="d8c7f74741b1e967">
             <summary>라이브러리가 값을 관리하는 표준 변수·이벤트(E30 이름)의 ID입니다. 속성이 null이면 기본 ID를 씁니다.</summary>
-            <remarks><para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006, ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102, EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201 / CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309. 스풀 변수·상수·이벤트(SpoolCountActual~SpoolStartTime, EnableSpooling~OverWriteSpool, SpoolingActivated~SpoolTransmitFailure)는 <c>GemEquipment.SpoolDirectory</c>를 지정했을 때만 있습니다. VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para><para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para></remarks>
+            <remarks><para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006, ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012, PPExecName 1013, PPFormat 1014 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102, EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203 / CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309, ProcessProgramChange 1310, ProcessProgramSelected 1311. 스풀 변수·상수·이벤트(SpoolCountActual~SpoolStartTime, EnableSpooling~OverWriteSpool, SpoolingActivated~SpoolTransmitFailure)는 <c>GemEquipment.SpoolDirectory</c>를 지정했을 때만, 레시피 것(PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected)은 <c>GemEquipment.ProcessProgramStore</c>를 지정했을 때만 있습니다. VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para><para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para></remarks>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.Clock" en-hash="585a0d30214f8f57">
             <summary>SV Clock (GEM 시계, TimeFormat 형식의 A). null = 1001</summary>
@@ -9438,6 +9476,12 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolStartTime" en-hash="9f3c45c9f7fcc670">
             <summary>SV SpoolStartTime (TimeFormat 형식의 A, 스풀링을 시작하지 않았으면 빈 문자열). null = 1012</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PPExecName" en-hash="a9fd2d5c678032af">
+            <summary>SV PPExecName (A, 선택된 PPID, 없으면 빈 문자열). null = 1013</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PPFormat" en-hash="58f8e4ad4c4eef5d">
+            <summary>SV PPFormat (U1, 늘 1 = 언포맷 레시피). null = 1014</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EstablishCommunicationsTimeout" en-hash="6a8c22419f4b6b4a">
             <summary>EC EstablishCommunicationsTimeout (U2 초, 기본 10, 1~3600). null = 1101</summary>
         </member>
@@ -9455,6 +9499,12 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.AlarmID" en-hash="eb59f4135610856c">
             <summary>DV AlarmID (알람 이벤트의 ALID). null = 1201</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PPChangeName" en-hash="152c31102dbd4793">
+            <summary>DV PPChangeName (A, ProcessProgramChange 이벤트의 PPID). null = 1202</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PPChangeStatus" en-hash="658ba8ac93e2ca4d">
+            <summary>DV PPChangeStatus (U1, 1 생성, 2 수정, 3 삭제). null = 1203</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EquipmentOffline" en-hash="173c73e05cfb5e5b">
             <summary>CE EquipmentOffline (OFF-LINE으로 감). null = 1301</summary>
@@ -9482,6 +9532,12 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.SpoolTransmitFailure" en-hash="7fa127eaa32f864f">
             <summary>CE SpoolTransmitFailure (스풀 전송 실패). null = 1309</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.ProcessProgramChange" en-hash="0a7ad26c12a92188">
+            <summary>CE ProcessProgramChange (운전자가 레시피를 만들거나 고치거나 지움). null = 1310</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.ProcessProgramSelected" en-hash="f2725b0b070f1832">
+            <summary>CE ProcessProgramSelected (레시피가 선택됨). null = 1311</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemTime" en-hash="4833bdabe845e24e">
             <summary>GEM TIME 텍스트(TimeFormat EC)와 로컬 <see cref="T:System.DateTime" /> 값을 서로 바꿉니다.</summary>

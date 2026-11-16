@@ -5,10 +5,10 @@ namespace Devinno.Communication.Secs.Gem;
 /// </summary>
 /// <remarks>
 /// <para>Default IDs (when the format is numeric): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006,
-/// ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102,
-/// EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201 /
-/// CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309.
-/// The spool variables and events (SpoolCountActual to SpoolStartTime, EnableSpooling to OverWriteSpool, SpoolingActivated to SpoolTransmitFailure) exist only when <c>GemEquipment.SpoolDirectory</c> is set.
+/// ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012, PPExecName 1013, PPFormat 1014 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102,
+/// EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203 /
+/// CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309, ProcessProgramChange 1310, ProcessProgramSelected 1311.
+/// The spool variables and events (SpoolCountActual to SpoolStartTime, EnableSpooling to OverWriteSpool, SpoolingActivated to SpoolTransmitFailure) exist only when <c>GemEquipment.SpoolDirectory</c> is set, and the process program ones (PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected) only when <c>GemEquipment.ProcessProgramStore</c> is set.
 /// VIDs are sent in <c>VidFormat</c> and CEIDs in <c>CeidFormat</c>; when that format is A, the default ID is the property name as a string (for example, "Clock").</para>
 /// <para><c>GemEquipment.Start</c> fails if an ID collides with an app-defined ID, so change the ID here in that case. The values are read at <c>Start</c>; a value changed while running takes effect from the next <c>Start</c>.</para>
 /// </remarks>
@@ -38,6 +38,10 @@ public class GemStandardIds
     public GemId? SpoolFullTime { get; set; }
     /// <summary>SV SpoolStartTime (an A item in the TimeFormat format, empty if spooling has not started). null = 1012</summary>
     public GemId? SpoolStartTime { get; set; }
+    /// <summary>SV PPExecName (A, the selected PPID, empty if none). null = 1013</summary>
+    public GemId? PPExecName { get; set; }
+    /// <summary>SV PPFormat (U1, always 1 = unformatted process programs). null = 1014</summary>
+    public GemId? PPFormat { get; set; }
     /// <summary>EC EstablishCommunicationsTimeout (U2 in seconds, default 10, 1 to 3600). null = 1101</summary>
     public GemId? EstablishCommunicationsTimeout { get; set; }
     /// <summary>EC TimeFormat (U1, default 1, 0 to 2). null = 1102</summary>
@@ -50,6 +54,10 @@ public class GemStandardIds
     public GemId? OverWriteSpool { get; set; }
     /// <summary>DV AlarmID (the ALID of an alarm event). null = 1201</summary>
     public GemId? AlarmID { get; set; }
+    /// <summary>DV PPChangeName (A, the PPID of a ProcessProgramChange event). null = 1202</summary>
+    public GemId? PPChangeName { get; set; }
+    /// <summary>DV PPChangeStatus (U1, 1 created, 2 edited, 3 deleted). null = 1203</summary>
+    public GemId? PPChangeStatus { get; set; }
     /// <summary>CE EquipmentOffline (the equipment goes OFF-LINE). null = 1301</summary>
     public GemId? EquipmentOffline { get; set; }
     /// <summary>CE ControlStateLocal (the equipment becomes ON-LINE LOCAL). null = 1302</summary>
@@ -68,6 +76,10 @@ public class GemStandardIds
     public GemId? SpoolingDeactivated { get; set; }
     /// <summary>CE SpoolTransmitFailure (sending the spool failed). null = 1309</summary>
     public GemId? SpoolTransmitFailure { get; set; }
+    /// <summary>CE ProcessProgramChange (the operator created, edited, or deleted a process program). null = 1310</summary>
+    public GemId? ProcessProgramChange { get; set; }
+    /// <summary>CE ProcessProgramSelected (a process program was selected). null = 1311</summary>
+    public GemId? ProcessProgramSelected { get; set; }
 
     internal GemId? Get(GemStandard s) => s switch
     {
@@ -83,12 +95,16 @@ public class GemStandardIds
         GemStandard.SpoolCountTotal => SpoolCountTotal,
         GemStandard.SpoolFullTime => SpoolFullTime,
         GemStandard.SpoolStartTime => SpoolStartTime,
+        GemStandard.PPExecName => PPExecName,
+        GemStandard.PPFormat => PPFormat,
         GemStandard.EstablishCommunicationsTimeout => EstablishCommunicationsTimeout,
         GemStandard.TimeFormat => TimeFormat,
         GemStandard.EnableSpooling => EnableSpooling,
         GemStandard.MaxSpoolTransmit => MaxSpoolTransmit,
         GemStandard.OverWriteSpool => OverWriteSpool,
         GemStandard.AlarmID => AlarmID,
+        GemStandard.PPChangeName => PPChangeName,
+        GemStandard.PPChangeStatus => PPChangeStatus,
         GemStandard.EquipmentOffline => EquipmentOffline,
         GemStandard.ControlStateLocal => ControlStateLocal,
         GemStandard.ControlStateRemote => ControlStateRemote,
@@ -97,6 +113,8 @@ public class GemStandardIds
         GemStandard.MessageRecognition => MessageRecognition,
         GemStandard.SpoolingActivated => SpoolingActivated,
         GemStandard.SpoolingDeactivated => SpoolingDeactivated,
+        GemStandard.ProcessProgramChange => ProcessProgramChange,
+        GemStandard.ProcessProgramSelected => ProcessProgramSelected,
         _ => SpoolTransmitFailure,
     };
 
@@ -116,12 +134,16 @@ public class GemStandardIds
             case GemStandard.SpoolCountTotal: SpoolCountTotal = id; break;
             case GemStandard.SpoolFullTime: SpoolFullTime = id; break;
             case GemStandard.SpoolStartTime: SpoolStartTime = id; break;
+            case GemStandard.PPExecName: PPExecName = id; break;
+            case GemStandard.PPFormat: PPFormat = id; break;
             case GemStandard.EstablishCommunicationsTimeout: EstablishCommunicationsTimeout = id; break;
             case GemStandard.TimeFormat: TimeFormat = id; break;
             case GemStandard.EnableSpooling: EnableSpooling = id; break;
             case GemStandard.MaxSpoolTransmit: MaxSpoolTransmit = id; break;
             case GemStandard.OverWriteSpool: OverWriteSpool = id; break;
             case GemStandard.AlarmID: AlarmID = id; break;
+            case GemStandard.PPChangeName: PPChangeName = id; break;
+            case GemStandard.PPChangeStatus: PPChangeStatus = id; break;
             case GemStandard.EquipmentOffline: EquipmentOffline = id; break;
             case GemStandard.ControlStateLocal: ControlStateLocal = id; break;
             case GemStandard.ControlStateRemote: ControlStateRemote = id; break;
@@ -130,6 +152,8 @@ public class GemStandardIds
             case GemStandard.MessageRecognition: MessageRecognition = id; break;
             case GemStandard.SpoolingActivated: SpoolingActivated = id; break;
             case GemStandard.SpoolingDeactivated: SpoolingDeactivated = id; break;
+            case GemStandard.ProcessProgramChange: ProcessProgramChange = id; break;
+            case GemStandard.ProcessProgramSelected: ProcessProgramSelected = id; break;
             default: SpoolTransmitFailure = id; break;
         }
     }
@@ -149,12 +173,16 @@ public class GemStandardIds
         GemStandard.SpoolCountTotal => 1010,
         GemStandard.SpoolFullTime => 1011,
         GemStandard.SpoolStartTime => 1012,
+        GemStandard.PPExecName => 1013,
+        GemStandard.PPFormat => 1014,
         GemStandard.EstablishCommunicationsTimeout => 1101,
         GemStandard.TimeFormat => 1102,
         GemStandard.EnableSpooling => 1103,
         GemStandard.MaxSpoolTransmit => 1104,
         GemStandard.OverWriteSpool => 1105,
         GemStandard.AlarmID => 1201,
+        GemStandard.PPChangeName => 1202,
+        GemStandard.PPChangeStatus => 1203,
         GemStandard.EquipmentOffline => 1301,
         GemStandard.ControlStateLocal => 1302,
         GemStandard.ControlStateRemote => 1303,
@@ -163,6 +191,8 @@ public class GemStandardIds
         GemStandard.MessageRecognition => 1306,
         GemStandard.SpoolingActivated => 1307,
         GemStandard.SpoolingDeactivated => 1308,
+        GemStandard.ProcessProgramChange => 1310,
+        GemStandard.ProcessProgramSelected => 1311,
         _ => 1309,
     });
 }
@@ -172,9 +202,12 @@ internal enum GemStandard
 {
     Clock, ControlState, PreviousControlState, EventsEnabled, AlarmsEnabled, AlarmsSet, ProcessState, PreviousProcessState,
     SpoolCountActual, SpoolCountTotal, SpoolFullTime, SpoolStartTime,
+    PPExecName, PPFormat,
     EstablishCommunicationsTimeout, TimeFormat,
     EnableSpooling, MaxSpoolTransmit, OverWriteSpool,
     AlarmID,
+    PPChangeName, PPChangeStatus,
     EquipmentOffline, ControlStateLocal, ControlStateRemote, ProcessStateChange, OperatorEquipmentConstantChange, MessageRecognition,
     SpoolingActivated, SpoolingDeactivated, SpoolTransmitFailure,
+    ProcessProgramChange, ProcessProgramSelected,
 }

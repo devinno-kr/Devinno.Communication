@@ -36,6 +36,8 @@
     <xs:attribute name="SpoolDirectory" type="xs:string" use="optional" />
     <xs:attribute default="1000" name="MaxSpoolMessages" type="xs:int" use="optional" />
     <xs:attribute name="StateDirectory" type="xs:string" use="optional" />
+    <xs:attribute name="ProcessProgramDirectory" type="xs:string" use="optional" />
+    <xs:attribute default="4194304" name="MaxProcessProgramSize" type="xs:int" use="optional" />
   </xs:complexType>
   <xs:complexType name="SecsHsmsConfig">
     <xs:attribute default="Host" name="Role" type="SecsRole" use="optional" />
@@ -128,6 +130,12 @@
     <xs:attribute name="SpoolingActivated" type="xs:string" use="optional" />
     <xs:attribute name="SpoolingDeactivated" type="xs:string" use="optional" />
     <xs:attribute name="SpoolTransmitFailure" type="xs:string" use="optional" />
+    <xs:attribute name="PPExecName" type="xs:string" use="optional" />
+    <xs:attribute name="PPFormat" type="xs:string" use="optional" />
+    <xs:attribute name="PPChangeName" type="xs:string" use="optional" />
+    <xs:attribute name="PPChangeStatus" type="xs:string" use="optional" />
+    <xs:attribute name="ProcessProgramChange" type="xs:string" use="optional" />
+    <xs:attribute name="ProcessProgramSelected" type="xs:string" use="optional" />
   </xs:complexType>
   <xs:complexType name="GemStatusVariableConfig">
     <xs:attribute name="Id" type="xs:string" use="required" />
