@@ -19,7 +19,7 @@ public partial class GemEquipment
     /// <summary>Where process programs (recipes) are kept (default: null = process programs off). Setting it turns process program management (S7) on at the next <see cref="Start"/>.</summary>
     /// <remarks>
     /// <para>When null, GEM behaves exactly as before: Stream 7 is not a supported stream (S9F3) and the application may handle it with <see cref="RegisterMessage"/>. When set, the standard variables and events PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, and ProcessProgramSelected are defined and GEM handles Stream 7, so registering a Stream 7 message makes <see cref="Start"/> fail.</para>
-    /// <para>Use <see cref="GemProcessProgramFolder"/> or your own <see cref="IGemProcessProgramStore"/>. A store set in code is not written by <see cref="ToXml"/>; the XML attribute <c>ProcessProgramDirectory</c> creates a <see cref="GemProcessProgramFolder"/>.</para>
+    /// <para>Use <see cref="GemProcessProgramFolder"/> or your own <see cref="IGemProcessProgramStore"/>. A store set in code is not written by <see cref="ToXml"/> and is kept when loaded XML has no <c>ProcessProgramDirectory</c>; that attribute creates a <see cref="GemProcessProgramFolder"/> (and its absence turns a folder store from XML off).</para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public IGemProcessProgramStore? ProcessProgramStore { get => ppStoreSetting; set => Setting(() => ppStoreSetting = value); }
@@ -38,7 +38,7 @@ public partial class GemEquipment
     /// <summary>Raised on the application event thread when the Host asked to change the process program store (S7F1 inquire, S7F3 download, S7F17 delete) and GEM's own checks passed. When the handler returns, the reply uses <see cref="GemProcessProgramChangeEventArgs.Ack"/>; on 0 the store is changed.</summary>
     /// <remarks>
     /// <para>GEM answers first (the application is not called) for: an invalid PPID, a body larger than <see cref="MaxProcessProgramSize"/> or than the length granted by S7F1, overwriting or deleting the selected process program (ACKC7 1), and deleting a PPID that does not exist (ACKC7 4, nothing is deleted). S7F5 and S7F19 are answered from the store without this event.</para>
-    /// <para>No subscriber = accept. A handler exception refuses the request (ACKC7 1, PPGNT 4) and is reported through <see cref="ProtocolError"/>. If the handler and the store do not finish within <see cref="CommandReplyTimeout"/>, GEM replies with the refusal on its behalf; a store change that finishes later is still applied (reported through <see cref="ProtocolError"/>), as with remote commands.</para>
+    /// <para>No subscriber = accept. A handler exception refuses the request (ACKC7 1, PPGNT 4) and is reported through <see cref="ProtocolError"/>. If the handler does not return within <see cref="CommandReplyTimeout"/>, GEM replies with the refusal on its behalf; a result that comes back later is discarded and the store is not changed (reported through <see cref="ProtocolError"/>). The store itself is written only after GEM has taken the right to reply, so a slow store delays the reply instead of being cut off by the deadline: what the Host is told always matches the store. The handler is called outside GEM's store lock, so it may wait for another thread that calls the process program methods.</para>
     /// <para>A change made by the Host does not raise the ProcessProgramChange event (E30 reserves it for the operator); call <see cref="TriggerEvent"/> yourself if your Host wants it.</para>
     /// </remarks>
     public event EventHandler<GemProcessProgramChangeEventArgs>? ProcessProgramChangeRequested;
@@ -173,7 +173,7 @@ public partial class GemEquipment
                 SendProgram(null);
                 return tcs.Task;
             }
-            var failure = EnqueueTransferLocked(GemMessages.S7F1(ppid, (uint)SecsCodec.Encode(program.Body).Length), (o, t) =>
+            var failure = EnqueueTransferLocked(GemMessages.S7F1(ppid, (uint)GemProcessProgram.DataLength(program.Body)), (o, t) =>
             {
                 if (!t.IsCompletedSuccessfully) { tcs.TrySetResult(new GemUploadResult(TransferFailure(t.Exception!.InnerException!), null, null, t.Exception.InnerException)); return; }
                 byte ppgnt;
@@ -275,42 +275,53 @@ public partial class GemEquipment
     #endregion
 
     #region 받기 (디스패처: 해석·미룸만, 저장소·앱 코드는 앱 이벤트 스레드에서 ppLock 안에)
-    // S7F1 <L PPID LENGTH> → PPGNT
+    // S7F1 <L PPID LENGTH> → PPGNT. LENGTH = PPBODY 데이터 바이트 수
     void OnS7F1(SecsPrimaryEventArgs e)
     {
         var (ppid, length) = GemMessages.ParseS7F1(e.Message);
-        ServeProcessProgram(e, GemMessages.S7F2(GemAck.PpgntBusy), () =>
-        {
-            if (!GemProcessProgram.IsValidPpid(ppid)) return GemMessages.S7F2(GemAck.PpgntInvalidPpid);
-            if (length > (ulong)maxProcessProgramSize) return GemMessages.S7F2(GemAck.PpgntWillNotAccept);
-            if (!AskChange(new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Inquire, [ppid], null, length), GemAck.PpgntBusy, out var ack)) return GemMessages.S7F2(ack);
-            if (ack == GemAck.PpgntOk) lock (gate) ppGrants[ppid] = length;
-            return GemMessages.S7F2(ack);
-        });
+        ServeChange(e, GemAck.PpgntBusy, GemMessages.S7F2,
+            check: () =>
+            {
+                if (!GemProcessProgram.IsValidPpid(ppid)) return GemMessages.S7F2(GemAck.PpgntInvalidPpid);
+                if (length > (ulong)maxProcessProgramSize) return GemMessages.S7F2(GemAck.PpgntWillNotAccept);
+                return null;
+            },
+            ask: () => new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Inquire, [ppid], null, length),
+            apply: () =>
+            {
+                lock (gate) ppGrants[ppid] = length;
+                return GemMessages.S7F2(GemAck.PpgntOk);
+            });
     }
 
     // S7F3 <L PPID PPBODY> → ACKC7. S7F1 없이 온 것도 받는다
     void OnS7F3(SecsPrimaryEventArgs e)
     {
         var (ppid, body) = GemMessages.ParseS7F3(e.Message);
-        ServeProcessProgram(e, GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted), () =>
-        {
-            ulong? granted;
-            string? selected;
-            lock (gate)
+        GemProcessProgram? program = null;
+        ServeChange(e, GemAck.Ackc7PermissionNotGranted, GemMessages.S7F4,
+            check: () =>
             {
-                granted = ppGrants.Remove(ppid, out var g) ? g : null;
-                selected = selectedPpid;
-            }
-            if (!GemProcessProgram.IsValidPpid(ppid)) return GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted);
-            long size = SecsCodec.Encode(body).Length;
-            if (size > maxProcessProgramSize || granted is { } max && (ulong)size > max) return GemMessages.S7F4(GemAck.Ackc7LengthError);
-            if (ppid == selected) return GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted);
-            var program = new GemProcessProgram(ppid, body);
-            if (!AskChange(new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Download, [ppid], program, 0), GemAck.Ackc7PermissionNotGranted, out var ack)) return GemMessages.S7F4(ack);
-            if (ack == GemAck.Ackc7Accepted) ppStore!.Write(program);
-            return GemMessages.S7F4(ack);
-        });
+                ulong? granted;
+                string? selected;
+                lock (gate)
+                {
+                    granted = ppGrants.Remove(ppid, out var g) ? g : null;
+                    selected = selectedPpid;
+                }
+                if (!GemProcessProgram.IsValidPpid(ppid)) return GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted);
+                if (SecsCodec.Encode(body).Length > maxProcessProgramSize || granted is { } max && (ulong)GemProcessProgram.DataLength(body) > max) return GemMessages.S7F4(GemAck.Ackc7LengthError);
+                if (ppid == selected) return GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted);
+                program = new GemProcessProgram(ppid, body);
+                return null;
+            },
+            ask: () => new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Download, [ppid], program, 0),
+            apply: () =>
+            {
+                lock (gate) if (ppid == selectedPpid) return GemMessages.S7F4(GemAck.Ackc7PermissionNotGranted);   // 승인하는 사이 선택됨
+                ppStore!.Write(program!);
+                return GemMessages.S7F4(GemAck.Ackc7Accepted);
+            });
     }
 
     // S7F5 PPID → S7F6 <L PPID PPBODY>, 없거나 잘못된 PPID면 <L>
@@ -325,17 +336,27 @@ public partial class GemEquipment
     void OnS7F17(SecsPrimaryEventArgs e)
     {
         var requested = GemMessages.ParseS7F17(e.Message);
-        ServeProcessProgram(e, GemMessages.S7F18(GemAck.Ackc7PermissionNotGranted), () =>
+        IReadOnlyList<string> ppids = [];
+        SecsMessage? Check()
         {
-            var ppids = requested.Count == 0 ? ppStore!.GetIds() : requested;
             if (ppids.Any(p => !GemProcessProgram.IsValidPpid(p) || ppStore!.Read(p) == null)) return GemMessages.S7F18(GemAck.Ackc7PpidNotFound);
             string? selected;
             lock (gate) selected = selectedPpid;
-            if (selected != null && ppids.Contains(selected)) return GemMessages.S7F18(GemAck.Ackc7PermissionNotGranted);
-            if (!AskChange(new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Delete, [.. ppids], null, 0), GemAck.Ackc7PermissionNotGranted, out var ack)) return GemMessages.S7F18(ack);
-            if (ack == GemAck.Ackc7Accepted) foreach (var p in ppids) ppStore!.Delete(p);
-            return GemMessages.S7F18(ack);
-        });
+            return selected != null && ppids.Contains(selected) ? GemMessages.S7F18(GemAck.Ackc7PermissionNotGranted) : null;
+        }
+        ServeChange(e, GemAck.Ackc7PermissionNotGranted, GemMessages.S7F18,
+            check: () =>
+            {
+                ppids = requested.Count == 0 ? ppStore!.GetIds() : requested;
+                return Check();
+            },
+            ask: () => new GemProcessProgramChangeEventArgs(GemProcessProgramChangeKind.Delete, [.. ppids], null, 0),
+            apply: () =>
+            {
+                if (Check() is { } changed) return changed;                     // 승인하는 사이 바뀜(지워짐·선택됨)
+                foreach (var p in ppids) ppStore!.Delete(p);
+                return GemMessages.S7F18(GemAck.Ackc7Accepted);
+            });
     }
 
     // 공통: W비트가 없으면 처리하지 않음. 미룬 응답으로 앱 이벤트 스레드에서 ppLock 안에 work를 하고 응답한다.
@@ -366,8 +387,58 @@ public partial class GemEquipment
         });
     }
 
-    // 앱 승인(앱 이벤트 스레드, ppLock 안). 구독자가 없으면 0. 핸들러 예외면 false + refusal
-    bool AskChange(GemProcessProgramChangeEventArgs args, byte refusal, out byte ack)
+    // 앱 승인이 필요한 요청(S7F1·S7F3·S7F17), 앱 이벤트 스레드에서:
+    // ① ppLock 안에서 GEM 검사(거절이면 그 응답) ② ppLock 밖에서 앱 승인(핸들러가 다른 스레드의 레시피 메서드를 기다려도 막히지 않게)
+    // ③ 응답할 권리를 얻은 뒤에만(기한이 지나 이미 거절했으면 아무것도 바꾸지 않음) ppLock 안에서 다시 검사하고 적용
+    void ServeChange(SecsPrimaryEventArgs e, byte refusalAck, Func<byte, SecsMessage> replyOf, Func<SecsMessage?> check,
+        Func<GemProcessProgramChangeEventArgs> ask, Func<SecsMessage> apply)
+    {
+        var m = e.Message;
+        string what = $"S7F{m.Function}";
+        var refusal = replyOf(refusalAck);
+        if (!m.ReplyExpected)
+        {
+            Error($"W비트가 없는 {what}은(는) 결과를 돌려줄 수 없어 처리하지 않았습니다.");
+            return;
+        }
+        var d = DeferReply(e, refusal, what);
+        PostApp(() =>
+        {
+            SecsMessage? early;
+            GemProcessProgramChangeEventArgs? args = null;
+            lock (ppLock)
+            {
+                try
+                {
+                    early = check();
+                    if (early == null) args = ask();
+                }
+                catch (Exception ex)
+                {
+                    early = refusal;
+                    ErrorIn(d.Run, $"{what}: 레시피 저장소 예외: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+            if (early != null) { FinishDeferred(d, early); return; }
+            AskChange(args!, refusalAck, d.Run, out var ack);
+            if (ack != 0) { FinishDeferred(d, replyOf(ack)); return; }
+            if (!ClaimDeferred(d)) return;
+            SecsMessage reply;
+            lock (ppLock)
+            {
+                try { reply = apply(); }
+                catch (Exception ex)
+                {
+                    reply = refusal;
+                    ErrorIn(d.Run, $"{what}: 레시피 저장소 예외: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+            ReplyNow(d.Args, reply, d.What);
+        });
+    }
+
+    // 앱 승인(앱 이벤트 스레드, ppLock 밖). 구독자가 없으면 0. 핸들러 예외면 false + refusal
+    bool AskChange(GemProcessProgramChangeEventArgs args, byte refusal, int run, out byte ack)
     {
         var handler = ProcessProgramChangeRequested;
         ack = 0;
@@ -381,7 +452,7 @@ public partial class GemEquipment
         catch (Exception ex)
         {
             ack = refusal;
-            Error($"ProcessProgramChangeRequested 핸들러 예외로 거절합니다: {ex.GetType().Name}: {ex.Message}");
+            ErrorIn(run, $"ProcessProgramChangeRequested 핸들러 예외로 거절합니다: {ex.GetType().Name}: {ex.Message}");
             return false;
         }
     }

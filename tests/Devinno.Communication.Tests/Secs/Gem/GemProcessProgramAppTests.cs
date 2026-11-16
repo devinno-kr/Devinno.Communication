@@ -110,7 +110,7 @@ public class GemProcessProgramAppTests
         using var host = await GemKit.Communicating(eq, h => { h.Reply(7, 1, "<B 0>"); h.Reply(7, 3, "<B 0>"); });
         var r = await eq.UploadProcessProgramAsync("R1");
         var s7f1 = host.Next(7, 1);
-        Assert.Equal((ulong)SecsCodec.Encode(R1.Body).Length, s7f1.Item!.Items[1].GetUInt64());
+        Assert.Equal(3UL, s7f1.Item!.Items[1].GetUInt64());                                  // PPBODY 데이터 3바이트
         Assert.Equal("<L [2] <A \"R1\"> <B 0x01 0x02 0x03>>", host.Next(7, 3).Item!.ToSml());
         Assert.True(r.IsSuccess);
         Assert.Equal((byte)0, r.Ppgnt);

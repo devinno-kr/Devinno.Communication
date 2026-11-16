@@ -160,7 +160,8 @@ public partial class GemEquipment
             spoolDirectory = config.SpoolDirectory;
             maxSpoolMessages = config.MaxSpoolMessages;
             stateDirectory = config.StateDirectory;
-            ppStoreSetting = config.ProcessProgramDirectory != null ? new GemProcessProgramFolder(config.ProcessProgramDirectory) : null;
+            // XML로 나타낼 수 없는 앱 저장소(코드로 정함)는 속성이 없으면 그대로 둔다
+            ppStoreSetting = config.ProcessProgramDirectory != null ? new GemProcessProgramFolder(config.ProcessProgramDirectory) : ppStoreSetting is GemProcessProgramFolder ? null : ppStoreSetting;
             maxProcessProgramSize = config.MaxProcessProgramSize;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();

@@ -664,6 +664,19 @@ public partial class GemEquipment : IDisposable
         return true;
     }
 
+    // 앱의 결과를 적용하기 전에 응답할 권리를 얻는다(앱 이벤트 스레드). 기한 응답이 이미 나갔거나 그 사이 Stop(→ Start)했으면 false(적용하지 말 것)
+    bool ClaimDeferred(Deferred d)
+    {
+        lock (gate)
+        {
+            deferreds.Remove(d);
+            if (!running || run != d.Run) return false;
+        }
+        if (d.TryClaim()) return true;
+        ErrorIn(d.Run, $"{d.What}: 기한(CommandReplyTimeout {commandReplyTimeout}ms)이 지난 뒤 돌아온 앱의 결과를 버렸습니다.");
+        return false;
+    }
+
     // 기한이 지난 미룬 응답을 대신 보낸다(작업 스레드)
     void CheckDeadlines(long now)
     {

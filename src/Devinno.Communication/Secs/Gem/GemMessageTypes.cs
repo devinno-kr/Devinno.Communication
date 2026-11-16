@@ -165,6 +165,13 @@ public sealed class GemProcessProgram
         return ppid;
     }
 
+    // PPBODY 데이터 바이트 수(S7F1 LENGTH): 인코딩에서 포맷 바이트와 길이 바이트를 뺀 것
+    internal static long DataLength(SecsItem body)
+    {
+        var enc = SecsCodec.Encode(body);
+        return enc.Length - 1 - (enc[0] & 0x03);
+    }
+
     // 받은 PPID가 규칙에 맞는지(예외 없이)
     internal static bool IsValidPpid(string ppid) => ppid.Length is > 0 and <= MaxPpidLength && ppid.All(c => c <= 0xFF);
 }

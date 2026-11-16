@@ -55,7 +55,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * **운전자 변경**은 `SaveProcessProgram`·`DeleteProcessProgram`(ProcessProgramChange CE), **선택**은 `SelectProcessProgram`(PPExecName + ProcessProgramSelected CE). Host가 바꾼 것에는 ProcessProgramChange CE를 내지 않음(E30은 운전자 변경에만 씀)
 * **장비 → Host**: `UploadProcessProgramAsync`(S7F1 → S7F3)·`RequestProcessProgramAsync`(S7F5). 결과는 Task로 오고 `SendFailed`는 내지 않음. 스풀하지 않음
 * **폴더 저장소**: PPID 하나 = 파일 하나. 대소문자만 다른 PPID나 파일 이름에 못 쓰는 문자가 든 PPID도 안전하게 저장(`%XX`, 너무 길면 해시 이름)
-* 저장소는 GEM의 lock 하나 안에서만 부르므로 GEM에 대해서는 스레드 안전하지 않아도 됨. 저장소가 느려 `CommandReplyTimeout`을 넘기면 GEM이 거절로 대신 답하지만, 늦게 끝난 변경은 반영됨(리모트 명령과 같음)
+* 저장소는 GEM의 lock 하나 안에서만 부르므로 GEM에 대해서는 스레드 안전하지 않아도 됨. 승인 핸들러가 `CommandReplyTimeout`을 넘기면 GEM이 거절로 대신 답하고 늦게 온 결과는 반영하지 않음. 저장소 쓰기는 응답할 권리를 얻은 뒤 하므로 느리면 응답이 늦어질 뿐 Host가 들은 결과와 저장소는 늘 같음. 승인 핸들러는 GEM의 저장소 잠금 밖에서 불리므로 다른 스레드의 레시피 메서드를 기다려도 막히지 않음
 * GemHost: `DownloadProcessProgram`·`UploadProcessProgram`·`DeleteProcessPrograms`·`ListProcessPrograms`·`SelectProcessProgram`, 장비가 보낸 S7F1·S7F3·S7F5는 `ProcessProgramReceived`·`ProcessProgramRequested`(구독자가 없으면 지금처럼 `MessageReceived`)
 
 ## GEM Host (GemHost)

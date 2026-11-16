@@ -131,6 +131,20 @@ public class GemProcessProgramSetupTests
     }
 
     [Fact]
+    public void Xml_LoadWithoutDirectory_KeepsCodeStore()
+    {
+        using var eq = new GemEquipment(new SecsHsms());
+        var mine = new InMemoryProcessProgramStore();
+        eq.ProcessProgramStore = mine;
+        eq.FromXml(XElement.Parse("<GemEquipment />"));
+        Assert.Same(mine, eq.ProcessProgramStore);                                            // XML로 나타낼 수 없는 앱 저장소는 그대로
+        eq.FromXml(XElement.Parse("<GemEquipment ProcessProgramDirectory=\"pp\" />"));
+        Assert.IsType<GemProcessProgramFolder>(eq.ProcessProgramStore);                       // XML이 정하면 그것으로
+        eq.FromXml(XElement.Parse("<GemEquipment />"));
+        Assert.Null(eq.ProcessProgramStore);                                                  // XML에서 온 폴더 저장소는 속성이 없으면 끔
+    }
+
+    [Fact]
     public void Xml_StandardIdKinds()
     {
         using var eq = new GemEquipment(new SecsHsms());

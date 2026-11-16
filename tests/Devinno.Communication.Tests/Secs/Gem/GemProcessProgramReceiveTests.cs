@@ -68,11 +68,21 @@ public class GemProcessProgramReceiveTests
     }
 
     [Fact]
+    public async Task S7F1_LengthIsBodyDataBytes()
+    {
+        using var c = await Ctx.Start();
+        Assert.Equal("S7F2 <B 0x00>", await c.Ask("S7F1 W <L <A \"R1\"> <U4 8>>"));            // 8바이트 B 본문(인코딩은 10)
+        Assert.Equal("S7F4 <B 0x00>", await c.Ask($"S7F3 W <L <A \"R1\"> <B {Bytes(8)}>>"));
+        Assert.Equal("S7F2 <B 0x00>", await c.Ask("S7F1 W <L <A \"R2\"> <U4 6>>"));            // A "abcdef" = 6바이트
+        Assert.Equal("S7F4 <B 0x00>", await c.Ask("S7F3 W <L <A \"R2\"> <A \"abcdef\">>"));
+    }
+
+    [Fact]
     public async Task S7F3_LongerThanGranted_Ackc7LengthError()
     {
         using var c = await Ctx.Start();
         Assert.Equal("S7F2 <B 0x00>", await c.Ask("S7F1 W <L <A \"R1\"> <U4 3>>"));
-        Assert.Equal("S7F4 <B 0x02>", await c.Ask($"S7F3 W <L <A \"R1\"> <B {Bytes(8)}>>"));   // 인코딩 길이 10 > 3
+        Assert.Equal("S7F4 <B 0x02>", await c.Ask($"S7F3 W <L <A \"R1\"> <B {Bytes(8)}>>"));   // 데이터 8바이트 > 3
         Assert.Null(c.Store.Peek("R1"));
         Assert.Equal("S7F4 <B 0x00>", await c.Ask($"S7F3 W <L <A \"R1\"> <B {Bytes(8)}>>"));   // 허락은 앞의 S7F3에서 지워짐 → 허락 없는 S7F3
     }
@@ -224,18 +234,55 @@ public class GemProcessProgramReceiveTests
     }
 
     [Fact]
-    public async Task SlowStore_DeadlineReply()
+    public async Task SlowStore_DelaysReply_ButStaysConsistent()
     {
-        var release = new ManualResetEventSlim(false);
+        // 저장소 쓰기는 응답할 권리를 얻은 뒤 하므로 기한에 끊기지 않는다: 늦게라도 결과와 응답이 같다(Host에 거절했는데 쓰는 일 없음)
         using var c = await Ctx.Start(e => e.CommandReplyTimeout = 300);
-        c.Store.Hook = call => { if (call.StartsWith("Write", StringComparison.Ordinal)) release.Wait(5000); };
-        try
+        c.Store.Hook = call => { if (call.StartsWith("Write", StringComparison.Ordinal)) Thread.Sleep(1000); };
+        Assert.Equal("S7F4 <B 0x00>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x01>>"));
+        Assert.NotNull(c.Store.Peek("R1"));
+        await Task.Delay(300);
+        Assert.DoesNotContain(GemKit.Only(c.Log, "Error"), l => l.Contains("CommandReplyTimeout"));
+    }
+
+    [Fact]
+    public async Task SlowApproval_AfterDeadline_NotApplied()
+    {
+        using var c = await Ctx.Start(e => e.CommandReplyTimeout = 300);
+        var done = new ManualResetEventSlim(false);
+        c.OnChange = e => { Thread.Sleep(800); done.Set(); };
+        c.Store.Put(new GemProcessProgram("R2", SecsItem.B(2)));
+        Assert.Equal("S7F4 <B 0x01>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x01>>"));      // 기한 응답 = 거절
+        Assert.True(done.Wait(5000));
+        Assert.Equal("S7F18 <B 0x01>", await c.Ask("S7F17 W <L <A \"R2\">>"));
+        await Task.Delay(1000);
+        Assert.Null(c.Store.Peek("R1"));                                                      // Host에 거절했으므로 쓰지 않음
+        Assert.NotNull(c.Store.Peek("R2"));                                                   // 지우지 않음
+    }
+
+    [Fact]
+    public async Task Approval_DoesNotHoldStoreLock()
+    {
+        using var c = await Ctx.Start();
+        bool? saved = null;
+        c.OnChange = e =>
         {
-            Assert.Equal("S7F4 <B 0x01>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x01>>"));     // 저장소가 막혀 있어도 기한 응답이 옴
-            release.Set();                       // 알림(ProtocolError)은 막혀 있던 앱 이벤트 스레드로 가므로 풀어 준 뒤에 온다
-            await TestUtil.Until(() => GemKit.Only(c.Log, "Error").Any(l => l.Contains("CommandReplyTimeout")), 3000);
-        }
-        finally { release.Set(); }
+            // UI 스레드에 Invoke해 운전자 저장을 하는 앱: 다른 스레드의 SaveProcessProgram이 막히지 않아야 한다
+            saved = Task.Run(() => c.Eq.SaveProcessProgram(new GemProcessProgram("OP", SecsItem.B(7)))).Wait(3000);
+        };
+        Assert.Equal("S7F4 <B 0x00>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x01>>"));
+        Assert.True(saved);
+        Assert.NotNull(c.Store.Peek("OP"));
+    }
+
+    [Fact]
+    public async Task Approval_SelectsSameProgram_RecheckedAndRejected()
+    {
+        using var c = await Ctx.Start();
+        c.Store.Put(new GemProcessProgram("R1", SecsItem.B(1)));
+        c.OnChange = e => c.Eq.SelectProcessProgram("R1");                                  // 승인 중에 같은 레시피가 선택됨
+        Assert.Equal("S7F4 <B 0x01>", await c.Ask("S7F3 W <L <A \"R1\"> <B 0x09>>"));
+        Assert.Equal(SecsItem.B(1), c.Store.Peek("R1")!.Body);
     }
 
     [Fact]

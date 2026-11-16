@@ -76,7 +76,7 @@ public partial class GemHost
         byte? ppgnt = null;
         if (inquire)
         {
-            ppgnt = GemMessages.ParseS7F2(Ask(GemMessages.S7F1(program.Ppid, (uint)SecsCodec.Encode(program.Body).Length)));
+            ppgnt = GemMessages.ParseS7F2(Ask(GemMessages.S7F1(program.Ppid, (uint)GemProcessProgram.DataLength(program.Body))));
             if (ppgnt != GemAck.PpgntOk) return new GemDownloadResult(ppgnt, null);
         }
         return new GemDownloadResult(ppgnt, GemMessages.ParseS7F4(Ask(GemMessages.S7F3(program))));
@@ -93,7 +93,7 @@ public partial class GemHost
         byte? ppgnt = null;
         if (inquire)
         {
-            ppgnt = GemMessages.ParseS7F2(await AskAsync(GemMessages.S7F1(program.Ppid, (uint)SecsCodec.Encode(program.Body).Length), cancellationToken).ConfigureAwait(false));
+            ppgnt = GemMessages.ParseS7F2(await AskAsync(GemMessages.S7F1(program.Ppid, (uint)GemProcessProgram.DataLength(program.Body)), cancellationToken).ConfigureAwait(false));
             if (ppgnt != GemAck.PpgntOk) return new GemDownloadResult(ppgnt, null);
         }
         return new GemDownloadResult(ppgnt, GemMessages.ParseS7F4(await AskAsync(GemMessages.S7F3(program), cancellationToken).ConfigureAwait(false)));

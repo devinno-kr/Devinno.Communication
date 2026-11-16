@@ -98,7 +98,7 @@ public class GemHostProcessProgramTests
         {
             var r = await eq.UploadProcessProgramAsync("R1");
             Assert.True(r.IsSuccess);
-            Assert.Equal(new[] { $"inquire R1 {SecsCodec.Encode(R1.Body).Length}", "program R1 <B 0x01 0x02 0x03>" }, got);
+            Assert.Equal(new[] { "inquire R1 3", "program R1 <B 0x01 0x02 0x03>" }, got);
         }
     }
 
