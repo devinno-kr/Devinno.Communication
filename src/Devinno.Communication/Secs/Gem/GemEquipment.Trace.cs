@@ -103,6 +103,38 @@ public partial class GemEquipment
         Volatile.Write(ref traceNextDue, due);
     }
 
+    // 작업 루프 틱 대기(ms): 다음 표본 시각까지(gate 없이, GemLoop sync 안에서 불림)
+    int TraceWaitMs()
+    {
+        long due = Volatile.Read(ref traceNextDue);
+        if (due == long.MaxValue) return int.MaxValue;
+        return (int)Math.Clamp(due - TraceClock(), 1, int.MaxValue);
+    }
+
+    // 작업 스레드 틱(gate 안): 예정 시각이 된 트레이스마다 표본 하나(늦었어도 하나, 누적 지연 없음). 묶음이 차거나 끝이면 S6F1
+    void TraceTickLocked(long now)
+    {
+        if (traces.Count == 0 || now < Volatile.Read(ref traceNextDue)) return;
+        for (int i = 0; i < traces.Count; i++)
+        {
+            var t = traces[i];
+            if (now < t.NextDue) continue;
+            if (t.Buffer.Count == 0) t.BufferTime = GemTime.Format(DateTime.Now + clockOffset, TimeFormatLocked);
+            foreach (var v in t.Vars) t.Buffer.Add(ValueLocked(v));
+            t.Taken++;
+            t.NextDue += t.PeriodMs;
+            if (t.NextDue <= now) t.NextDue += ((now - t.NextDue) / t.PeriodMs + 1) * t.PeriodMs;
+            if (t.Taken % t.Group == 0 || t.Taken == t.Total)
+            {
+                var report = GemMessages.S6F1(t.TridItem, t.Taken, t.BufferTime!, t.Buffer, traceReplyExpected);
+                t.Buffer.Clear();
+                if (!IsOffline(control)) SendOrSpoolLocked(report);       // OFF-LINE이면 버림(알림 없음, 6J.7.2)
+            }
+            if (t.Taken == t.Total) traces.RemoveAt(i--);
+        }
+        UpdateTraceNextDueLocked();
+    }
+
     // S2F23: 검사 순서(T1) = 구조(S9F7) → TOTSMP 0(멈춤) → TIAACK 1 → 2 → 3 → 4 → 5. 실패하면 표는 그대로
     void OnS2F23(SecsPrimaryEventArgs e)
     {

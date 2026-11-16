@@ -3,7 +3,7 @@ using Devinno.Communication.Secs.Serial;
 
 namespace Devinno.Communication.Secs.Gem;
 
-// SECS-I 다중 블록 문의 S6F5/F6(6J.6.2): 켰을 때만, 244바이트를 넘는 S6F11 앞에. 허락이면 바로 그 메시지, 아니면 보내지 않음
+// SECS-I 다중 블록 문의 S6F5/F6(6J.6.2): 켰을 때만, 244바이트를 넘는 S6F11·S6F1 앞에. 허락이면 바로 그 메시지, 아니면 보내지 않음
 public partial class GemEquipment
 {
     const int SingleBlockLimit = 244;     // SECS-I 블록 하나의 데이터 상한
@@ -11,8 +11,8 @@ public partial class GemEquipment
     bool multiBlockInquire;
     Outgoing? resumeNext;                 // gate: S6F5 허락을 받아 다음에 바로 보낼 원래 항목
 
-    /// <summary>Gets or sets whether, over SECS-I, an S6F11 whose body is larger than one block (244 bytes) is preceded by S6F5 Multi-block Data Send Inquire (default: false).</summary>
-    /// <remarks>If the Host answers GRANT6 0 the S6F11 follows at once; otherwise it is not sent and <see cref="SendFailed"/> (<see cref="GemSendFailure.NotGranted"/>, Ack = GRANT6) is raised, without a retry. A spooled S6F11 refused this way is removed from the spool and the transmit goes on. Over HSMS nothing changes even if this is true (HSMS has no blocks).</remarks>
+    /// <summary>Gets or sets whether, over SECS-I, an S6F11 (event report) or S6F1 (trace report) whose body is larger than one block (244 bytes) is preceded by S6F5 Multi-block Data Send Inquire (default: false).</summary>
+    /// <remarks>If the Host answers GRANT6 0 the message follows at once; otherwise it is not sent and <see cref="SendFailed"/> (<see cref="GemSendFailure.NotGranted"/>, Ack = GRANT6) is raised, without a retry. A spooled message refused this way is removed from the spool and the transmit goes on. Over HSMS nothing changes even if this is true (HSMS has no blocks).</remarks>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public bool MultiBlockInquire { get => multiBlockInquire; set => Setting(() => multiBlockInquire = value); }
 
@@ -20,7 +20,7 @@ public partial class GemEquipment
     Outgoing? InquiryLocked(Outgoing o)
     {
         if (!multiBlockInquire || o.Inquired || o.InquiryFor != null || transport.Target is not SecsSerial) return null;
-        if (o.Message is not { Stream: 6, Function: 11, Item: { } body }) return null;
+        if (o.Message is not { Stream: 6, Function: 1 or 11, Item: { } body }) return null;                 // S6F1이면 DATAID 자리에 TRID
         int length = SecsCodec.Encode(body).Length;
         if (length <= SingleBlockLimit) return null;
         return new Outgoing(GemMessages.S6F5(body.Items[0], (uint)length), InquiryDone) { InquiryFor = o, SpoolSeq = o.SpoolSeq, Run = o.Run };

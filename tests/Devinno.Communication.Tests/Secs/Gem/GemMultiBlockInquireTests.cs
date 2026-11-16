@@ -100,6 +100,27 @@ public class GemMultiBlockInquireTests
     }
 
     [Fact]
+    public async Task Large_S6F1_InquiresFirst()
+    {
+        // 트레이스 보고(S6F1)도 S6F11과 같은 규칙: 244바이트를 넘으면 S6F5를 먼저, DATAID 자리에는 TRID
+        long now = 0;
+        using var c = await Ctx.Start(e => e.TraceClock = () => Interlocked.Read(ref now));
+        c.Grants.Enqueue(GemAck.Grant6Granted);
+        var s2f24 = await c.Host.SendAsync(SecsMessage.ParseSml("S2F23 W <L <U4 9> <A \"000001\"> <U4 30> <U4 30> <L <U4 2001> <U4 2002>>>"));
+        Assert.Equal(0, GemMessages.ParseS2F24(s2f24!));
+        for (int i = 1; i <= 30; i++)
+        {
+            Interlocked.Add(ref now, 1000);
+            await TestUtil.Until(() => c.Eq.ActiveTraces.Count == 0 || c.Eq.ActiveTraces[0].RemainingSamples == (ulong)(30 - i), 3000);
+        }
+        var s6f5 = c.Next(6, 5);
+        var s6f1 = c.Next(6, 1);
+        Assert.Equal(SecsItem.U4(9), s6f5.Item!.Items[0]);
+        Assert.Equal((ulong)SecsCodec.Encode(s6f1.Item).Length, s6f5.Item.Items[1].GetUInt64());
+        Assert.True(s6f5.Item.Items[1].GetUInt64() > 244);
+    }
+
+    [Fact]
     public async Task Small_S6F11_NoInquiry_Boundary244()
     {
         using var c = await Ctx.Start();

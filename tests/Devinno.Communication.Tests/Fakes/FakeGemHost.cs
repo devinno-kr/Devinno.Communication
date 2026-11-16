@@ -26,6 +26,7 @@ internal sealed class FakeGemHost : IDisposable
         Reply(2, 17, "<A \"2026101412000000\">");
         Reply(5, 1, "<B 0>");
         Reply(6, 11, "<B 0>");
+        Reply(6, 1, "<B 0>");
         Reply(10, 1, "<B 0>");
         Hsms.PrimaryReceived += OnPrimary;
     }

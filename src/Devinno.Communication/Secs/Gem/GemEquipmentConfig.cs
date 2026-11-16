@@ -77,7 +77,7 @@ public class GemEquipmentConfig
     [XmlAttribute] public string? ProcessProgramDirectory { get; set; }
     /// <summary>Upper limit of a process program body in bytes, 1 to 16777215 (default: 4194304).</summary>
     [XmlAttribute] public int MaxProcessProgramSize { get; set; } = 4194304;
-    /// <summary>Over SECS-I, send S6F5 before an S6F11 larger than one block (default: false).</summary>
+    /// <summary>Over SECS-I, send S6F5 before an S6F11 or S6F1 larger than one block (default: false).</summary>
     [XmlAttribute] public bool MultiBlockInquire { get; set; }
     /// <summary>Number of traces (S2F23) that can run at the same time, 0 to 100 (default: 10; 0 = traces off).</summary>
     [XmlAttribute] public int MaxTraces { get; set; } = 10;

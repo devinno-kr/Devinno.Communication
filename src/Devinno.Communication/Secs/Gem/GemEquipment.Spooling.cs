@@ -194,10 +194,10 @@ public partial class GemEquipment
         Raise(SpoolStateChanged, new GemSpoolStateEventArgs(GemSpoolState.Inactive, spoolState, spoolFull, spool.Count));
     }
 
-    // 스풀 후보(S5F1·S6F11·S10F1)이고 Host가 정한 대상 표에 있는가
+    // 스풀 후보(S5F1·S6F1·S6F11·S10F1)이고 Host가 정한 대상 표에 있는가
     bool IsSpoolTarget(SecsMessage m)
     {
-        if (!(m.Stream == 5 && m.Function == 1 || m.Stream == 6 && m.Function == 11 || m.Stream == 10 && m.Function == 1)) return false;
+        if (!(m.Stream == 5 && m.Function == 1 || m.Stream == 6 && m.Function is 1 or 11 || m.Stream == 10 && m.Function == 1)) return false;
         return spoolSelection.TryGetValue((byte)m.Stream, out var fns) && (fns == null || fns.Contains((byte)m.Function));
     }
 

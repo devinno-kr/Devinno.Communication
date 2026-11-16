@@ -20,8 +20,9 @@ namespace Devinno.Communication.Secs.Gem;
 /// The GEM worker thread sends them one at a time in the order they were queued, and a failure or a nonzero ack is reported through <see cref="SendFailed"/>.</para>
 /// <para><b>Threads</b>: Besides the transport threads, one GEM worker thread (send queue, timers, deadlines) and one application event thread are used. All public events are raised on the application event thread in the order they occurred, and exceptions thrown by handlers are ignored.
 /// A slow handler does not block automatic replies. To update the UI, marshal with BeginInvoke (WinForms) / Dispatcher.BeginInvoke (WPF).</para>
-/// <para>The E30 original has not been checked against, so do not use this as evidence for a GEM Compliance Statement. Trace and limits are not supported.</para>
-/// <para><b>Enhanced remote commands</b> (S2F49) use the same definitions and the same <see cref="RemoteCommandReceived"/> event as S2F41 and are answered with S2F50 (OBJSPEC in <see cref="GemRemoteCommandEventArgs.ObjectSpec"/>, list CEPACK through <see cref="GemRemoteCommandEventArgs.SetParameterAck(string, SecsItem)"/>). Over SECS-I, <see cref="MultiBlockInquire"/> sends S6F5 before an S6F11 larger than one block.</para>
+/// <para>The E30 original has not been checked against, so do not use this as evidence for a GEM Compliance Statement. Limits are not supported.</para>
+/// <para><b>Trace data collection</b> (S2F23, S6F1) is handled by GEM: the Host defines a trace, GEM samples the status variables at that period and sends S6F1 reports (dropped while OFF-LINE, spooled like S6F11 when the link is down). See <see cref="MaxTraces"/> and <see cref="ActiveTraces"/>.</para>
+/// <para><b>Enhanced remote commands</b> (S2F49) use the same definitions and the same <see cref="RemoteCommandReceived"/> event as S2F41 and are answered with S2F50 (OBJSPEC in <see cref="GemRemoteCommandEventArgs.ObjectSpec"/>, list CEPACK through <see cref="GemRemoteCommandEventArgs.SetParameterAck(string, SecsItem)"/>). Over SECS-I, <see cref="MultiBlockInquire"/> sends S6F5 before an S6F11 or S6F1 larger than one block.</para>
 /// <para><b>Process programs</b> (unformatted recipes, S7) are off by default. Set <see cref="ProcessProgramStore"/> (for example a <see cref="GemProcessProgramFolder"/>) to turn them on: GEM answers S7F1, S7F3, S7F5, S7F17, and S7F19 from the store (also in ON-LINE LOCAL), asks the application through <see cref="ProcessProgramChangeRequested"/> before a Host change, refuses to overwrite or delete the selected process program, and defines PP-SELECT. Operator changes go through <see cref="SaveProcessProgram"/> and <see cref="DeleteProcessProgram"/> (ProcessProgramChange event), selection through <see cref="SelectProcessProgram"/> (PPExecName, ProcessProgramSelected event), and equipment-initiated transfers through <see cref="UploadProcessProgramAsync"/> and <see cref="RequestProcessProgramAsync"/>.</para>
 /// <para><b>Spooling</b> (SEMI E30 7.12) is off by default. Set <see cref="SpoolDirectory"/> to turn it on: spooling becomes active when communication fails (whatever the control state; EnableSpooling = false only blocks a new activation), and while it is active the S5F1, S6F11, and S10F1 messages the Host selected with S2F43 are stored in that folder instead of being reported through <see cref="SendFailed"/> (nothing is stored while OFF-LINE, where nothing is sent), and the Host gets them back with S6F23. The Host must send S6F23, or the selected messages are never sent live again while the spool is ACTIVE. Delivery is at least once: after a crash, or when <see cref="DisableCommunication"/> interrupts a spooled message that is on the wire, that message can be sent again later. One folder belongs to one equipment (a second <see cref="Start"/> on it throws <see cref="IOException"/>). Writes are asynchronous, so the last few spooled messages can be lost on a power failure, and a state file lost in a crash can leave SpoolStartTime empty. Spooled data are values from the moment of the call and can be stale compared with the current equipment state when the Host receives them.</para>
 /// </remarks>
@@ -424,7 +425,7 @@ public partial class GemEquipment : IDisposable
                 throw;
             }
             if (state != null) state.WriteFailed = ex => Error($"설정 파일을 쓰지 못했습니다(동작은 계속, 재시작하면 그 사이 변경을 잃을 수 있음): {ex.Message}");
-            var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick);
+            var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick, tickWait: TraceWaitMs);
             var a = new GemLoop(nameof(GemEquipment) + ".Events", maxPending: maxPendingEvents);
             int restoreDropped;
             lock (gate)
@@ -813,7 +814,7 @@ public partial class GemEquipment : IDisposable
         w?.Post(Pump);
     }
 
-    // 기본 완료 처리(S5F1·S6F11·S10F1): 실패·0이 아닌 ack는 SendFailed
+    // 기본 완료 처리(S5F1·S6F1·S6F11·S10F1): 실패·0이 아닌 ack는 SendFailed
     void AckDone(Outgoing o, Task<SecsMessage?> t)
     {
         if (!t.IsCompletedSuccessfully)
@@ -828,7 +829,7 @@ public partial class GemEquipment : IDisposable
             ack = t.Result.Stream switch
             {
                 5 => GemMessages.ParseS5F2(t.Result),
-                6 => GemMessages.ParseS6F12(t.Result),
+                6 => t.Result.Function == 2 ? GemMessages.ParseS6F2(t.Result) : GemMessages.ParseS6F12(t.Result),
                 10 => GemMessages.ParseS10F2(t.Result),
                 _ => GemItems.ReadAck(t.Result.Item),
             };

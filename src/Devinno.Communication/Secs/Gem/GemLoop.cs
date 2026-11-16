@@ -3,7 +3,8 @@ namespace Devinno.Communication.Secs.Gem;
 // 전용 스레드 하나가 넣은 순서대로 일을 실행한다(GEM 작업 스레드·앱 이벤트 스레드). 스레드풀을 쓰지 않는다(lock + Monitor).
 // tick이 있으면 일이 없어도 tickMs마다, 그리고 일을 하나 끝낼 때마다 부른다(타이머·기한 검사). 일과 tick의 예외는 삼킨다.
 // maxPending이 0보다 크면 대기열 상한: 가득 찬 때 넣으면 가장 오래된 일을 버리고 Dropped를 늘린다(핸들러가 멈춰도 메모리가 끝없이 늘지 않게).
-internal sealed class GemLoop(string name, Action? tick = null, int tickMs = 20, int maxPending = 0)
+// tickWait가 있으면 틱 대기 = 그 값을 1~tickMs로 자른 것(다음 기한에 맞춰 일찍 깨움). sync 잠금 안에서 부르므로 다른 잠금을 잡으면 안 된다.
+internal sealed class GemLoop(string name, Action? tick = null, int tickMs = 20, int maxPending = 0, Func<int>? tickWait = null)
 {
     readonly object sync = new();
     readonly Queue<Action> queue = new();
@@ -61,6 +62,9 @@ internal sealed class GemLoop(string name, Action? tick = null, int tickMs = 20,
         if (t != null && t != Thread.CurrentThread) t.Join(waitMs);
     }
 
+    // 틱 대기 시간(ms): tickWait가 없으면 tickMs, 있으면 그 값을 1~tickMs로 자름
+    internal static int TickWaitMs(int tickMs, Func<int>? tickWait) => tickWait == null ? tickMs : Math.Clamp(tickWait(), 1, tickMs);
+
     void Run()
     {
         var me = Thread.CurrentThread;
@@ -72,7 +76,7 @@ internal sealed class GemLoop(string name, Action? tick = null, int tickMs = 20,
                 if (running && thread == me && queue.Count == 0)
                 {
                     if (tick == null) { while (running && thread == me && queue.Count == 0) Monitor.Wait(sync); }
-                    else Monitor.Wait(sync, tickMs);
+                    else Monitor.Wait(sync, TickWaitMs(tickMs, tickWait));
                 }
                 if (!running || thread != me) return;
                 if (queue.Count > 0) a = queue.Dequeue();

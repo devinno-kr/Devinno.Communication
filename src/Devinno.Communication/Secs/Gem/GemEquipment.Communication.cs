@@ -231,6 +231,7 @@ public partial class GemEquipment
             // 전이 7: CommDelay 만료 → S1F13 (연결이 없으면 WAIT DELAY 다시)
             if (running && commState == GemCommunicationState.NotCommunicating && equipmentConnect == EquipmentConnect.WaitDelay && now >= commDelayDeadline)
                 StartWaitCraLocked(linkUp);
+            if (running) TraceTickLocked(TraceClock());
         }
     }
 }
