@@ -101,8 +101,10 @@ public partial class GemHost : IDisposable
     // 장비가 보내는 보고(S5F1·S6F11·S10F1) 처리기 등록(생성자)
     partial void AddEventHandlers();
     partial void AddProcessProgramHandlers();
+    partial void AddTraceHandlers();
     // Start 때 상태 초기화(gate 안, 전송 시작 전)
     partial void ResetReports();
+    partial void ResetTraces();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드, 실행 중일 때만)
     partial void OnTransportOpened(int epoch);
     partial void OnTransportClosed();
@@ -180,6 +182,7 @@ public partial class GemHost : IDisposable
         handlers[S6F5] = e => Respond(e, GemMessages.S6F6(GemAck.GrantGranted));
         AddEventHandlers();
         AddProcessProgramHandlers();
+        AddTraceHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -329,6 +332,7 @@ public partial class GemHost : IDisposable
                 OnCommunicatingChangedLocked(false);
                 modelName = softwareRevision = "";
                 ResetReports();
+                ResetTraces();
             }
             w.Start();
             a.Start();

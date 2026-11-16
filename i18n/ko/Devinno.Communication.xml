@@ -8290,6 +8290,55 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>결과</returns>
         </member>
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.TraceDataReceived" en-hash="ab46ecd8f2c843ea">
+            <summary>장비가 트레이스 데이터(S6F1)를 보냈을 때 앱 이벤트 스레드에서 발생합니다. GemHost는 이미 ACKC6 0으로 답했습니다.</summary>
+            <remarks>구독자가 없으면 S6F1은 지금처럼 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" />로 갑니다.</remarks>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.InitializeTrace(Devinno.Communication.Secs.Gem.GemId,System.TimeSpan,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId})" en-hash="99537570d2878f0e">
+            <summary>장비에서 트레이스를 시작합니다(S2F23 Trace Initialize Send). 장비는 <paramref name="period" />마다 SVID를 표본으로 떠, <paramref name="groupSize" />개씩 S6F1 보고로 보내고 모두 <paramref name="totalSamples" />개를 뜹니다.</summary>
+            <remarks>숫자 TRID는 U4, 글자 TRID는 A로 보냅니다. 주기는 <c>hhmmsscc</c>로 보내고 1/100초 미만은 버립니다. 같은 TRID를 다시 보내면 그 트레이스를 바꿉니다. TIAACK가 0이면 GemHost가 SVID 수를 기억해 <see cref="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.Samples" />를 나눕니다.</remarks>
+            <param name="trid">트레이스 ID.</param>
+            <param name="period">표본 주기, 10ms 이상 100시간 미만.</param>
+            <param name="totalSamples">전체 표본 수(1 이상, 멈춤은 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.StopTrace(Devinno.Communication.Secs.Gem.GemId)" />).</param>
+            <param name="groupSize">S6F1 하나의 표본 수(1 이상).</param>
+            <param name="svids">SVID 목록(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" />로 보냄).</param>
+            <returns>TIAACK(0 = 받아들임, 1 SVID 너무 많음, 2 트레이스 더 못 받음, 3 주기 잘못, 4 모르는 SVID, 5 REPGSZ 잘못).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="svids" />가 null임.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException"><paramref name="period" />, <paramref name="totalSamples" />, <paramref name="groupSize" /> 중 하나가 범위 밖.</exception>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 동안 연결이 끊김.</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다름.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.InitializeTraceAsync(Devinno.Communication.Secs.Gem.GemId,System.TimeSpan,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},System.Threading.CancellationToken)" en-hash="58026ad509e65671">
+            <summary>장비에서 트레이스를 시작합니다(S2F23). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.InitializeTrace(Devinno.Communication.Secs.Gem.GemId,System.TimeSpan,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId})" />와 같습니다.</summary>
+            <param name="trid">트레이스 ID.</param>
+            <param name="period">표본 주기.</param>
+            <param name="totalSamples">전체 표본 수.</param>
+            <param name="groupSize">S6F1 하나의 표본 수.</param>
+            <param name="svids">SVID 목록.</param>
+            <param name="cancellationToken">응답 기다림을 취소합니다.</param>
+            <returns>TIAACK.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.StopTrace(Devinno.Communication.Secs.Gem.GemId)" en-hash="c0368cde80ed72cd">
+            <summary>장비의 트레이스를 멈춥니다(TOTSMP 0인 S2F23). 그런 트레이스가 없어도 장비는 0으로 답합니다.</summary>
+            <param name="trid">트레이스 ID.</param>
+            <returns>TIAACK.</returns>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 동안 연결이 끊김.</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다름.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.StopTraceAsync(Devinno.Communication.Secs.Gem.GemId,System.Threading.CancellationToken)" en-hash="11fe6832bb4c3ed9">
+            <summary>장비의 트레이스를 멈춥니다(TOTSMP 0인 S2F23). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.StopTrace(Devinno.Communication.Secs.Gem.GemId)" />와 같습니다.</summary>
+            <param name="trid">트레이스 ID.</param>
+            <param name="cancellationToken">응답 기다림을 취소합니다.</param>
+            <returns>TIAACK.</returns>
+        </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemHost.ToConfig" en-hash="8bced7f5ddaa1ace">
             <summary>현재 설정(전송 설정, Host 설정, 구독)을 설정 객체로 만듭니다.</summary>
             <returns>설정 객체 (전송 설정은 항상 들어감)</returns>
@@ -8771,6 +8820,37 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemReportSetupResult.Ack" en-hash="fa191305b82a3883">
             <summary>실패한 단계의 ack (성공이면 null)</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs" en-hash="352a4716d3e13e81">
+            <summary>장비가 트레이스 데이터(S6F1)를 보냈을 때의 인수.</summary>
+            <param name="trid">TRID</param>
+            <param name="sampleNumber">SMPLN</param>
+            <param name="time">받은 그대로의 STIME</param>
+            <param name="samples">표본별로 나눈 값</param>
+            <param name="message">받은 S6F1</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.#ctor(Devinno.Communication.Secs.Gem.GemId,System.UInt64,System.String,System.Collections.Generic.IReadOnlyList{System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Data.SecsItem}},Devinno.Communication.Secs.Data.SecsMessage)" en-hash="352a4716d3e13e81">
+            <summary>장비가 트레이스 데이터(S6F1)를 보냈을 때의 인수.</summary>
+            <param name="trid">TRID</param>
+            <param name="sampleNumber">SMPLN</param>
+            <param name="time">받은 그대로의 STIME</param>
+            <param name="samples">표본별로 나눈 값</param>
+            <param name="message">받은 S6F1</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.Trid" en-hash="16e1ee54a6e315e5">
+            <summary>트레이스 ID(TRID)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.SampleNumber" en-hash="1c932fae6b082c5e">
+            <summary>이 보고의 마지막 표본 번호(SMPLN, 1부터)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.Time" en-hash="d3d15043fc8fcdda">
+            <summary>이 보고 첫 표본의 시각(STIME)을 받은 그대로의 GEM TIME 텍스트로 가져옵니다. <see cref="M:Devinno.Communication.Secs.Gem.GemTime.TryParse(System.String,System.DateTime@)" />로 읽으세요.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.Samples" en-hash="8051308b0c5d9266">
+            <summary>표본별로 나눈 값을 가져옵니다(표본 안에서는 SVID 순서). 이 GemHost가 시작하지 않은 트레이스이거나 값 개수가 SVID 수의 배수가 아니면 값 전체가 한 항목입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceDataEventArgs.Message" en-hash="1080926df90b1381">
+            <summary>받은 S6F1을 그대로 가져옵니다.</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemHostConfig" en-hash="818f08d4849acb61">
             <summary>
