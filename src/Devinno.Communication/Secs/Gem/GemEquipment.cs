@@ -537,7 +537,7 @@ public partial class GemEquipment : IDisposable
         GemCommunicationState comm;
         GemControlState ctl;
         GemCatalog c;
-        bool sp;
+        bool sp, pp;
         lock (gate)
         {
             if (!running) return;
@@ -545,6 +545,7 @@ public partial class GemEquipment : IDisposable
             ctl = control;
             c = catalog;
             sp = spooling;
+            pp = processPrograms;
         }
         int key = m.Stream * 256 + m.Function;
         // ① DISABLED: 아무것도 해석하지 않는다(W면 전송 계층이 SxF0)
@@ -560,8 +561,8 @@ public partial class GemEquipment : IDisposable
         // ② 지원하지 않는 Stream → S9F3, 지원 Stream의 모르는 Function → S9F5 (상태와 무관)
         bool registered = c.Messages.Contains(key);
         if (!c.Streams.Contains(m.Stream)) { SendS9(e, 3, $"지원하지 않는 Stream: {GemItems.Sml(m)}"); return; }
-        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만 GEM이 처리한다
-        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key))) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
+        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만, Stream 7(레시피)은 레시피를 켰을 때만 GEM이 처리한다
+        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key) || !pp && m.Stream == 7)) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
         // ③ NOT COMMUNICATING: S1F13만 처리 ④ OFF-LINE: S1F13·S1F17만 처리. 나머지 W는 SxF0
         if (comm != GemCommunicationState.Communicating && key != S1F13) return;
         if (IsOffline(ctl) && key != S1F13 && key != S1F17) return;
