@@ -95,6 +95,7 @@ public partial class GemEquipment
     /// <summary>Raised on the application event thread when the Host's remote command (S2F41) passed the checks. When the handler returns, the reply uses <see cref="GemRemoteCommandEventArgs.Hcack"/>.</summary>
     /// <remarks>
     /// <para>Cases where GEM replies first (the application is not called): a command not in the definitions HCACK 1, ON-LINE LOCAL HCACK 2, unknown parameter (CPACK 1) or format mismatch (CPACK 3) HCACK 3, no subscriber HCACK 2.</para>
+    /// <para><b>PP-SELECT</b> (when <see cref="ProcessProgramStore"/> is set): GEM defines it with an A parameter PPID unless you define it yourself, accepts it also in ON-LINE LOCAL, answers HCACK 3 with CPACK 2 when PPID is missing or not stored (the handler is not called), and after the handler accepts with HCACK 0 calls <see cref="SelectProcessProgram"/>. Without a PPID parameter in your own definition, only the LOCAL rule applies.</para>
     /// <para>If the handler does not return within <see cref="CommandReplyTimeout"/>, GEM replies with HCACK 2 on its behalf (<see cref="ProtocolError"/>) and discards the result that returns later. The handler keeps running, so the action may still be performed while the host believes it was not. Keep handlers short; for long actions reply HCACK 4 and report completion with an event. If the handler throws, GEM replies with HCACK 2 (cannot be executed) regardless of the Hcack and CPACK set so far, and reports it through <see cref="ProtocolError"/>.</para>
     /// </remarks>
     public event EventHandler<GemRemoteCommandEventArgs>? RemoteCommandReceived;
@@ -112,9 +113,15 @@ public partial class GemEquipment
         var (rcmd, ps) = GemMessages.ParseS2F41Raw(e.Message);
 
         if (!catalog.Commands.TryGetValue(rcmd, out var def)) { Respond(e, GemMessages.S2F42(GemAck.HcackInvalidCommand)); return; }
-        bool local;
-        lock (gate) local = control == GemControlState.OnlineLocal;
-        if (local) { Respond(e, GemMessages.S2F42(GemAck.HcackCannotPerform)); return; }
+        bool local, pp;
+        lock (gate)
+        {
+            local = control == GemControlState.OnlineLocal;
+            pp = processPrograms;
+        }
+        // PP-SELECT(레시피를 켰을 때)는 LOCAL에서도 받는다(E30: LOCAL에서 레시피 선택 허용)
+        bool ppSelect = pp && def.Name == GemCatalog.PpSelect;
+        if (local && !ppSelect) { Respond(e, GemMessages.S2F42(GemAck.HcackCannotPerform)); return; }
         var bad = new List<(SecsItem Name, byte Cpack)>();
         foreach (var (item, name, value) in ps)
         {
@@ -138,23 +145,39 @@ public partial class GemEquipment
             });
             return;
         }
+        // PP-SELECT의 PPID(정의에 PPID 파라미터가 있을 때만 존재 검사와 선택 반영)
+        bool checkPpid = ppSelect && def.Parameters.Any(x => x.Name == GemCatalog.PpSelectPpid);
+        var ppidParam = ps.FirstOrDefault(p => p.Name == GemCatalog.PpSelectPpid);
+        string? ppid = ppidParam.Value is { Format: SecsFormat.ASCII } v ? v.GetString() : null;
         var d = DeferReply(e, GemMessages.S2F42(GemAck.HcackCannotPerform), what);
         PostApp(() =>
         {
+            if (checkPpid && !ProcessProgramExists(ppid))
+            {
+                FinishDeferred(d, GemMessages.S2F42(GemAck.HcackParameterInvalid, [(ppidParam.NameItem ?? SecsItem.A(GemCatalog.PpSelectPpid), GemAck.CpackIllegalValue)]));
+                return;
+            }
             SecsMessage reply;
+            byte hcack = GemAck.HcackCannotPerform;
             try
             {
                 handler(this, args);
-                byte hcack = args.Hcack;
+                hcack = args.Hcack;
                 if (args.ParameterAcks.Count > 0 && hcack == GemAck.HcackAccepted) hcack = GemAck.HcackParameterInvalid;
                 reply = GemMessages.S2F42(hcack, args.ParameterAcks);
             }
             catch (Exception ex)
             {
                 reply = GemMessages.S2F42(GemAck.HcackCannotPerform);                      // 실패 쪽으로: 실행하지 않은 것으로 답함
+                hcack = GemAck.HcackCannotPerform;
                 ErrorIn(d.Run, $"{what}: RemoteCommandReceived 핸들러 예외로 HCACK 2로 응답합니다: {ex.GetType().Name}: {ex.Message}");
             }
-            FinishDeferred(d, reply);
+            // 앱이 HCACK 0으로 받아들인 PP-SELECT는 응답 뒤 선택을 반영한다(PPExecName + ProcessProgramSelected)
+            if (FinishDeferred(d, reply) && checkPpid && hcack == GemAck.HcackAccepted)
+            {
+                try { SelectProcessProgram(ppid); }
+                catch (Exception ex) { ErrorIn(d.Run, $"{what}: 선택을 반영하지 못했습니다: {ex.GetType().Name}: {ex.Message}"); }
+            }
         });
     }
 

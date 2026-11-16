@@ -6114,10 +6114,11 @@
             <returns>CE를 송신 대기열 또는 스풀에 넣었으면 true (보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같음)</returns>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="3c62f7eb59d7798c">
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="fdb1550b3b4f1c32">
             <summary>Host의 리모트 명령(S2F41)이 검사를 통과했을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />로 응답합니다.</summary>
             <remarks>
             <para>GEM이 먼저 답하는 경우(앱을 부르지 않음): 정의에 없는 명령 HCACK 1, ON-LINE LOCAL HCACK 2, 모르는 파라미터(CPACK 1)·포맷 불일치(CPACK 3) HCACK 3, 구독자 없음 HCACK 2.</para>
+            <para><b>PP-SELECT</b>(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.ProcessProgramStore" />를 정했을 때): 앱이 직접 정의하지 않으면 GEM이 A 파라미터 PPID로 정의하고, ON-LINE LOCAL에서도 받으며, PPID가 없거나 저장소에 없으면 HCACK 3 + CPACK 2로 답하고(핸들러를 부르지 않음), 핸들러가 HCACK 0으로 받아들이면 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.SelectProcessProgram(System.String)" />를 부릅니다. 앱 정의에 PPID 파라미터가 없으면 LOCAL 규칙만 적용됩니다.</para>
             <para>핸들러가 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" /> 안에 돌아오지 않으면 HCACK 2로 대신 응답하고(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />) 나중에 돌아온 결과는 버립니다. 핸들러는 계속 실행되므로 Host는 실행되지 않았다고 믿는데 동작은 실행될 수 있습니다. 핸들러는 짧게 유지하고, 오래 걸리는 동작은 HCACK 4로 응답한 뒤 이벤트로 완료를 알리세요. 핸들러가 예외를 던지면 그때까지 정한 Hcack·CPACK과 상관없이 HCACK 2(실행할 수 없음)로 응답하고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알립니다.</para>
             </remarks>
         </member>

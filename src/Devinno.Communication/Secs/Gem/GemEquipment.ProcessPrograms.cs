@@ -224,6 +224,21 @@ public partial class GemEquipment
         return tcs.Task;
     }
 
+    // PP-SELECT 존재 검사(앱 이벤트 스레드, ppLock 안). 저장소 예외는 없는 것으로
+    bool ProcessProgramExists(string? ppid)
+    {
+        if (ppid == null || !GemProcessProgram.IsValidPpid(ppid)) return false;
+        lock (ppLock)
+        {
+            try { return ppStore!.Read(ppid) != null; }
+            catch (Exception ex)
+            {
+                Error($"PP-SELECT: 레시피 저장소 예외: {ex.GetType().Name}: {ex.Message}");
+                return false;
+            }
+        }
+    }
+
     void RequireProcessPrograms()
     {
         Started();

@@ -117,6 +117,9 @@ internal sealed class GemCatalog
 
     public static bool IsGemMessage(int stream, int function) => GemMessages.Contains(stream * 256 + function);
 
+    // 표준 리모트 명령 PP-SELECT와 그 PPID 파라미터 이름(G 관례)
+    public const string PpSelect = "PP-SELECT", PpSelectPpid = "PPID";
+
     // 스풀링을 켰을 때만 GEM이 처리하는 Host 메시지(S2F43, S6F23). 꺼져 있으면 앱이 등록할 수 있어 IsGemMessage에는 넣지 않는다
     public static bool IsSpoolingMessage(int key) => key == 2 * 256 + 43 || key == 6 * 256 + 23;
 
@@ -252,6 +255,8 @@ internal sealed class GemCatalog
         }
 
         foreach (var cmd in defs.Commands) c.Commands[cmd.Name] = cmd;
+        // 레시피를 켰고 앱이 정의하지 않았으면 표준 리모트 명령 PP-SELECT(PPID A)를 더한다(E30 7.5.3.6)
+        if (processPrograms && !c.Commands.ContainsKey(PpSelect)) c.Commands[PpSelect] = new GemRemoteCommand(PpSelect, [new GemCommandParameter(PpSelectPpid, SecsFormat.ASCII)]);
         foreach (var (s, f) in defs.Messages)
         {
             c.Messages.Add(s * 256 + f);
