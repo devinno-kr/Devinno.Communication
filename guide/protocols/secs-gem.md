@@ -50,7 +50,21 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 ### 확장 리모트 명령(S2F49)과 다중 블록 문의(S6F5)
 * **S2F49**는 S2F41과 같은 명령 정의(`AddRemoteCommand`)와 같은 `RemoteCommandReceived`로 받고 S2F50으로 답함. `e.ObjectSpec`에 대상 객체(OBJSPEC), `e.IsEnhanced`가 true. 리스트 값 파라미터도 받고(정의 포맷이 null이면 아무 포맷, `SecsFormat.List`면 리스트만), 리스트 CEPACK은 `e.SetParameterAck(name, SecsItem)`. 대상이 없으면 HCACK 6(`GemAck.HcackNoSuchObject`)은 앱이 정함. 앱이 `RegisterMessage(2, 49)`를 했으면 앱이 처리. S2F21은 처리하지 않음
 * GemHost: `SendEnhancedRemoteCommand(objectSpec, rcmd, params…)`(DATAID는 S2F33과 같은 카운터)
-* **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 S6F11, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
+* **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11·S6F1(트레이스 보고) 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 S6F11, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
+
+### 트레이스 데이터 수집(S2F23·S6F1)
+* Host가 S2F23으로 트레이스를 정의하면 GEM이 받아서 처리함. 앱이 트레이스를 시작하는 API는 없음(Host가 정하는 능력). 대상은 SV만(앱 SV + 표준 SV), DV·EC는 TIAACK 4
+* GEM 작업 스레드가 주기(DSPER)마다 SV 값을 표본으로 뜸(TriggerEvent와 같은 스냅숏). 첫 표본은 응답(S2F24) 뒤 한 주기 뒤. REPGSZ개가 모이면 S6F1 하나로 보냄. 본문은 표본을 순서대로 이어 붙인 평평한 목록(표본1 SV1..SVk, 표본2 …)
+* **SMPLN** = 그 보고의 마지막 표본 번호(1부터), **STIME** = 그 보고 첫 표본을 뜬 순간의 GEM 시계(`TimeFormat` 형식). Host는 STIME + i·DSPER로 표본 시각을 복원
+* 늦은 틱(부하)은 놓친 표본을 메우지 않음: 표본 하나만 뜨고 다음 예정 시각으로(누적 지연 없음, 번호는 SMPLN이 셈)
+* TOTSMP개를 다 보내면 저절로 지움. TOTSMP가 REPGSZ의 배수가 아니면 마지막 보고는 남은 표본만
+* TOTSMP 0 = 그 TRID 멈춤(없는 TRID여도 0). 같은 TRID를 다시 보내면 앞 트레이스를 끝내고 새로 시작. 단 거절되면 앞 트레이스는 그대로
+* TIAACK: 1 SVID 너무 많음(`MaxTraceVariables`, 기본 100), 2 트레이스 더 못 받음(`MaxTraces`, 기본 10, 같은 TRID 재정의는 세지 않음), 3 주기 잘못(DSPER가 `hhmmss`·`hhmmsscc`가 아니거나 0이거나 `MinTracePeriod` 기본 100ms보다 짧음), 4 모르는 SVID(빈 목록 포함), 5 REPGSZ 잘못(0, TOTSMP보다 큼, 1000 초과). 문제가 여럿이면 번호가 낮은 것
+* TRID는 받은 아이템 그대로 S6F1에 돌려줌. 정수 포맷끼리는 같은 TRID(U1 5 = U4 5), 정수 5와 A "5"는 다름
+* OFF-LINE이면 표본은 계속 뜨지만 보고는 버림(`SendFailed` 없음, 번호는 계속 늘어 ON-LINE 복귀 뒤 빈 구간을 알 수 있음). 연결이 끊기면 버림 경로(`SendFailed NotCommunicating`), 스풀링 ACTIVE이고 S2F43으로 S6F1을 대상으로 정했으면 스풀
+* `DisableCommunication`·`Stop`이면 모든 트레이스를 지움(영속하지 않음). `MaxTraces = 0`이면 트레이스를 끔(S2F23에 S9F5). 앱이 `RegisterMessage(2, 23)`를 했으면 앱이 처리
+* `TraceReplyExpected`(기본 true) = S6F1 W비트, ACKC6 ≠ 0이면 `SendFailed(NotAcknowledged)`. `ActiveTraces`는 진단용 복사본
+* GemHost: `InitializeTrace(trid, period, totalSamples, groupSize, svids)`(주기는 `hhmmsscc`로 보냄, 1/100초 미만 버림) → TIAACK, `StopTrace(trid)`(TOTSMP 0). `TraceDataReceived`는 값을 표본별로 나눠 줌(자기가 시작한 TRID의 SVID 수로 나눔, 모르면 값 전체가 한 항목). 구독자가 없으면 S6F1은 `MessageReceived`로
 
 ### 레시피 관리 (언포맷 Process Program, S7)
 기본은 꺼짐. `GemEquipment.ProcessProgramStore`에 저장소(`GemProcessProgramFolder` 또는 직접 만든 `IGemProcessProgramStore`)를 정하면 켜짐. 켜면 GEM이 Stream 7을 직접 처리하고 표준 SV(PPExecName 1013 · PPFormat 1014)·DV(PPChangeName 1202 · PPChangeStatus 1203)·CE(ProcessProgramChange 1310 · ProcessProgramSelected 1311)와 리모트 명령 PP-SELECT(파라미터 PPID)가 생김.
