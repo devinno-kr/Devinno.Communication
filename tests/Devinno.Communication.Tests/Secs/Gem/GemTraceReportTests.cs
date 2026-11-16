@@ -146,10 +146,49 @@ public class GemTraceReportTests
         clock.Add(3500);                                           // 1000·2000·3000을 지나침
         Assert.Equal(1UL, Smpln(host.Next(6, 1)));
         host.NoneOf(6, 200);
-        clock.Add(499);                                            // 3999: 다음 예정은 4000
+        clock.Add(999);                                            // 4499: 건너뛴 뒤 다음 예정은 3500 + 1000
         host.NoneOf(6, 300);
         clock.Add(1);
         Assert.Equal(2UL, Smpln(host.Next(6, 1)));
+    }
+
+    [Fact]
+    public async Task SkippedSlot_FlushesPartialGroup_StimeStaysExact()
+    {
+        // 칸을 건너뛰면 그 전까지 모은 표본을 먼저 보낸다: 보고마다 STIME + i·DSPER가 맞도록
+        var clock = new Clock();
+        using var eq = Eq(clock);
+        using var host = await GemKit.Communicating(eq);
+        await Define(host, 4, 4);
+        await Step(eq, clock);                                     // 표본 1 (1000)
+        clock.Add(2500);                                           // 3500: 2000·3000 칸을 건너뜀
+        var first = host.Next(6, 1);
+        Assert.Equal(1UL, Smpln(first));
+        Assert.Equal(2, Values(first).Count);                      // 표본 1개분
+        await TestUtil.Until(() => Remaining(eq) == 2, 3000);      // 표본 2 (3500, 새 묶음, 다음 예정은 4500)
+        clock.Add(999);
+        host.NoneOf(6, 200);
+        await Step(eq, clock, 1);                                  // 표본 3 (4500)
+        clock.Add(1000);                                           // 표본 4 (5500) → 끝
+        var last = host.Next(6, 1);
+        Assert.Equal(4UL, Smpln(last));
+        Assert.Equal(6, Values(last).Count);                       // 표본 3개분
+    }
+
+    [Fact]
+    public async Task Reports_UseAtMostHalfTheSendQueue_EventsStillQueued()
+    {
+        // Host가 S6F1에 늦게 답해도 트레이스 보고는 대기열의 절반까지만: 이벤트·알람 자리가 남는다
+        var clock = new Clock();
+        using var eq = Eq(clock, e => { e.MaxPendingSends = 4; e.EventsEnabledByDefault = true; });
+        var log = GemKit.Log(eq);
+        using var host = await GemKit.Communicating(eq, h => h.Hold(6, 1));
+        await Define(host, 10, 1);
+        for (int i = 0; i < 6; i++) await Step(eq, clock);
+        await TestUtil.Until(() => GemKit.Only(log, "SendFailed S6F1 QueueFull").Length > 0, 3000);
+        Assert.True(eq.TriggerEvent(5002));
+        Assert.True(eq.TriggerEvent(5002));
+        Assert.Empty(GemKit.Only(log, "SendFailed S6F11"));
     }
 
     [Fact]

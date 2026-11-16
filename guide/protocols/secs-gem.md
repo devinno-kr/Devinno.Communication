@@ -56,7 +56,8 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * Host가 S2F23으로 트레이스를 정의하면 GEM이 받아서 처리함. 앱이 트레이스를 시작하는 API는 없음(Host가 정하는 능력). 대상은 SV만(앱 SV + 표준 SV), DV·EC는 TIAACK 4
 * GEM 작업 스레드가 주기(DSPER)마다 SV 값을 표본으로 뜸(TriggerEvent와 같은 스냅숏). 첫 표본은 응답(S2F24) 뒤 한 주기 뒤. REPGSZ개가 모이면 S6F1 하나로 보냄. 본문은 표본을 순서대로 이어 붙인 평평한 목록(표본1 SV1..SVk, 표본2 …)
 * **SMPLN** = 그 보고의 마지막 표본 번호(1부터), **STIME** = 그 보고 첫 표본을 뜬 순간의 GEM 시계(`TimeFormat` 형식). Host는 STIME + i·DSPER로 표본 시각을 복원
-* 늦은 틱(부하)은 놓친 표본을 메우지 않음: 표본 하나만 뜨고 다음 예정 시각으로(누적 지연 없음, 번호는 SMPLN이 셈)
+* 늦은 틱(부하)은 놓친 표본을 메우지 않음: 한 칸 이상 늦으면 그 전까지 모은 표본을 먼저 따로 보내고, 늦게 뜬 표본부터 새 보고를 시작하며 다음 예정은 그 시각 + 주기. 그래서 **보고 하나 안에서는 STIME + i·DSPER가 늘 맞음**(SMPLN은 뜬 표본 수라 보고 사이 간격은 DSPER보다 클 수 있음). 작업 스레드는 Windows 타이머 해상도(약 15ms)로 깨어나므로 수십 ms 이하 주기는 건너뜀이 잦음
+* 트레이스 보고는 송신 대기열(`MaxPendingSends`)의 절반까지만 씀. 넘으면 그 보고만 `SendFailed(QueueFull)`로 버림(Host가 S6F1에 늦게 답해도 알람·이벤트 자리가 남게)
 * TOTSMP개를 다 보내면 저절로 지움. TOTSMP가 REPGSZ의 배수가 아니면 마지막 보고는 남은 표본만
 * TOTSMP 0 = 그 TRID 멈춤(없는 TRID여도 0). 같은 TRID를 다시 보내면 앞 트레이스를 끝내고 새로 시작. 단 거절되면 앞 트레이스는 그대로
 * TIAACK: 1 SVID 너무 많음(`MaxTraceVariables`, 기본 100), 2 트레이스 더 못 받음(`MaxTraces`, 기본 10, 같은 TRID 재정의는 세지 않음), 3 주기 잘못(DSPER가 `hhmmss`·`hhmmsscc`가 아니거나 0이거나 `MinTracePeriod` 기본 100ms보다 짧음), 4 모르는 SVID(빈 목록 포함), 5 REPGSZ 잘못(0, TOTSMP보다 큼, 1000 초과). 문제가 여럿이면 번호가 낮은 것

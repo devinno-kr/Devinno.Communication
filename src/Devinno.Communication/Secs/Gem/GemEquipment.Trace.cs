@@ -111,7 +111,9 @@ public partial class GemEquipment
         return (int)Math.Clamp(due - TraceClock(), 1, int.MaxValue);
     }
 
-    // 작업 스레드 틱(gate 안): 예정 시각이 된 트레이스마다 표본 하나(늦었어도 하나, 누적 지연 없음). 묶음이 차거나 끝이면 S6F1
+    // 작업 스레드 틱(gate 안): 예정 시각이 된 트레이스마다 표본 하나(늦었어도 하나, 놓친 칸은 메우지 않음). 묶음이 차거나 끝이면 S6F1.
+    // 한 칸 이상 늦었으면(칸을 건너뜀) 그 전까지 모은 표본을 먼저 따로 보내고, 다음 예정은 이 표본 시각 + 주기로 다시 잡는다
+    // → 보고마다 STIME + i·DSPER가 맞는다(Host가 표본 시각을 복원하는 규칙)
     void TraceTickLocked(long now)
     {
         if (traces.Count == 0 || now < Volatile.Read(ref traceNextDue)) return;
@@ -119,20 +121,28 @@ public partial class GemEquipment
         {
             var t = traces[i];
             if (now < t.NextDue) continue;
+            bool skipped = now - t.NextDue >= t.PeriodMs;
+            if (skipped && t.Buffer.Count > 0) ReportTraceLocked(t);
             if (t.Buffer.Count == 0) t.BufferTime = GemTime.Format(DateTime.Now + clockOffset, TimeFormatLocked);
             foreach (var v in t.Vars) t.Buffer.Add(ValueLocked(v));
             t.Taken++;
-            t.NextDue += t.PeriodMs;
-            if (t.NextDue <= now) t.NextDue += ((now - t.NextDue) / t.PeriodMs + 1) * t.PeriodMs;
-            if (t.Taken % t.Group == 0 || t.Taken == t.Total)
-            {
-                var report = GemMessages.S6F1(t.TridItem, t.Taken, t.BufferTime!, t.Buffer, traceReplyExpected);
-                t.Buffer.Clear();
-                if (!IsOffline(control)) SendOrSpoolLocked(report);       // OFF-LINE이면 버림(알림 없음, 6J.7.2)
-            }
+            t.NextDue = skipped ? now + t.PeriodMs : t.NextDue + t.PeriodMs;
+            if (t.Taken % t.Group == 0 || t.Taken == t.Total) ReportTraceLocked(t);
             if (t.Taken == t.Total) traces.RemoveAt(i--);
         }
         UpdateTraceNextDueLocked();
+    }
+
+    // 모은 표본을 S6F1 하나로(gate 안). OFF-LINE이면 버림(알림 없음, 6J.7.2).
+    // 송신 대기열은 절반까지만 쓴다: Host가 S6F1에 늦게 답해도 알람·이벤트 자리가 남게(넘으면 이 보고만 SendFailed QueueFull)
+    void ReportTraceLocked(Trace t)
+    {
+        var report = GemMessages.S6F1(t.TridItem, t.Taken, t.BufferTime!, t.Buffer, traceReplyExpected);
+        t.Buffer.Clear();
+        if (IsOffline(control)) return;
+        if (commState == GemCommunicationState.Communicating && !SpoolsLocked(report) && sendQueue.Count >= Math.Max(1, maxPendingSends / 2))
+            Raise(SendFailed, new GemSendFailedEventArgs(report, GemSendFailure.QueueFull, null, null));
+        else SendOrSpoolLocked(report);
     }
 
     // S2F23: 검사 순서(T1) = 구조(S9F7) → TOTSMP 0(멈춤) → TIAACK 1 → 2 → 3 → 4 → 5. 실패하면 표는 그대로
