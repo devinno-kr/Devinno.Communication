@@ -1,3 +1,5 @@
+using Devinno.Communication.Secs.Data;
+
 namespace Devinno.Communication.Secs.Gem;
 
 // 설정 영속화(6J.4): 켜기 설정, 바뀐 표의 저장(gate 안에서 스냅숏만 만들어 저장소에 넘김), Start 때 복원
@@ -29,5 +31,63 @@ public partial class GemEquipment
             [.. catalog.AlarmList.Select(a => (a.Key, alarmsEnabled.Contains(a.Key)))],
             [.. catalog.Constants.Select(v => (v.Key, values[v.Key]))],
             localRemote));
+    }
+
+    // Start 때 저장된 설정을 지금 정의에 맞는 것만 적용한다(gate 안, Reset* 뒤). 버린 항목 수를 돌려준다(6J.4.4).
+    // 버린 것이 있으면 파일도 지금 정의에 맞게 다시 쓴다
+    int RestoreStateLocked(GemStateSnapshot? s)
+    {
+        if (s == null) return 0;
+        int dropped = 0;
+        var keptReports = new HashSet<GemId>();
+        foreach (var (rptid, vids) in s.Reports)
+        {
+            var r = Convert(rptid, catalog.RptidFormat);
+            var vs = vids.Select(v => Convert(v, catalog.VidFormat)).ToList();
+            if (r is not { } key || vs.Any(v => v is not { } k || !catalog.Vars.ContainsKey(k))) { dropped++; continue; }
+            reports[key] = [.. vs.Select(v => v!.Value)];
+            keptReports.Add(key);
+        }
+        foreach (var (ceid, rptids) in s.Links)
+        {
+            if (Convert(ceid, catalog.CeidFormat) is not { } key || !catalog.Events.ContainsKey(key)) { dropped++; continue; }
+            var rs = rptids.Select(r => Convert(r, catalog.RptidFormat)).Where(r => r is { } k && keptReports.Contains(k)).Select(r => r!.Value).ToList();
+            if (rs.Count > 0) links[key] = rs;          // 빠진 RPTID는 리포트에서 이미 셈
+        }
+        foreach (var (ceid, on) in s.Events)
+        {
+            if (Convert(ceid, catalog.CeidFormat) is not { } key || !catalog.Events.ContainsKey(key)) { dropped++; continue; }
+            if (on) enabledEvents.Add(key);
+            else enabledEvents.Remove(key);
+        }
+        foreach (var (alid, on) in s.Alarms)
+        {
+            if (Convert(alid, catalog.AlidFormat) is not { } key || !catalog.Alarms.ContainsKey(key)) { dropped++; continue; }
+            if (on) alarmsEnabled.Add(key);
+            else alarmsEnabled.Remove(key);
+        }
+        foreach (var (ecid, value) in s.Constants)
+        {
+            if (Convert(ecid, catalog.VidFormat) is not { } key || !catalog.Vars.TryGetValue(key, out var v) || v.Kind != GemVarKind.Constant) { dropped++; continue; }
+            var converted = GemItems.ConvertNumeric(value, v.Format);
+            if (converted == null || !GemItems.Matches(converted, v) || (GemItems.IsNumeric(v.Format) && !GemItems.InRange(converted, v.Min, v.Max))) { dropped++; continue; }
+            values[key] = converted;
+        }
+        // 앱이 ON-LINE 쪽 초기 상태를 정했으면 그 설정이 이긴다(버린 것으로 세지 않음)
+        if (initialControlState is not (GemControlState.OnlineLocal or GemControlState.OnlineRemote)) localRemote = s.Switch;
+        if (dropped > 0) SaveStateLocked();
+        return dropped;
+    }
+
+    // 저장된 ID를 지금 포맷의 표 열쇠로. 바꿀 수 없으면 null(A면 숫자를 10진 문자열로, 숫자 포맷이면 문자 ID를 정수로)
+    static GemId? Convert(GemId id, SecsFormat format)
+    {
+        if (format == SecsFormat.ASCII) id = GemItems.Key(id, format);
+        else if (id.IsText)
+        {
+            if (!long.TryParse(id.Text, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out var n)) return null;
+            id = new GemId(n);
+        }
+        return GemItems.Fits(id, format) ? id : null;
     }
 }

@@ -409,6 +409,7 @@ public partial class GemEquipment : IDisposable
             if (state != null) state.WriteFailed = ex => Error($"설정 파일을 쓰지 못했습니다(동작은 계속, 재시작하면 그 사이 변경을 잃을 수 있음): {ex.Message}");
             var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick);
             var a = new GemLoop(nameof(GemEquipment) + ".Events", maxPending: maxPendingEvents);
+            int restoreDropped;
             lock (gate)
             {
                 catalog = c;
@@ -434,12 +435,15 @@ public partial class GemEquipment : IDisposable
                 ResetAlarms();
                 ResetClock();
                 ResetSpooling();
+                restoreDropped = RestoreStateLocked(state?.State);
             }
             w.Start();
             a.Start();
             IsStart = true;
             // 복원 때 해석하지 못해 지운 스풀 파일이 있으면 Start 뒤 한 번 알린다(앱 이벤트 스레드가 시작된 뒤라야 전달됨)
             if (store is { SkippedFiles: > 0 }) Error($"스풀 디렉터리에서 읽지 못한 파일 {store.SkippedFiles}개를 지웠습니다(나머지는 복원함).");
+            if (state is { WasCorrupt: true }) Error("gem.state를 읽지 못해 gem.state.bad로 옮기고 초기값으로 시작했습니다.");
+            if (restoreDropped > 0) Error($"저장된 설정 중 지금 정의와 맞지 않는 {restoreDropped}개를 버렸습니다(나머지는 복원함).");
             try { transport.Start(); }
             catch
             {
