@@ -72,8 +72,9 @@ internal sealed class GemStateStore : IDisposable
     {
         TryDelete(path + TmpExt);
         if (!File.Exists(path)) return;
+        // 내용이 깨진 경우만 "깨짐"으로 본다. 읽지 못한 경우(다른 프로그램이 잠깐 잡음 등)는 IOException을 그대로 던진다 — 옮기면 설정을 잃는다
         try { State = Parse(XDocument.Load(path)); }
-        catch (Exception) { State = null; }
+        catch (Exception ex) when (ex is System.Xml.XmlException or FormatException or ArgumentException or OverflowException) { State = null; }
         if (State != null) return;
         WasCorrupt = true;
         File.Move(path, path + BadExt, overwrite: true);
@@ -94,13 +95,19 @@ internal sealed class GemStateStore : IDisposable
         return new GemStateSnapshot(reports, links, events, alarms, constants, sw);
     }
 
-    // Id(10진 long) 또는 IdText(문자열) 중 정확히 하나
+    // Id(10진 long), IdText(문자열), IdSml(XML에 쓸 수 없는 문자가 든 문자열의 A 아이템 SML) 중 정확히 하나
     static GemId ReadId(XElement e)
     {
         var id = (string?)e.Attribute("Id");
         var text = (string?)e.Attribute("IdText");
-        if ((id == null) == (text == null)) throw new FormatException("Id/IdText");
+        var sml = (string?)e.Attribute("IdSml");
+        if ((id != null ? 1 : 0) + (text != null ? 1 : 0) + (sml != null ? 1 : 0) != 1) throw new FormatException("Id/IdText/IdSml");
         if (text != null) return new GemId(text);
+        if (sml != null)
+        {
+            var item = SecsSml.ParseItem(sml);
+            return item.Format == SecsFormat.ASCII && item.GetString() is { Length: > 0 } t ? new GemId(t) : throw new FormatException("IdSml");
+        }
         return long.TryParse(id, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var n) ? new GemId(n) : throw new FormatException("Id");
     }
 
@@ -111,7 +118,14 @@ internal sealed class GemStateStore : IDisposable
         _ => throw new FormatException("Enabled"),
     };
 
-    static XAttribute IdAttr(GemId id) => id.IsText ? new XAttribute("IdText", id.Text!) : new XAttribute("Id", id.Number.ToString(CultureInfo.InvariantCulture));
+    static XAttribute IdAttr(GemId id) => !id.IsText ? new XAttribute("Id", id.Number.ToString(CultureInfo.InvariantCulture))
+        : IsXmlText(id.Text!) ? new XAttribute("IdText", id.Text!) : new XAttribute("IdSml", SecsItem.A(id.Text!).ToSml());
+
+    static bool IsXmlText(string s)
+    {
+        try { System.Xml.XmlConvert.VerifyXmlChars(s); return true; }
+        catch (System.Xml.XmlException) { return false; }
+    }
 
     static XElement Enabled(string name, GemId id, bool on) => new(name, IdAttr(id), new XAttribute("Enabled", on ? "true" : "false"));
 
@@ -133,7 +147,14 @@ internal sealed class GemStateStore : IDisposable
     // 다음에 쓸 내용을 바꿔 둔다(밀린 것은 버림). 닫기 시작한 뒤에는 버린다
     public void Save(GemStateSnapshot state)
     {
-        var data = Serialize(state);
+        // 직렬화 실패는 상태를 바꾼 쪽(gate 안)으로 새어 나가지 않게 쓰기 실패와 같이 한 번만 알린다
+        byte[] data;
+        try { data = Serialize(state); }
+        catch (Exception ex)
+        {
+            Failed(ex);
+            return;
+        }
         lock (sync)
         {
             if (closing) return;
@@ -159,15 +180,16 @@ internal sealed class GemStateStore : IDisposable
                 BeforeWrite?.Invoke();
                 WriteAtomic(path, data);
             }
-            catch (Exception ex)
-            {
-                if (Interlocked.Exchange(ref failed, 1) == 0)
-                {
-                    try { WriteFailed?.Invoke(ex); } catch (Exception) { }
-                }
-            }
+            catch (Exception ex) { Failed(ex); }
         }
         CloseLock();
+    }
+
+    // 첫 실패만 알린다(이후는 조용히)
+    void Failed(Exception ex)
+    {
+        if (Interlocked.Exchange(ref failed, 1) != 0) return;
+        try { WriteFailed?.Invoke(ex); } catch (Exception) { }
     }
 
     static void WriteAtomic(string path, byte[] data)

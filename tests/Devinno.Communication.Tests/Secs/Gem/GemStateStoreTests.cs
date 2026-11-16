@@ -102,6 +102,40 @@ public class GemStateStoreTests
     }
 
     [Fact]
+    public void Open_FileTemporarilyLocked_ThrowsAndKeepsFile()
+    {
+        var dir = NewDir();
+        try
+        {
+            var s = GemStateStore.Open(dir);
+            s.Save(Snap(GemLocalRemote.Local));
+            s.Close(3000);
+            using (new FileStream(StatePath(dir), FileMode.Open, FileAccess.Read, FileShare.Delete))   // 백신·백업 프로그램이 잠깐 잡고 있음(읽기는 막고 이름 바꾸기는 허용)
+                Assert.ThrowsAny<IOException>(() => GemStateStore.Open(dir));
+            Assert.False(File.Exists(StatePath(dir) + ".bad"));
+            using var r = GemStateStore.Open(dir);                                                    // 풀리면 그대로 읽힘(설정을 잃지 않음)
+            Assert.Equal(GemLocalRemote.Local, r.State!.Switch);
+        }
+        finally { Cleanup(dir); }
+    }
+
+    [Fact]
+    public void Save_TextIdWithControlCharacter_RoundTrips()
+    {
+        var dir = NewDir();
+        try
+        {
+            var s = GemStateStore.Open(dir);
+            s.Save(new GemStateSnapshot([(new GemId("R"), [new GemId(1)])], [], [], [], [], GemLocalRemote.Remote));
+            s.Close(3000);
+            using var r = GemStateStore.Open(dir);
+            Assert.False(r.WasCorrupt);
+            Assert.Equal(new GemId("R"), r.State!.Reports.Single().Rptid);
+        }
+        finally { Cleanup(dir); }
+    }
+
+    [Fact]
     public void Open_LeftoverTmp_Deleted()
     {
         var dir = NewDir();

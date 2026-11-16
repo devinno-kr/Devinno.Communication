@@ -59,8 +59,10 @@ public partial class GemEquipment
         foreach (var (ceid, rptids) in s.Links)
         {
             if (Convert(ceid, catalog.CeidFormat) is not { } key || !catalog.Events.ContainsKey(key)) { dropped++; continue; }
-            var rs = rptids.Select(r => Convert(r, catalog.RptidFormat)).Where(r => r is { } k && keptReports.Contains(k)).Select(r => r!.Value).ToList();
-            if (rs.Count > 0) links[key] = rs;          // 빠진 RPTID는 리포트에서 이미 셈
+            // 버린 리포트를 하나라도 가리키면 링크를 통째로 버린다(일부만 남기면 Host가 모르는 사이 리포트가 빠짐, 스펙 6J.4.4)
+            var rs = rptids.Select(r => Convert(r, catalog.RptidFormat)).ToList();
+            if (rs.Any(r => r is not { } k || !keptReports.Contains(k))) { dropped++; continue; }
+            if (rs.Count > 0) links[key] = [.. rs.Select(r => r!.Value)];
         }
         foreach (var (ceid, on) in s.Events)
         {

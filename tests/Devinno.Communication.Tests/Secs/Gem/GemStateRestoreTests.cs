@@ -144,14 +144,16 @@ public class GemStateRestoreTests
                 var log = GemKit.Log(eq2);
                 using var h2 = await GemKit.Communicating(eq2);
                 await TestUtil.Until(() => Errors(log).Length > 0, 5000);
+                // 버린 리포트 7002를 가리키던 링크는 통째로 버린다(부분 링크는 Host를 속임, 스펙 6J.4.4)
                 eq2.TriggerEvent(5001);
-                Assert.Equal("<L [1] <L [2] <U4 7001> <L [1] <F4 25>>>>", h2.Next(6, 11).Item!.Items[2].ToSml());
+                Assert.Equal("<L [0]>", h2.Next(6, 11).Item!.Items[2].ToSml());
                 eq2.TriggerEvent(5002);
                 Assert.Equal("<L [0]>", h2.Next(6, 11).Item!.Items[2].ToSml());
+                await Ok(h2, "S2F35 W <L <U4 1> <L <L <U4 5002> <L <U4 7001>>>>>", "S2F36 <B 0x00>");   // 7001은 복원됨
                 await Settle();
                 var errors = Errors(log);
                 Assert.Single(errors);
-                Assert.Contains("1개", errors[0]);
+                Assert.Contains("3개", errors[0]);      // 리포트 7002, 링크 5001·5002
                 eq2.Stop();
             }
             using var s = GemStateStore.Open(dir);
@@ -259,6 +261,31 @@ public class GemStateRestoreTests
             await TestUtil.Until(() => Errors(log).Length > 0, 5000);
             Assert.Contains("1개", Errors(log)[0]);
             await Ok(h2, "S2F35 W <L <U4 1> <L <L <U4 5001> <L <U1 7>>>>>", "S2F36 <B 0x05>");
+        }
+        finally { Delete(dir); }
+    }
+
+    [Fact]
+    public async Task Restore_TextIdWithControlCharacter_SavedAndRestored()
+    {
+        var dir = TempDir();
+        try
+        {
+            var body = SecsItem.L(SecsItem.U4(1), SecsItem.L(SecsItem.L(SecsItem.A("R"), SecsItem.L(SecsItem.U4(2001)))));
+            await Prepare(dir, async (eq, h) =>
+            {
+                var reply = await h.Hsms.SendAsync(new SecsMessage(2, 33, true, body));          // XML에 그대로 못 쓰는 문자가 든 RPTID
+                Assert.Equal("S2F34 <B 0x00>", reply!.ToSml());
+                await Ok(h, "S2F37 W <L <BOOLEAN T> <L <U4 5002>>>", "S2F38 <B 0x00>");        // 그 뒤의 저장도 망가지지 않음
+            }, e => e.RptidFormat = SecsFormat.ASCII);
+            using var eq2 = Eq(dir, e => e.RptidFormat = SecsFormat.ASCII);
+            var log = GemKit.Log(eq2);
+            using var h2 = await GemKit.Communicating(eq2);
+            var again = await h2.Hsms.SendAsync(new SecsMessage(2, 33, true, body));
+            Assert.Equal("S2F34 <B 0x03>", again!.ToSml());     // 복원됨(이미 있음)
+            Assert.True(eq2.TriggerEvent(5002));
+            await Settle();
+            Assert.Empty(Errors(log));
         }
         finally { Delete(dir); }
     }
