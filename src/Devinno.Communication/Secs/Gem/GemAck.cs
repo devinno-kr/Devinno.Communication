@@ -197,4 +197,36 @@ public static class GemAck
     public const byte TiaackUnknownSvid = 4;
     /// <summary>TIAACK 5: invalid REPGSZ (S2F24)</summary>
     public const byte TiaackInvalidGroupSize = 5;
+
+    /// <summary>VLAACK 0: accepted, the limits are applied (S2F46)</summary>
+    /// <remarks>VLAACK 0 to 2, LVACK 1 to 4, and LIMITACK 1 to 7 are confirmed by several public sources; the SEMI E5 original was not checked.</remarks>
+    public const byte VlaackOk = 0;
+    /// <summary>VLAACK 1: limit attribute definition error, see LVACK and LIMITACK; nothing was changed (S2F46)</summary>
+    public const byte VlaackLimitError = 1;
+    /// <summary>VLAACK 2: cannot perform now (S2F46)</summary>
+    public const byte VlaackCannotPerform = 2;
+
+    /// <summary>LVACK 1: the variable does not exist (S2F46)</summary>
+    public const byte LvackUnknownVid = 1;
+    /// <summary>LVACK 2: the variable has no limits capability (S2F46)</summary>
+    public const byte LvackNoLimits = 2;
+    /// <summary>LVACK 3: the variable is repeated in the message (S2F46)</summary>
+    public const byte LvackRepeatedVid = 3;
+    /// <summary>LVACK 4: limit value error, see LIMITACK (S2F46)</summary>
+    public const byte LvackLimitValueError = 4;
+
+    /// <summary>LIMITACK 1: the LIMITID does not exist (S2F46)</summary>
+    public const byte LimitackUnknownLimitId = 1;
+    /// <summary>LIMITACK 2: UPPERDB is above LIMITMAX (S2F46)</summary>
+    public const byte LimitackUpperAboveMax = 2;
+    /// <summary>LIMITACK 3: LOWERDB is below LIMITMIN (S2F46)</summary>
+    public const byte LimitackLowerBelowMin = 3;
+    /// <summary>LIMITACK 4: UPPERDB is below LOWERDB (S2F46)</summary>
+    public const byte LimitackUpperBelowLower = 4;
+    /// <summary>LIMITACK 5: illegal format for UPPERDB or LOWERDB (S2F46)</summary>
+    public const byte LimitackIllegalFormat = 5;
+    /// <summary>LIMITACK 6: an ASCII value cannot be translated to a number (S2F46)</summary>
+    public const byte LimitackNotNumeric = 6;
+    /// <summary>LIMITACK 7: the same LIMITID is defined twice for this variable (S2F46)</summary>
+    public const byte LimitackDuplicateLimitId = 7;
 }

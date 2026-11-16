@@ -533,6 +533,167 @@ public static partial class GemMessages
     }
     #endregion
 
+    #region S2F45 / S2F46 / S2F47 / S2F48
+    /// <summary>Builds S2F45 Define Variable Limit Attributes &lt;L DATAID &lt;L &lt;L VID &lt;L &lt;L LIMITID &lt;L UPPERDB LOWERDB&gt;&gt;…&gt;&gt;…&gt;&gt;.</summary>
+    /// <remarks>An empty <paramref name="definitions"/> list releases every limit of the equipment; a VID whose Limits is null (or empty) releases all limits of that variable; a limit whose Upper and Lower are both null releases that LIMITID. LIMITID is sent as B; UPPERDB and LOWERDB are sent as given (normally in the variable's format).</remarks>
+    /// <param name="dataId">DATAID (sent in <see cref="GemFormats.Dataid"/>).</param>
+    /// <param name="definitions">The variables (sent in <see cref="GemFormats.Vid"/>) and their limits.</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F45 message (W-bit set).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="definitions"/> is null.</exception>
+    /// <exception cref="ArgumentException">Only one of Upper and Lower is null, or a text ID cannot be sent in a numeric format.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">An ID is out of the range of its format.</exception>
+    public static SecsMessage S2F45(GemId dataId, IReadOnlyList<(GemId Vid, IReadOnlyList<(byte LimitId, SecsItem? Upper, SecsItem? Lower)>? Limits)> definitions, GemFormats? formats = null)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        var f = F(formats);
+        return new(2, 45, true, SecsItem.L(dataId.ToItem(f.Dataid), SecsItem.L([.. definitions.Select(d => SecsItem.L(d.Vid.ToItem(f.Vid), SecsItem.L([.. (d.Limits ?? []).Select(l =>
+        {
+            if (l.Upper is null != l.Lower is null) throw new ArgumentException("UPPERDB와 LOWERDB는 둘 다 주거나(정의) 둘 다 null(해제)이어야 합니다.", nameof(definitions));
+            return SecsItem.L(SecsItem.B(l.LimitId), l.Upper is { } u ? SecsItem.L(u, l.Lower!) : SecsItem.L());
+        })])))])));
+    }
+
+    /// <summary>Reads S2F45 Define Variable Limit Attributes.</summary>
+    /// <remarks>VIDs are any integer format or A; LIMITID is any numeric format from 0 to 255. UPPERDB and LOWERDB are returned as received (null = release that LIMITID). An empty Limits list releases all limits of that variable, an empty definitions list every limit.</remarks>
+    /// <param name="message">The received S2F45.</param>
+    /// <returns>DATAID as the item received, and the definitions.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F45.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L DATAID &lt;L &lt;L VID &lt;L &lt;L LIMITID &lt;L UPPERDB LOWERDB&gt;(0 or 2)&gt;…&gt;&gt;…&gt;&gt;.</exception>
+    public static (SecsItem DataId, IReadOnlyList<(GemId Vid, IReadOnlyList<(byte LimitId, SecsItem? Upper, SecsItem? Lower)> Limits)> Definitions) ParseS2F45(SecsMessage message)
+    {
+        var (dataId, defs) = ParseS2F45Raw(message);
+        return (dataId, [.. defs.Select(d => (GemId.FromItem(d.Vid), d.Limits))]);
+    }
+
+    // 장비용: VID 아이템을 받은 그대로(S2F46에 돌려줌)
+    internal static (SecsItem DataId, IReadOnlyList<(SecsItem Vid, IReadOnlyList<(byte LimitId, SecsItem? Upper, SecsItem? Lower)> Limits)> Definitions) ParseS2F45Raw(SecsMessage message)
+    {
+        Check(message, 2, 45);
+        const string expected = "<L DATAID <L <L VID <L <L LIMITID <L UPPERDB LOWERDB>(0 or 2)>…>>…>>";
+        var (dataId, list) = DataAndList(message, expected);
+        return (dataId, [.. list.Items.Select(v =>
+        {
+            if (v is not { Format: SecsFormat.List, Count: 2 } || v.Items[1].Format != SecsFormat.List) throw Fail(message, expected);
+            Id(v.Items[0], message, expected);
+            return (v.Items[0], (IReadOnlyList<(byte, SecsItem?, SecsItem?)>)[.. v.Items[1].Items.Select(l =>
+            {
+                if (l is not { Format: SecsFormat.List, Count: 2 } || l.Items[1] is not { Format: SecsFormat.List, Count: 0 or 2 } db) throw Fail(message, expected);
+                byte id = Ack(l.Items[0], message, expected);
+                return db.Count == 2 ? (id, db.Items[0], db.Items[1]) : (id, (SecsItem?)null, (SecsItem?)null);
+            })]);
+        })]);
+    }
+
+    /// <summary>Builds S2F46 Variable Limit Attribute Acknowledge &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;&gt;…&gt;&gt;.</summary>
+    /// <param name="vlaack">VLAACK (0 = accepted, 1 = limit definition error, 2 = cannot perform now).</param>
+    /// <param name="errors">The variables in error (null = none). A LIMITID and LIMITACK pair is sent when both are given, otherwise &lt;L&gt;.</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F46 message.</returns>
+    /// <exception cref="ArgumentException">A text VID cannot be sent in a numeric format.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A VID is out of the range of its format.</exception>
+    public static SecsMessage S2F46(byte vlaack, IReadOnlyList<GemLimitError>? errors = null, GemFormats? formats = null)
+    {
+        var f = F(formats);
+        return S2F46(vlaack, [.. (errors ?? []).Select(e => (e.Vid.ToItem(f.Vid), e.Lvack, e.LimitId, e.Limitack))]);
+    }
+
+    // 장비용: VID 아이템을 받은 그대로
+    internal static SecsMessage S2F46(byte vlaack, IReadOnlyList<(SecsItem Vid, byte Lvack, byte? LimitId, byte? Limitack)> errors)
+        => new(2, 46, false, SecsItem.L(GemItems.Ack(vlaack), SecsItem.L([.. errors.Select(e => SecsItem.L(e.Vid, GemItems.Ack(e.Lvack),
+            e is { LimitId: { } id, Limitack: { } ack } ? SecsItem.L(SecsItem.B(id), SecsItem.B(ack)) : SecsItem.L()))])));
+
+    /// <summary>Reads S2F46 Variable Limit Attribute Acknowledge.</summary>
+    /// <param name="message">The received S2F46.</param>
+    /// <returns>VLAACK and the variables in error (VID any integer format or A, codes any numeric format).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F46.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;(0 or 2)&gt;…&gt;&gt;.</exception>
+    public static (byte Vlaack, IReadOnlyList<GemLimitError> Errors) ParseS2F46(SecsMessage message)
+    {
+        Check(message, 2, 46);
+        const string expected = "<L VLAACK <L <L VID LVACK <L LIMITID LIMITACK>>…>>";
+        if (message.Item is not { Format: SecsFormat.List, Count: 2 } body || body.Items[1].Format != SecsFormat.List) throw Fail(message, expected);
+        byte vlaack = Ack(body.Items[0], message, expected);
+        return (vlaack, [.. body.Items[1].Items.Select(e =>
+        {
+            if (e is not { Format: SecsFormat.List, Count: 3 } || e.Items[2] is not { Format: SecsFormat.List, Count: 0 or 2 } pair) throw Fail(message, expected);
+            return pair.Count == 2
+                ? new GemLimitError(Id(e.Items[0], message, expected), Ack(e.Items[1], message, expected), Ack(pair.Items[0], message, expected), Ack(pair.Items[1], message, expected))
+                : new GemLimitError(Id(e.Items[0], message, expected), Ack(e.Items[1], message, expected), null, null);
+        })]);
+    }
+
+    /// <summary>Builds S2F47 Variable Limit Attribute Request &lt;L VID…&gt;. An empty list asks for every variable that can have limits.</summary>
+    /// <param name="vids">The VIDs (sent in <see cref="GemFormats.Vid"/>; null = all).</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F47 message (W-bit set).</returns>
+    /// <exception cref="ArgumentException">A text VID cannot be sent in a numeric format.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A VID is out of the range of its format.</exception>
+    public static SecsMessage S2F47(IReadOnlyList<GemId>? vids = null, GemFormats? formats = null) => new(2, 47, true, IdList(vids, F(formats).Vid));
+
+    /// <summary>Reads S2F47 Variable Limit Attribute Request.</summary>
+    /// <param name="message">The received S2F47.</param>
+    /// <returns>The VIDs (any integer format or A; empty = all).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F47.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L VID…&gt;.</exception>
+    public static IReadOnlyList<GemId> ParseS2F47(SecsMessage message) => [.. ParseS2F47Raw(message).Select(GemId.FromItem)];
+
+    // 장비용: VID 아이템을 받은 그대로(S2F48에 돌려줌)
+    internal static IReadOnlyList<SecsItem> ParseS2F47Raw(SecsMessage message)
+    {
+        Check(message, 2, 47);
+        const string expected = "<L VID…>";
+        var items = Entries(message, expected);
+        foreach (var i in items) Id(i, message, expected);
+        return items;
+    }
+
+    /// <summary>Builds S2F48 Variable Limit Attribute Send &lt;L &lt;L VID &lt;L UNITS LIMITMIN LIMITMAX &lt;L &lt;L LIMITID UPPERDB LOWERDB&gt;…&gt;&gt;&gt;…&gt;.</summary>
+    /// <remarks>A variable that cannot have limits (<see cref="GemLimitInfo.IsSupported"/> false) is sent as &lt;L VID &lt;L&gt;&gt;.</remarks>
+    /// <param name="infos">The variables in order.</param>
+    /// <param name="formats">The ID formats (null = <see cref="GemFormats.Default"/>).</param>
+    /// <returns>The S2F48 message.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="infos"/> is null.</exception>
+    /// <exception cref="ArgumentException">A text VID cannot be sent in a numeric format.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A VID is out of the range of its format.</exception>
+    public static SecsMessage S2F48(IReadOnlyList<GemLimitInfo> infos, GemFormats? formats = null)
+    {
+        ArgumentNullException.ThrowIfNull(infos);
+        var f = F(formats);
+        return S2F48([.. infos.Select(i => (i.Vid.ToItem(f.Vid), (GemLimitInfo?)i))]);
+    }
+
+    // 장비용: VID 아이템을 받은 그대로. Info가 null이거나 리밋 불가면 <L VID <L>>
+    internal static SecsMessage S2F48(IReadOnlyList<(SecsItem Vid, GemLimitInfo? Info)> entries)
+        => new(2, 48, false, SecsItem.L([.. entries.Select(e => SecsItem.L(e.Vid, e.Info is { IsSupported: true } i
+            ? SecsItem.L(SecsItem.A(i.Units ?? ""), i.LimitMin!, i.LimitMax!, SecsItem.L([.. i.Limits.Select(l => SecsItem.L(SecsItem.B(l.LimitId), l.Upper, l.Lower))]))
+            : SecsItem.L()))]));
+
+    /// <summary>Reads S2F48 Variable Limit Attribute Send.</summary>
+    /// <param name="message">The received S2F48.</param>
+    /// <returns>The variables in order (VID any integer format or A, LIMITID any numeric format, values as received).</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F48.</exception>
+    /// <exception cref="FormatException">The body is not &lt;L &lt;L VID &lt;L UNITS LIMITMIN LIMITMAX &lt;L &lt;L LIMITID UPPERDB LOWERDB&gt;…&gt;&gt;(or &lt;L&gt;)&gt;…&gt;.</exception>
+    public static IReadOnlyList<GemLimitInfo> ParseS2F48(SecsMessage message)
+    {
+        Check(message, 2, 48);
+        const string expected = "<L <L VID <L UNITS LIMITMIN LIMITMAX <L <L LIMITID UPPERDB LOWERDB>…>>>…>";
+        return [.. Entries(message, expected).Select(e =>
+        {
+            if (e is not { Format: SecsFormat.List, Count: 2 } || e.Items[1] is not { Format: SecsFormat.List } a) throw Fail(message, expected);
+            var vid = Id(e.Items[0], message, expected);
+            if (a.Count == 0) return new GemLimitInfo(vid, null, null, null, []);
+            if (a.Count != 4 || a.Items[0].Format != SecsFormat.ASCII || a.Items[3].Format != SecsFormat.List) throw Fail(message, expected);
+            return new GemLimitInfo(vid, a.Items[0].GetString(), a.Items[1], a.Items[2], [.. a.Items[3].Items.Select(l =>
+                l is { Format: SecsFormat.List, Count: 3 } ? new GemLimit(Ack(l.Items[0], message, expected), l.Items[1], l.Items[2]) : throw Fail(message, expected))]);
+        })];
+    }
+    #endregion
+
     #region S2F49 / S2F50
     /// <summary>Builds S2F49 Enhanced Remote Command &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;.</summary>
     /// <param name="dataId">DATAID (sent in <see cref="GemFormats.Dataid"/>).</param>

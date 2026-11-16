@@ -5839,6 +5839,49 @@
         <member name="F:Devinno.Communication.Secs.Gem.GemAck.TiaackInvalidGroupSize" en-hash="996911a4adb1c014">
             <summary>TIAACK 5: REPGSZ가 잘못됨 (S2F24)</summary>
         </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.VlaackOk" en-hash="0fc5c834ea22a9b3">
+            <summary>VLAACK 0: 받아들였고 리밋을 적용함 (S2F46)</summary>
+            <remarks>VLAACK 0~2, LVACK 1~4, LIMITACK 1~7은 여러 공개 자료로 확인했습니다. SEMI E5 원문과는 대조하지 않았습니다.</remarks>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.VlaackLimitError" en-hash="15bf86b26f3f7d2b">
+            <summary>VLAACK 1: 리밋 속성 정의 오류, LVACK·LIMITACK 참고. 아무것도 바꾸지 않음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.VlaackCannotPerform" en-hash="b8a38d97befd92e2">
+            <summary>VLAACK 2: 지금 할 수 없음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LvackUnknownVid" en-hash="73312423d69ee1c7">
+            <summary>LVACK 1: 변수가 없음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LvackNoLimits" en-hash="d0ef675bf493cdb9">
+            <summary>LVACK 2: 리밋을 가질 수 없는 변수 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LvackRepeatedVid" en-hash="2013c6fde341e797">
+            <summary>LVACK 3: 메시지에 같은 변수가 반복됨 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LvackLimitValueError" en-hash="87b604134974ef5b">
+            <summary>LVACK 4: 리밋 값 오류, LIMITACK 참고 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackUnknownLimitId" en-hash="a660390f014eb242">
+            <summary>LIMITACK 1: LIMITID가 없음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackUpperAboveMax" en-hash="59ab554d164f3b30">
+            <summary>LIMITACK 2: UPPERDB가 LIMITMAX보다 큼 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackLowerBelowMin" en-hash="8de82b06a044503e">
+            <summary>LIMITACK 3: LOWERDB가 LIMITMIN보다 작음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackUpperBelowLower" en-hash="ce35776529a06792">
+            <summary>LIMITACK 4: UPPERDB가 LOWERDB보다 작음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackIllegalFormat" en-hash="774483c563d1e2fa">
+            <summary>LIMITACK 5: UPPERDB 또는 LOWERDB의 포맷이 잘못됨 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackNotNumeric" en-hash="269b8be856f68ddf">
+            <summary>LIMITACK 6: A 값을 숫자로 바꿀 수 없음 (S2F46)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.LimitackDuplicateLimitId" en-hash="adb456acd35bac3d">
+            <summary>LIMITACK 7: 이 변수에 같은 LIMITID가 두 번 정의됨 (S2F46)</summary>
+        </member>
         
         
         
@@ -8645,6 +8688,99 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.IsSuccess" en-hash="71d13a91f52580bd">
             <summary>장비가 레시피를 받아들였는지(ACKC7 0)를 가져옵니다.</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemLimitZone" en-hash="2ce5a0b2fa07d99f">
+            <summary>리밋 하나에 대한 값의 구역(SEMI E30 리밋 모니터링).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemLimitZone.NoZone" en-hash="5a59d6eb810540b9">
+            <summary>아직 구역이 없음: 리밋을 정의하거나 복원한 뒤 값이 데드밴드 안에만 있었음(또는 숫자 하나가 아님).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemLimitZone.Below" en-hash="871bbf319d330f4e">
+            <summary>값이 LOWERDB에 닿았거나 그보다 내려감(아래 구역).</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemLimitZone.Above" en-hash="3bed2d549bb3544c">
+            <summary>값이 UPPERDB에 닿았거나 그보다 올라감(위 구역).</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemLimit" en-hash="0875e7b227924720">
+            <summary>변수 하나의 리밋 하나: LIMITID와 데드밴드 양 끝.</summary>
+            <param name="limitId">LIMITID</param>
+            <param name="upper">UPPERDB</param>
+            <param name="lower">LOWERDB</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemLimit.#ctor(System.Byte,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem)" en-hash="0875e7b227924720">
+            <summary>변수 하나의 리밋 하나: LIMITID와 데드밴드 양 끝.</summary>
+            <param name="limitId">LIMITID</param>
+            <param name="upper">UPPERDB</param>
+            <param name="lower">LOWERDB</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimit.LimitId" en-hash="182f6669c5cad1f2">
+            <summary>리밋 ID(LIMITID)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimit.Upper" en-hash="93cad1000191b863">
+            <summary>데드밴드의 위쪽 끝(UPPERDB)을 가져옵니다. 이 값 이상이면 위 구역입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimit.Lower" en-hash="e41c86e3041bcaaf">
+            <summary>데드밴드의 아래쪽 끝(LOWERDB)을 가져옵니다. 이 값 이하면 아래 구역입니다.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemLimitInfo" en-hash="88a1f4644c882066">
+            <summary>S2F48에서 읽은 변수 하나의 리밋 속성.</summary>
+            <param name="vid">VID</param>
+            <param name="units">UNITS(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limitMin">LIMITMIN(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limitMax">LIMITMAX(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limits">지금 정의된 리밋(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemLimitInfo.#ctor(Devinno.Communication.Secs.Gem.GemId,System.String,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemLimit})" en-hash="88a1f4644c882066">
+            <summary>S2F48에서 읽은 변수 하나의 리밋 속성.</summary>
+            <param name="vid">VID</param>
+            <param name="units">UNITS(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limitMin">LIMITMIN(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limitMax">LIMITMAX(리밋을 가질 수 없는 변수면 null)</param>
+            <param name="limits">지금 정의된 리밋(복사해 읽기 전용으로 보관)</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.Vid" en-hash="2a9657ddb527bd72">
+            <summary>VID를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.Units" en-hash="d2e5f24ab0bd79a9">
+            <summary>단위를 가져옵니다. 리밋을 가질 수 없는 변수면 null입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.LimitMin" en-hash="4cafdc77f0eb5f9c">
+            <summary>리밋에 쓸 수 있는 가장 작은 값(LIMITMIN)을 가져옵니다. 리밋을 가질 수 없는 변수면 null입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.LimitMax" en-hash="475aa3c650cc2d8a">
+            <summary>리밋에 쓸 수 있는 가장 큰 값(LIMITMAX)을 가져옵니다. 리밋을 가질 수 없는 변수면 null입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.Limits" en-hash="bbc110be76b2bb71">
+            <summary>지금 정의된 리밋을 받은 순서(LIMITID 순서)대로 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitInfo.IsSupported" en-hash="70473c942cecbd5f">
+            <summary>변수가 리밋을 가질 수 있는지(장비가 &lt;L&gt;로 답하지 않았는지)를 가져옵니다.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemLimitError" en-hash="ee73eddbdc97ac47">
+            <summary>S2F46의 오류 변수 하나.</summary>
+            <param name="vid">VID</param>
+            <param name="lvack">LVACK(1 모르는 변수, 2 리밋 불가, 3 변수 반복, 4 리밋 값 오류)</param>
+            <param name="limitId">오류가 난 LIMITID, 또는 null</param>
+            <param name="limitack">LIMITACK(1~7), 또는 null</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemLimitError.#ctor(Devinno.Communication.Secs.Gem.GemId,System.Byte,System.Nullable{System.Byte},System.Nullable{System.Byte})" en-hash="ee73eddbdc97ac47">
+            <summary>S2F46의 오류 변수 하나.</summary>
+            <param name="vid">VID</param>
+            <param name="lvack">LVACK(1 모르는 변수, 2 리밋 불가, 3 변수 반복, 4 리밋 값 오류)</param>
+            <param name="limitId">오류가 난 LIMITID, 또는 null</param>
+            <param name="limitack">LIMITACK(1~7), 또는 null</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitError.Vid" en-hash="2a9657ddb527bd72">
+            <summary>VID를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitError.Lvack" en-hash="abe12ecd0c5a8294">
+            <summary>LVACK을 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitError.LimitId" en-hash="c2429bc657c388b5">
+            <summary>오류가 난 LIMITID를 가져옵니다. 없으면 null입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemLimitError.Limitack" en-hash="64fa43acf91933ec">
+            <summary>LIMITACK(1 LIMITID 없음, 2 UPPERDB가 LIMITMAX보다 큼, 3 LOWERDB가 LIMITMIN보다 작음, 4 UPPERDB가 LOWERDB보다 작음, 5 포맷 잘못, 6 A를 숫자로 못 바꿈, 7 LIMITID 반복)을 가져옵니다. 없으면 null입니다.</summary>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemTraceRequest" en-hash="162e594517d36cd6">
             <summary>S2F23(Trace Initialize Send)에서 읽은 트레이스 요청.</summary>
             <param name="trid">TRID</param>
@@ -9581,6 +9717,77 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F42가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 &lt;L HCACK &lt;L &lt;L CPNAME CPACK&gt;…&gt;&gt;가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F45(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem}}}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="86c9b401999049e9">
+            <summary>S2F45 Define Variable Limit Attributes &lt;L DATAID &lt;L &lt;L VID &lt;L &lt;L LIMITID &lt;L UPPERDB LOWERDB&gt;&gt;…&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <remarks><paramref name="definitions" />가 빈 목록이면 장비의 모든 리밋을, Limits가 null(또는 빈 목록)인 VID는 그 변수의 모든 리밋을, Upper와 Lower가 둘 다 null인 리밋은 그 LIMITID를 지웁니다. LIMITID는 B로, UPPERDB·LOWERDB는 준 그대로(보통 변수의 포맷) 보냅니다.</remarks>
+            <param name="dataId">DATAID(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Dataid" />로 보냄).</param>
+            <param name="definitions">변수(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" />로 보냄)와 그 리밋.</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F45 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="definitions" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException">Upper와 Lower 중 하나만 null임, 또는 글자 ID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">ID가 그 포맷의 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F45(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="0bd197e9893e14eb">
+            <summary>S2F45 Define Variable Limit Attributes를 읽습니다.</summary>
+            <remarks>VID는 정수 포맷 무엇이든 또는 A, LIMITID는 숫자 포맷 무엇이든 0~255를 받습니다. UPPERDB·LOWERDB는 받은 그대로 돌려줍니다(null = 그 LIMITID 해제). Limits가 빈 목록이면 그 변수의 모든 리밋을, 정의 목록이 비면 모든 리밋을 지우라는 뜻입니다.</remarks>
+            <param name="message">받은 S2F45.</param>
+            <returns>받은 그대로의 DATAID 아이템과 정의 목록.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F45가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L DATAID &lt;L &lt;L VID &lt;L &lt;L LIMITID &lt;L UPPERDB LOWERDB&gt;(0 또는 2)&gt;…&gt;&gt;…&gt;&gt;가 아님.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F46(System.Byte,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemLimitError},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="6152f96fd448bcbf">
+            <summary>S2F46 Variable Limit Attribute Acknowledge &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;&gt;…&gt;&gt;를 만듭니다.</summary>
+            <param name="vlaack">VLAACK(0 = 받아들임, 1 = 리밋 정의 오류, 2 = 지금 못 함).</param>
+            <param name="errors">오류가 난 변수(null = 없음). LIMITID와 LIMITACK이 둘 다 있으면 그 쌍을, 아니면 &lt;L&gt;을 보냅니다.</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F46 메시지.</returns>
+            <exception cref="T:System.ArgumentException">글자 VID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">VID가 그 포맷의 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F46(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="1b94465660c2ce44">
+            <summary>S2F46 Variable Limit Attribute Acknowledge를 읽습니다.</summary>
+            <param name="message">받은 S2F46.</param>
+            <returns>VLAACK과 오류가 난 변수(VID는 정수 포맷 무엇이든 또는 A, 코드는 숫자 포맷 무엇이든).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F46가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;(0 또는 2)&gt;…&gt;&gt;가 아님.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F47(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="66c1c9b578743200">
+            <summary>S2F47 Variable Limit Attribute Request &lt;L VID…&gt;를 만듭니다. 빈 목록이면 리밋을 가질 수 있는 모든 변수를 묻습니다.</summary>
+            <param name="vids">VID 목록(<see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Vid" />로 보냄, null = 전부).</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F47 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentException">글자 VID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">VID가 그 포맷의 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F47(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="6b35c56d7a3e3455">
+            <summary>S2F47 Variable Limit Attribute Request를 읽습니다.</summary>
+            <param name="message">받은 S2F47.</param>
+            <returns>VID 목록(정수 포맷 무엇이든 또는 A, 빈 목록 = 전부).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F47가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L VID…&gt;가 아님.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F48(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemLimitInfo},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="5daabf8348c522bb">
+            <summary>S2F48 Variable Limit Attribute Send &lt;L &lt;L VID &lt;L UNITS LIMITMIN LIMITMAX &lt;L &lt;L LIMITID UPPERDB LOWERDB&gt;…&gt;&gt;&gt;…&gt;를 만듭니다.</summary>
+            <remarks>리밋을 가질 수 없는 변수(<see cref="P:Devinno.Communication.Secs.Gem.GemLimitInfo.IsSupported" />가 false)는 &lt;L VID &lt;L&gt;&gt;로 보냅니다.</remarks>
+            <param name="infos">변수 목록(순서대로).</param>
+            <param name="formats">ID 포맷(null = <see cref="P:Devinno.Communication.Secs.Gem.GemFormats.Default" />).</param>
+            <returns>S2F48 메시지.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="infos" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException">글자 VID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">VID가 그 포맷의 범위 밖.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F48(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="e054e9922209beff">
+            <summary>S2F48 Variable Limit Attribute Send를 읽습니다.</summary>
+            <param name="message">받은 S2F48.</param>
+            <returns>변수 목록(순서대로. VID는 정수 포맷 무엇이든 또는 A, LIMITID는 숫자 포맷 무엇이든, 값은 받은 그대로).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F48가 아님.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;L VID &lt;L UNITS LIMITMIN LIMITMAX &lt;L &lt;L LIMITID UPPERDB LOWERDB&gt;…&gt;&gt;(또는 &lt;L&gt;)&gt;…&gt;가 아님.</exception>
         </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F49(Devinno.Communication.Secs.Gem.GemId,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="980e3a1859692ab8">
             <summary>S2F49 Enhanced Remote Command &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;를 만듭니다.</summary>

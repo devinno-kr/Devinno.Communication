@@ -226,6 +226,70 @@ public sealed class GemDownloadResult
     public bool IsSuccess => Ackc7 == GemAck.Ackc7Accepted;
 }
 
+/// <summary>The zone of a value against one limit (SEMI E30 limits monitoring).</summary>
+public enum GemLimitZone
+{
+    /// <summary>Not in a zone yet: the value has stayed in the deadband (or is not a single number) since the limit was defined or restored.</summary>
+    NoZone,
+    /// <summary>The value reached LOWERDB or went below it (lower zone).</summary>
+    Below,
+    /// <summary>The value reached UPPERDB or went above it (upper zone).</summary>
+    Above,
+}
+
+/// <summary>One limit of a variable: LIMITID and its deadband edges.</summary>
+/// <param name="limitId">LIMITID</param>
+/// <param name="upper">UPPERDB</param>
+/// <param name="lower">LOWERDB</param>
+public sealed class GemLimit(byte limitId, SecsItem upper, SecsItem lower)
+{
+    /// <summary>Gets the limit ID (LIMITID).</summary>
+    public byte LimitId { get; } = limitId;
+    /// <summary>Gets the upper edge of the deadband (UPPERDB). A value at or above it is in the upper zone.</summary>
+    public SecsItem Upper { get; } = upper;
+    /// <summary>Gets the lower edge of the deadband (LOWERDB). A value at or below it is in the lower zone.</summary>
+    public SecsItem Lower { get; } = lower;
+}
+
+/// <summary>The limit attributes of one variable read from S2F48.</summary>
+/// <param name="vid">VID</param>
+/// <param name="units">UNITS (null when the variable cannot have limits)</param>
+/// <param name="limitMin">LIMITMIN (null when the variable cannot have limits)</param>
+/// <param name="limitMax">LIMITMAX (null when the variable cannot have limits)</param>
+/// <param name="limits">The limits now defined (copied and kept read-only)</param>
+public sealed class GemLimitInfo(GemId vid, string? units, SecsItem? limitMin, SecsItem? limitMax, IReadOnlyList<GemLimit> limits)
+{
+    /// <summary>Gets the VID.</summary>
+    public GemId Vid { get; } = vid;
+    /// <summary>Gets the units, or null when the variable cannot have limits.</summary>
+    public string? Units { get; } = units;
+    /// <summary>Gets the smallest value a limit may use (LIMITMIN), or null when the variable cannot have limits.</summary>
+    public SecsItem? LimitMin { get; } = limitMin;
+    /// <summary>Gets the largest value a limit may use (LIMITMAX), or null when the variable cannot have limits.</summary>
+    public SecsItem? LimitMax { get; } = limitMax;
+    /// <summary>Gets the limits now defined, in LIMITID order as sent.</summary>
+    public IReadOnlyList<GemLimit> Limits { get; } = Array.AsReadOnly(limits.ToArray());
+    /// <summary>Gets a value indicating whether the variable can have limits (the equipment did not answer &lt;L&gt;).</summary>
+    public bool IsSupported => LimitMin != null;
+}
+
+/// <summary>One variable in error in S2F46.</summary>
+/// <param name="vid">VID</param>
+/// <param name="lvack">LVACK (1 unknown variable, 2 no limits capability, 3 variable repeated, 4 limit value error)</param>
+/// <param name="limitId">The LIMITID in error, or null</param>
+/// <param name="limitack">LIMITACK (1 to 7), or null</param>
+public sealed class GemLimitError(GemId vid, byte lvack, byte? limitId, byte? limitack)
+{
+    /// <summary>Gets the VID.</summary>
+    public GemId Vid { get; } = vid;
+    /// <summary>Gets LVACK.</summary>
+    public byte Lvack { get; } = lvack;
+    /// <summary>Gets the LIMITID in error, or null.</summary>
+    public byte? LimitId { get; } = limitId;
+    /// <summary>Gets LIMITACK (1 LIMITID does not exist, 2 UPPERDB above LIMITMAX, 3 LOWERDB below LIMITMIN, 4 UPPERDB below LOWERDB, 5 illegal format, 6 ASCII not numeric, 7 duplicate LIMITID), or null.</summary>
+    public byte? Limitack { get; } = limitack;
+}
+
 /// <summary>A trace request read from S2F23 (Trace Initialize Send).</summary>
 /// <param name="trid">TRID</param>
 /// <param name="period">DSPER as received (<c>hhmmss</c> or <c>hhmmsscc</c>, not checked)</param>
