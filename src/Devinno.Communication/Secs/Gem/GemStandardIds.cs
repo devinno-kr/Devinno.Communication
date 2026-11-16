@@ -6,9 +6,9 @@ namespace Devinno.Communication.Secs.Gem;
 /// <remarks>
 /// <para>Default IDs (when the format is numeric): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006,
 /// ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012, PPExecName 1013, PPFormat 1014 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102,
-/// EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203 /
+/// EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203, LimitVariable 1204, EventLimit 1205, TransitionType 1206 /
 /// CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309, ProcessProgramChange 1310, ProcessProgramSelected 1311.
-/// The spool variables and events (SpoolCountActual to SpoolStartTime, EnableSpooling to OverWriteSpool, SpoolingActivated to SpoolTransmitFailure) exist only when <c>GemEquipment.SpoolDirectory</c> is set, and the process program ones (PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected) only when <c>GemEquipment.ProcessProgramStore</c> is set.
+/// The spool variables and events (SpoolCountActual to SpoolStartTime, EnableSpooling to OverWriteSpool, SpoolingActivated to SpoolTransmitFailure) exist only when <c>GemEquipment.SpoolDirectory</c> is set, and the process program ones (PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected) only when <c>GemEquipment.ProcessProgramStore</c> is set. The limit DVs (LimitVariable, EventLimit, TransitionType) exist only when at least one status variable has a limitCount above 0.
 /// VIDs are sent in <c>VidFormat</c> and CEIDs in <c>CeidFormat</c>; when that format is A, the default ID is the property name as a string (for example, "Clock").</para>
 /// <para><c>GemEquipment.Start</c> fails if an ID collides with an app-defined ID, so change the ID here in that case. The values are read at <c>Start</c>; a value changed while running takes effect from the next <c>Start</c>.</para>
 /// </remarks>
@@ -58,6 +58,12 @@ public class GemStandardIds
     public GemId? PPChangeName { get; set; }
     /// <summary>DV PPChangeStatus (U1, 1 created, 2 edited, 3 deleted). null = 1203</summary>
     public GemId? PPChangeStatus { get; set; }
+    /// <summary>DV LimitVariable (VidFormat, the VID whose limit was crossed in a Limit Zone Transition event). null = 1204</summary>
+    public GemId? LimitVariable { get; set; }
+    /// <summary>DV EventLimit (L of B, the LIMITIDs crossed). null = 1205</summary>
+    public GemId? EventLimit { get; set; }
+    /// <summary>DV TransitionType (B, 0 = lower to upper zone, 1 = upper to lower zone). null = 1206</summary>
+    public GemId? TransitionType { get; set; }
     /// <summary>CE EquipmentOffline (the equipment goes OFF-LINE). null = 1301</summary>
     public GemId? EquipmentOffline { get; set; }
     /// <summary>CE ControlStateLocal (the equipment becomes ON-LINE LOCAL). null = 1302</summary>
@@ -105,6 +111,9 @@ public class GemStandardIds
         GemStandard.AlarmID => AlarmID,
         GemStandard.PPChangeName => PPChangeName,
         GemStandard.PPChangeStatus => PPChangeStatus,
+        GemStandard.LimitVariable => LimitVariable,
+        GemStandard.EventLimit => EventLimit,
+        GemStandard.TransitionType => TransitionType,
         GemStandard.EquipmentOffline => EquipmentOffline,
         GemStandard.ControlStateLocal => ControlStateLocal,
         GemStandard.ControlStateRemote => ControlStateRemote,
@@ -144,6 +153,9 @@ public class GemStandardIds
             case GemStandard.AlarmID: AlarmID = id; break;
             case GemStandard.PPChangeName: PPChangeName = id; break;
             case GemStandard.PPChangeStatus: PPChangeStatus = id; break;
+            case GemStandard.LimitVariable: LimitVariable = id; break;
+            case GemStandard.EventLimit: EventLimit = id; break;
+            case GemStandard.TransitionType: TransitionType = id; break;
             case GemStandard.EquipmentOffline: EquipmentOffline = id; break;
             case GemStandard.ControlStateLocal: ControlStateLocal = id; break;
             case GemStandard.ControlStateRemote: ControlStateRemote = id; break;
@@ -186,6 +198,9 @@ public class GemStandardIds
         GemStandard.AlarmID => 1201,
         GemStandard.PPChangeName => 1202,
         GemStandard.PPChangeStatus => 1203,
+        GemStandard.LimitVariable => 1204,
+        GemStandard.EventLimit => 1205,
+        GemStandard.TransitionType => 1206,
         GemStandard.EquipmentOffline => 1301,
         GemStandard.ControlStateLocal => 1302,
         GemStandard.ControlStateRemote => 1303,
@@ -212,4 +227,5 @@ internal enum GemStandard
     SpoolingActivated, SpoolingDeactivated, SpoolTransmitFailure,
     // 새 표준은 끝에만 더한다(기존 값의 번호를 바꾸지 않음). SV·DV·EC인지 CE인지는 순서가 아니라 GemStandardIds.IsEvent가 정한다
     PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected,
+    LimitVariable, EventLimit, TransitionType,
 }

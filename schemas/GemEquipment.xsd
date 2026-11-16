@@ -139,6 +139,9 @@
     <xs:attribute name="PPFormat" type="xs:string" use="optional" />
     <xs:attribute name="PPChangeName" type="xs:string" use="optional" />
     <xs:attribute name="PPChangeStatus" type="xs:string" use="optional" />
+    <xs:attribute name="LimitVariable" type="xs:string" use="optional" />
+    <xs:attribute name="EventLimit" type="xs:string" use="optional" />
+    <xs:attribute name="TransitionType" type="xs:string" use="optional" />
     <xs:attribute name="ProcessProgramChange" type="xs:string" use="optional" />
     <xs:attribute name="ProcessProgramSelected" type="xs:string" use="optional" />
   </xs:complexType>
@@ -148,6 +151,10 @@
     <xs:attribute name="Format" type="xs:string" use="required" />
     <xs:attribute default="" name="Units" type="xs:string" use="optional" />
     <xs:attribute name="InitialValue" type="xs:string" use="optional" />
+    <xs:attribute name="LimitCount" type="xs:string" use="optional" />
+    <xs:attribute name="LimitMin" type="xs:string" use="optional" />
+    <xs:attribute name="LimitMax" type="xs:string" use="optional" />
+    <xs:attribute name="LimitCeid" type="xs:string" use="optional" />
   </xs:complexType>
   <xs:complexType name="GemDataVariableConfig">
     <xs:attribute name="Id" type="xs:string" use="required" />

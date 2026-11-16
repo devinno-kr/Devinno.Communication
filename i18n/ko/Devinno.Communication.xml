@@ -5897,15 +5897,20 @@
             </summary>
             <remarks>값은 <c>GemEquipment.SetValue</c>로 바꾸고, 포맷은 <see cref="P:Devinno.Communication.Secs.Gem.GemStatusVariable.Format" />과 같아야 합니다. 이름·단위는 S1F11 응답에 쓰입니다.</remarks>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemStatusVariable.#ctor(Devinno.Communication.Secs.Gem.GemId,System.String,Devinno.Communication.Secs.Data.SecsFormat,System.String,Devinno.Communication.Secs.Data.SecsItem)" en-hash="0edbd4aeeae2cf23">
+        <member name="M:Devinno.Communication.Secs.Gem.GemStatusVariable.#ctor(Devinno.Communication.Secs.Gem.GemId,System.String,Devinno.Communication.Secs.Data.SecsFormat,System.String,Devinno.Communication.Secs.Data.SecsItem,System.Int32,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem,System.Nullable{Devinno.Communication.Secs.Gem.GemId})" en-hash="3155a38ec7e260d0">
             <summary>상태 변수 정의를 만듭니다.</summary>
             <param name="id">SVID (VID 공간: SV·DV·EC가 함께 씀)</param>
             <param name="name">이름 (ASCII, S1F11의 SVNAME)</param>
             <param name="format">값 포맷 (배열·List 값도 됨)</param>
             <param name="units">단위 (ASCII, 기본값: "")</param>
             <param name="initialValue">Start 때의 값 (null이면 그 포맷의 길이 0 아이템)</param>
+            <param name="limitCount">Host가 이 변수에 정할 수 있는 리밋 수(S2F45), 0~255(기본 0 = 리밋 없음). 유효한 LIMITID는 1~limitCount입니다. 숫자 포맷(정수 포맷, F4, F8)만 리밋을 가질 수 있습니다.</param>
+            <param name="limitMin">LIMITMIN, 리밋에 쓸 수 있는 가장 작은 값(<paramref name="format" /> 값 하나, null = 그 포맷의 가장 작은 값)</param>
+            <param name="limitMax">LIMITMAX, 리밋에 쓸 수 있는 가장 큰 값(<paramref name="format" /> 값 하나, null = 그 포맷의 가장 큰 값)</param>
+            <param name="limitCeid">라이브러리가 정의하는 이 변수의 Limit Zone Transition 이벤트 CEID(<paramref name="limitCount" />가 0보다 크면 필수)</param>
             <exception cref="T:System.ArgumentNullException">name이나 units가 null인 경우</exception>
-            <exception cref="T:System.ArgumentException">이름·단위에 ASCII(Latin-1) 밖의 문자가 있거나, initialValue의 포맷이 format과 다른 경우</exception>
+            <exception cref="T:System.ArgumentException">이름·단위에 ASCII(Latin-1) 밖의 문자가 있거나, initialValue의 포맷이 format과 다르거나, 리밋 인수가 맞지 않는 경우(숫자가 아닌 포맷에 리밋, limitCeid 없음, limitMin·limitMax가 그 포맷 값 하나가 아님, limitMin이 limitMax보다 큼)</exception>
+            <exception cref="T:System.ArgumentOutOfRangeException">limitCount가 0~255 밖인 경우</exception>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.Id" en-hash="80700ea484f70f7f">
             <summary>SVID</summary>
@@ -5921,6 +5926,18 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.InitialValue" en-hash="5094cec078b6fdf7">
             <summary>Start 때의 값</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.LimitCount" en-hash="c288ebe1365b6a91">
+            <summary>Host가 정할 수 있는 리밋 수 (0 = 리밋 없음)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.LimitMin" en-hash="7461cc24a381ccca">
+            <summary>준 그대로의 LIMITMIN (null = 그 포맷의 가장 작은 값)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.LimitMax" en-hash="6b6e1bdb632b7936">
+            <summary>준 그대로의 LIMITMAX (null = 그 포맷의 가장 큰 값)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariable.LimitCeid" en-hash="26877bf4063e9884">
+            <summary>Limit Zone Transition 이벤트의 CEID (리밋이 없으면 null)</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemDataVariable" en-hash="c19cc33e584c088b">
             <summary>
@@ -7123,6 +7140,15 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.PPChangeStatus" en-hash="662f095a458027af">
             <summary>DV PPChangeStatus</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.LimitVariable" en-hash="5ade97084176b6ce">
+            <summary>DV LimitVariable</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.EventLimit" en-hash="0e222eb602b7d7a0">
+            <summary>DV EventLimit</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.TransitionType" en-hash="a9bbf157cff07de6">
+            <summary>DV TransitionType</summary>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIdsConfig.ProcessProgramChange" en-hash="866ab71171ae2e12">
             <summary>CE ProcessProgramChange</summary>
         </member>
@@ -7146,6 +7172,18 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariableConfig.InitialValue" en-hash="0ecf6b923a68ee64">
             <summary>처음 값 (생략 = 그 포맷의 길이 0 아이템)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariableConfig.LimitCount" en-hash="e92941dd787d6770">
+            <summary>Host가 정할 수 있는 리밋 수, 1~255 (생략 = 리밋 없음, 숫자 포맷만).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariableConfig.LimitMin" en-hash="4b50fd68aff65671">
+            <summary>LIMITMIN (생략 = 그 포맷의 가장 작은 값).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariableConfig.LimitMax" en-hash="eb0bdf749b3a73e8">
+            <summary>LIMITMAX (생략 = 그 포맷의 가장 큰 값).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStatusVariableConfig.LimitCeid" en-hash="7479ffc04774795d">
+            <summary>Limit Zone Transition 이벤트의 CEID (LimitCount가 있으면 필수).</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemDataVariableConfig" en-hash="bfa0ef95c9882c74">
             <summary>&lt;DV&gt;: 데이터 변수 정의 (필수: Id, Name, Format)</summary>
@@ -10312,9 +10350,9 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="d8c7f74741b1e967">
+        <member name="T:Devinno.Communication.Secs.Gem.GemStandardIds" en-hash="f0db662bfb903db9">
             <summary>라이브러리가 값을 관리하는 표준 변수·이벤트(E30 이름)의 ID입니다. 속성이 null이면 기본 ID를 씁니다.</summary>
-            <remarks><para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006, ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012, PPExecName 1013, PPFormat 1014 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102, EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203 / CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309, ProcessProgramChange 1310, ProcessProgramSelected 1311. 스풀 변수·상수·이벤트(SpoolCountActual~SpoolStartTime, EnableSpooling~OverWriteSpool, SpoolingActivated~SpoolTransmitFailure)는 <c>GemEquipment.SpoolDirectory</c>를 지정했을 때만, 레시피 것(PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected)은 <c>GemEquipment.ProcessProgramStore</c>를 지정했을 때만 있습니다. VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para><para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para></remarks>
+            <remarks><para>기본 ID(숫자 포맷일 때): SV Clock 1001, ControlState 1002, PreviousControlState 1003, EventsEnabled 1004, AlarmsEnabled 1005, AlarmsSet 1006, ProcessState 1007, PreviousProcessState 1008, SpoolCountActual 1009, SpoolCountTotal 1010, SpoolFullTime 1011, SpoolStartTime 1012, PPExecName 1013, PPFormat 1014 / EC EstablishCommunicationsTimeout 1101, TimeFormat 1102, EnableSpooling 1103, MaxSpoolTransmit 1104, OverWriteSpool 1105 / DV AlarmID 1201, PPChangeName 1202, PPChangeStatus 1203, LimitVariable 1204, EventLimit 1205, TransitionType 1206 / CE EquipmentOffline 1301, ControlStateLocal 1302, ControlStateRemote 1303, ProcessStateChange 1304, OperatorEquipmentConstantChange 1305, MessageRecognition 1306, SpoolingActivated 1307, SpoolingDeactivated 1308, SpoolTransmitFailure 1309, ProcessProgramChange 1310, ProcessProgramSelected 1311. 스풀 변수·상수·이벤트(SpoolCountActual~SpoolStartTime, EnableSpooling~OverWriteSpool, SpoolingActivated~SpoolTransmitFailure)는 <c>GemEquipment.SpoolDirectory</c>를 지정했을 때만, 레시피 것(PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected)은 <c>GemEquipment.ProcessProgramStore</c>를 지정했을 때만 있습니다. 리밋 DV(LimitVariable, EventLimit, TransitionType)는 limitCount가 0보다 큰 상태 변수가 하나라도 있을 때만 있습니다. VID는 <c>VidFormat</c>, CEID는 <c>CeidFormat</c>로 보내며, 그 포맷이 A면 기본 ID는 속성 이름 문자열(예: "Clock")입니다.</para><para>앱이 정의한 ID와 겹치면 <c>GemEquipment.Start</c>가 실패하므로 겹치면 여기서 바꿉니다. <c>Start</c> 때 읽고, 실행 중에 바꾼 값은 다음 <c>Start</c>부터 씁니다.</para></remarks>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.Clock" en-hash="585a0d30214f8f57">
             <summary>SV Clock (GEM 시계, TimeFormat 형식의 A). null = 1001</summary>
@@ -10381,6 +10419,15 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.PPChangeStatus" en-hash="658ba8ac93e2ca4d">
             <summary>DV PPChangeStatus (U1, 1 생성, 2 수정, 3 삭제). null = 1203</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.LimitVariable" en-hash="82b3c854654b0602">
+            <summary>DV LimitVariable (VidFormat, Limit Zone Transition 이벤트에서 리밋을 넘은 VID). null = 1204</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EventLimit" en-hash="d7b75d242d79d3bd">
+            <summary>DV EventLimit (B의 L, 넘은 LIMITID 목록). null = 1205</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.TransitionType" en-hash="daa2f3ec02f8fe70">
+            <summary>DV TransitionType (B, 0 = 아래 구역에서 위 구역으로, 1 = 위 구역에서 아래 구역으로). null = 1206</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemStandardIds.EquipmentOffline" en-hash="173c73e05cfb5e5b">
             <summary>CE EquipmentOffline (OFF-LINE으로 감). null = 1301</summary>

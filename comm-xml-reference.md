@@ -988,6 +988,10 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `Format` | string | yes | — | SML value format |
 | `Units` | string | no | `""` | |
 | `InitialValue` | string | no | — | omitted = zero-length item of the format |
+| `LimitCount` | string | no | — | 1 – 255 limits the Host may define (S2F45); numeric formats only; omitted = no limits |
+| `LimitMin` | string | no | — | LIMITMIN; omitted = smallest value of the format |
+| `LimitMax` | string | no | — | LIMITMAX; omitted = largest value of the format |
+| `LimitCeid` | string | with `LimitCount` | — | CEID of the Limit Zone Transition event defined by GEM |
 
 ### `<DV>` (data variable)
 

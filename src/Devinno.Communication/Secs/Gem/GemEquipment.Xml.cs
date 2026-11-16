@@ -58,7 +58,14 @@ public partial class GemEquipment
             static string? Initial(SecsItem v, SecsFormat f) => v.Equals(GemItems.Empty(f)) ? null : Text(v);
             static string Text(SecsItem v) => GemItems.ValueText(v) ?? throw new InvalidOperationException($"XML로 쓸 수 없는 값입니다(배열·List 값은 코드로 정의): {v.ToSml()}");
             foreach (var v in definitions.StatusVariables)
-                c.StatusVariables.Add(new() { Id = v.Id.ToString(), Name = v.Name, Format = GemItems.FormatName(v.Format), Units = v.Units, InitialValue = Initial(v.InitialValue, v.Format) });
+                c.StatusVariables.Add(new()
+                {
+                    Id = v.Id.ToString(), Name = v.Name, Format = GemItems.FormatName(v.Format), Units = v.Units, InitialValue = Initial(v.InitialValue, v.Format),
+                    LimitCount = v.LimitCount > 0 ? v.LimitCount.ToString(CultureInfo.InvariantCulture) : null,
+                    LimitMin = v.LimitMin != null ? Text(v.LimitMin) : null,
+                    LimitMax = v.LimitMax != null ? Text(v.LimitMax) : null,
+                    LimitCeid = v.LimitCeid?.ToString(),
+                });
             foreach (var v in definitions.DataVariables)
                 c.DataVariables.Add(new() { Id = v.Id.ToString(), Name = v.Name, Format = GemItems.FormatName(v.Format), Units = v.Units, InitialValue = Initial(v.InitialValue, v.Format) });
             foreach (var v in definitions.Constants)
@@ -195,7 +202,12 @@ public partial class GemEquipment
         {
             var label = $"SV Id=\"{v.Id}\"";
             var f = FormatAttr(label, nameof(v.Format), v.Format);
-            Define(label, () => d.Add(new GemStatusVariable(ParseId(label, nameof(v.Id), v.Id, vid), v.Name, f, v.Units, ValueAttr(label, nameof(v.InitialValue), v.InitialValue, f))));
+            int count = 0;
+            if (v.LimitCount != null && !int.TryParse(v.LimitCount, NumberStyles.None, CultureInfo.InvariantCulture, out count)) throw XmlConfig.Invalid(label, nameof(v.LimitCount), v.LimitCount, "1~255");
+            var min = ValueAttr(label, nameof(v.LimitMin), v.LimitMin, f);
+            var max = ValueAttr(label, nameof(v.LimitMax), v.LimitMax, f);
+            GemId? limitCeid = v.LimitCeid != null ? ParseId(label, nameof(v.LimitCeid), v.LimitCeid, ceid) : (GemId?)null;   // (GemId?) 없이 null이면 string 암시 변환으로 GemId(null) 예외
+            Define(label, () => d.Add(new GemStatusVariable(ParseId(label, nameof(v.Id), v.Id, vid), v.Name, f, v.Units, ValueAttr(label, nameof(v.InitialValue), v.InitialValue, f), count, min, max, limitCeid)));
         }
         foreach (var v in c.DataVariables)
         {

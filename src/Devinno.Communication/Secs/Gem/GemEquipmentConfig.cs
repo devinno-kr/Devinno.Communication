@@ -175,6 +175,12 @@ public class GemStandardIdsConfig
     [XmlAttribute] public string? PPChangeName { get; set; }
     /// <summary>DV PPChangeStatus</summary>
     [XmlAttribute] public string? PPChangeStatus { get; set; }
+    /// <summary>DV LimitVariable</summary>
+    [XmlAttribute] public string? LimitVariable { get; set; }
+    /// <summary>DV EventLimit</summary>
+    [XmlAttribute] public string? EventLimit { get; set; }
+    /// <summary>DV TransitionType</summary>
+    [XmlAttribute] public string? TransitionType { get; set; }
     /// <summary>CE ProcessProgramChange</summary>
     [XmlAttribute] public string? ProcessProgramChange { get; set; }
     /// <summary>CE ProcessProgramSelected</summary>
@@ -197,6 +203,14 @@ public class GemStatusVariableConfig
     [XmlAttribute] public string Units { get; set; } = "";
     /// <summary>Initial value (omitted = a zero-length item of that format).</summary>
     [XmlAttribute] public string? InitialValue { get; set; }
+    /// <summary>Number of limits the Host may define, 1 to 255 (omitted = no limits; numeric formats only).</summary>
+    [XmlAttribute] public string? LimitCount { get; set; }
+    /// <summary>LIMITMIN (omitted = the smallest value of the format).</summary>
+    [XmlAttribute] public string? LimitMin { get; set; }
+    /// <summary>LIMITMAX (omitted = the largest value of the format).</summary>
+    [XmlAttribute] public string? LimitMax { get; set; }
+    /// <summary>CEID of the Limit Zone Transition event (required with LimitCount).</summary>
+    [XmlAttribute] public string? LimitCeid { get; set; }
 }
 
 /// <summary>&lt;DV&gt;: data variable definition (required: Id, Name, Format).</summary>

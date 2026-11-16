@@ -76,6 +76,11 @@ internal sealed class GemVar(GemVarKind kind, GemId id, GemId key, string name, 
     public GemStandard? Standard { get; } = standard;
     public SecsItem? Min { get; } = min;
     public SecsItem? Max { get; } = max;
+    // 리밋(SV만): 개수(0 = 없음), LIMITMIN·LIMITMAX(없으면 포맷 범위 끝), Limit Zone Transition CE
+    public int LimitCount { get; init; }
+    public SecsItem? LimitMin { get; init; }
+    public SecsItem? LimitMax { get; init; }
+    public GemEventDef? LimitEvent { get; set; }
 }
 
 internal enum GemVarKind { Status, Data, Constant }
@@ -89,6 +94,7 @@ internal sealed class GemEventDef(GemId id, GemId key, string name, IReadOnlyLis
     public IReadOnlyList<GemId> VidKeys { get; } = vidKeys;
     public GemStandard? Standard { get; } = standard;
     public GemAlarmDef? Alarm { get; } = alarm;
+    public GemVar? LimitVar { get; init; }                 // Limit Zone Transition CE면 그 SV
 }
 
 internal sealed class GemAlarmDef(GemAlarm def, GemId key)
@@ -133,6 +139,7 @@ internal sealed class GemCatalog
     public List<GemVar> StatusVars { get; } = [];
     public List<GemVar> DataVars { get; } = [];
     public List<GemVar> Constants { get; } = [];
+    public List<GemVar> LimitVars { get; } = [];           // 리밋을 가질 수 있는 SV(정의 순서)
     public Dictionary<GemId, GemEventDef> Events { get; } = [];
     public List<GemEventDef> EventList { get; } = [];
     public Dictionary<GemId, GemAlarmDef> Alarms { get; } = [];
@@ -186,12 +193,28 @@ internal sealed class GemCatalog
             AddStd(GemVarKind.Status, GemStandard.PPFormat, SecsFormat.U1, SecsItem.U1(1));
         }
         foreach (var sv in defs.StatusVariables)
-            c.AddVar(new GemVar(GemVarKind.Status, sv.Id, c.VidKey(sv.Id, $"SV {sv.Id}"), sv.Name, sv.Units, sv.Format, sv.InitialValue), null);
+        {
+            var gv = new GemVar(GemVarKind.Status, sv.Id, c.VidKey(sv.Id, $"SV {sv.Id}"), sv.Name, sv.Units, sv.Format, sv.InitialValue)
+            {
+                LimitCount = sv.LimitCount,
+                LimitMin = sv.LimitCount > 0 ? sv.LimitMin ?? GemItems.MinOf(sv.Format) : null,
+                LimitMax = sv.LimitCount > 0 ? sv.LimitMax ?? GemItems.MaxOf(sv.Format) : null,
+            };
+            c.AddVar(gv, null);
+            if (sv.LimitCount > 0) c.LimitVars.Add(gv);
+        }
         AddStd(GemVarKind.Data, GemStandard.AlarmID, alid, GemItems.Empty(alid));
         if (processPrograms)
         {
             AddStd(GemVarKind.Data, GemStandard.PPChangeName, SecsFormat.ASCII, SecsItem.A(""));
             AddStd(GemVarKind.Data, GemStandard.PPChangeStatus, SecsFormat.U1, SecsItem.U1(0));
+        }
+        // 리밋 SV가 하나라도 있을 때만 표준 DV 3개(6J.8.2)
+        if (c.LimitVars.Count > 0)
+        {
+            AddStd(GemVarKind.Data, GemStandard.LimitVariable, vid, GemItems.Empty(vid));
+            AddStd(GemVarKind.Data, GemStandard.EventLimit, SecsFormat.List, SecsItem.L());
+            AddStd(GemVarKind.Data, GemStandard.TransitionType, SecsFormat.Binary, SecsItem.B(0));
         }
         foreach (var dv in defs.DataVariables)
             c.AddVar(new GemVar(GemVarKind.Data, dv.Id, c.VidKey(dv.Id, $"DV {dv.Id}"), dv.Name, dv.Units, dv.Format, dv.InitialValue), null);
@@ -252,6 +275,16 @@ internal sealed class GemCatalog
             c.AddEvent(def.ClearEvent, null);
             c.Alarms[key] = def;
             c.AlarmList.Add(def);
+        }
+        // 리밋 SV마다 Limit Zone Transition CE(알람 CE처럼 라이브러리가 정의, CEID가 겹치면 AddEvent가 던짐)
+        foreach (var v in c.LimitVars)
+        {
+            var sv = defs.StatusVariables.First(s => GemItems.Key(s.Id, vid).Equals(v.Key));
+            var ceidValue = sv.LimitCeid!.Value;
+            var e = new GemEventDef(ceidValue, c.CeKey(ceidValue, $"SV {sv.Id}의 LimitCeid"), $"Limit Zone Transition {sv.Name}",
+                [c.Std(GemStandard.LimitVariable), c.Std(GemStandard.EventLimit), c.Std(GemStandard.TransitionType)]) { LimitVar = v };
+            c.AddEvent(e, null);
+            v.LimitEvent = e;
         }
 
         foreach (var cmd in defs.Commands) c.Commands[cmd.Name] = cmd;

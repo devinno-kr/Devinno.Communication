@@ -208,6 +208,26 @@ internal static class GemItems
         return true;
     }
 
+    // 두 숫자 아이템의 첫 값 비교(정수끼리는 decimal로 정확히, 실수가 끼면 double)
+    public static int CompareFirst(SecsItem a, SecsItem b) => Compare(a.RawValues.GetValue(0)!, b.RawValues.GetValue(0)!);
+
+    // 숫자 포맷의 가장 작은 값·가장 큰 값(값 하나 아이템). 정수 8종·F4·F8만
+    public static SecsItem MinOf(SecsFormat f) => f switch
+    {
+        SecsFormat.F4 => SecsItem.F4(float.MinValue),
+        SecsFormat.F8 => SecsItem.F8(double.MinValue),
+        SecsFormat.U8 => SecsItem.U8(0),
+        _ => ConvertNumeric(SecsItem.I8(IntegerRange(f).Min), f)!,
+    };
+
+    public static SecsItem MaxOf(SecsFormat f) => f switch
+    {
+        SecsFormat.F4 => SecsItem.F4(float.MaxValue),
+        SecsFormat.F8 => SecsItem.F8(double.MaxValue),
+        SecsFormat.U8 => SecsItem.U8(ulong.MaxValue),
+        _ => ConvertNumeric(SecsItem.I8(IntegerRange(f).Max), f)!,
+    };
+
     static int Compare(object a, object b)
     {
         if (a is float or double || b is float or double)

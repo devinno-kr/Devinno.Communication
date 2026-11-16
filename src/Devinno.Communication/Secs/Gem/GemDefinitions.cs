@@ -14,15 +14,33 @@ public sealed class GemStatusVariable
     /// <param name="format">Value format (arrays and lists are allowed)</param>
     /// <param name="units">Units (ASCII, default: "")</param>
     /// <param name="initialValue">Value at Start (if null, a zero-length item of that format)</param>
+    /// <param name="limitCount">Number of limits the Host may define on this variable (S2F45), 0 to 255 (default 0 = no limits). Valid LIMITIDs are 1 to limitCount. Only a numeric format (an integer format, F4, or F8) can have limits.</param>
+    /// <param name="limitMin">LIMITMIN, the smallest value a limit may use (a single value of <paramref name="format"/>; null = the smallest value of the format)</param>
+    /// <param name="limitMax">LIMITMAX, the largest value a limit may use (a single value of <paramref name="format"/>; null = the largest value of the format)</param>
+    /// <param name="limitCeid">The CEID of this variable's Limit Zone Transition event, defined by the library (required when <paramref name="limitCount"/> is above 0)</param>
     /// <exception cref="ArgumentNullException">name or units is null</exception>
-    /// <exception cref="ArgumentException">The name or units contain characters outside ASCII (Latin-1), or the format of initialValue differs from format</exception>
-    public GemStatusVariable(GemId id, string name, SecsFormat format, string units = "", SecsItem? initialValue = null)
+    /// <exception cref="ArgumentException">The name or units contain characters outside ASCII (Latin-1), the format of initialValue differs from format, or the limit arguments do not fit (limits on a non-numeric format, no limitCeid, limitMin or limitMax not a single value of the format, or limitMin above limitMax)</exception>
+    /// <exception cref="ArgumentOutOfRangeException">limitCount is outside 0 to 255</exception>
+    public GemStatusVariable(GemId id, string name, SecsFormat format, string units = "", SecsItem? initialValue = null, int limitCount = 0, SecsItem? limitMin = null, SecsItem? limitMax = null, GemId? limitCeid = null)
     {
         Id = id;
         Name = GemDefinitionCheck.Ascii(name, nameof(name));
         Format = format;
         Units = GemDefinitionCheck.Ascii(units, nameof(units));
         InitialValue = GemDefinitionCheck.Value(initialValue, format, nameof(initialValue));
+        if (limitCount is < 0 or > 255) throw new ArgumentOutOfRangeException(nameof(limitCount), limitCount, "limitCount는 0~255입니다.");
+        if (limitCount > 0)
+        {
+            if (!GemItems.IsInteger(format) && format is not (SecsFormat.F4 or SecsFormat.F8)) throw new ArgumentException($"리밋은 숫자 SV(정수·F4·F8)에만 걸 수 있습니다: {format}", nameof(limitCount));
+            if (limitCeid == null) throw new ArgumentException("limitCount가 0보다 크면 limitCeid가 있어야 합니다(Limit Zone Transition CE).", nameof(limitCeid));
+        }
+        foreach (var (v, n) in new[] { (limitMin, nameof(limitMin)), (limitMax, nameof(limitMax)) })
+            if (v != null && (v.Format != format || v.Count != 1)) throw new ArgumentException($"{n}는 정의 포맷({format}) 값 하나여야 합니다: {v.ToSml()}", n);
+        if (limitMin != null && limitMax != null && GemItems.CompareFirst(limitMin, limitMax) > 0) throw new ArgumentException("limitMin이 limitMax보다 큽니다.", nameof(limitMin));
+        LimitCount = limitCount;
+        LimitMin = limitMin;
+        LimitMax = limitMax;
+        LimitCeid = limitCeid;
     }
 
     /// <summary>SVID</summary>
@@ -35,6 +53,14 @@ public sealed class GemStatusVariable
     public string Units { get; }
     /// <summary>Value at Start</summary>
     public SecsItem InitialValue { get; }
+    /// <summary>Number of limits the Host may define (0 = no limits)</summary>
+    public int LimitCount { get; }
+    /// <summary>LIMITMIN as given (null = the smallest value of the format)</summary>
+    public SecsItem? LimitMin { get; }
+    /// <summary>LIMITMAX as given (null = the largest value of the format)</summary>
+    public SecsItem? LimitMax { get; }
+    /// <summary>CEID of the Limit Zone Transition event (null when there are no limits)</summary>
+    public GemId? LimitCeid { get; }
 }
 
 /// <summary>
