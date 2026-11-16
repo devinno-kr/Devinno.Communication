@@ -12,6 +12,7 @@ public partial class GemEquipment
     readonly HashSet<GemId> alarmsSet = [];         // gate: 발생 중인 ALID 열쇠
 
     /// <summary>Gets or sets whether all alarm reporting (S5F1) is turned on at Start (default: false). If false, the Host turns it on with S5F3.</summary>
+    /// <remarks>With <see cref="StateDirectory"/> set, an alarm saved in the folder starts with its saved enable flag; this value applies only to alarms not in the file.</remarks>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public bool AlarmsEnabledByDefault { get => alarmsEnabledByDefault; set => Setting(() => alarmsEnabledByDefault = value); }
 

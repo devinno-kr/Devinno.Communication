@@ -38,6 +38,15 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * 스풀한 값은 부른 순간 기준이라 Host가 받을 때는 현재 장비 상태와 다를 수 있음
 * 이벤트 순서(스풀을 켰을 때): 끊김의 스풀한 메시지는 `SendFailed`를 내지 않음. 순서는 ① 스풀하지 못한 것의 `SendFailed` → ② `CommunicationStateChanged` → ③ (전이 4의 `ControlStateChanged`) → ④ `SpoolStateChanged`(활성화). 꺼져 있으면 아래 표 그대로
 
+### 설정 영속화
+기본은 꺼짐. `GemEquipment.StateDirectory`에 폴더를 정하면 켜짐. Host가 정한 리포트(S2F33)·링크(S2F35)·CE 활성화(S2F37)·알람 활성화(S5F3)와 모든 EC 값(S2F15·`SetConstant`), LOCAL/REMOTE 스위치를 `gem.state`(XML)에 저장하고 다음 `Start`에서 되살림. 그래서 처음 접속할 때만 설정하는 Host도 장비를 재시작한 뒤 데이터 수집이 끊기지 않음. 시계 오프셋·SV/DV 값·알람 발생 상태는 저장하지 않음(앱이 장비 실제 상태로 다시 정함).
+
+* **정의가 바뀐 경우**: 앱을 업데이트해 VID·CE·알람·EC를 빼거나 ID 포맷을 바꿨으면, 지금 정의와 맞지 않는 항목만 버리고 나머지는 복원. 버린 개수는 `Start` 뒤 `ProtocolError` 한 번. 새로 더한 CE·알람은 `EventsEnabledByDefault`·`AlarmsEnabledByDefault`대로 시작
+* **폴더 하나 = 장비 하나**: 같은 폴더로 두 번째 `Start`를 하면 `IOException`. `SpoolDirectory`와 같은 폴더는 써도 됨(파일 이름이 다름)
+* **정전**: 파일은 응답 뒤 별도 스레드에서 쓰므로 바뀐 직후의 정전에는 마지막 변경을 잃을 수 있음. 깨진 파일은 `gem.state.bad`로 옮기고 초기값으로 시작
+* **처음 상태로 되돌리기**: 멈춘 동안 `gem.state`를 지움
+* `InitialControlState`를 OnlineLocal·OnlineRemote로 정했으면 그 설정이 저장된 스위치 위치보다 우선
+
 ## GEM Host (GemHost)
 `GemHost.Subscribe(ceid, vids…)`로 받을 값을 정해 두면 연결될 때마다 접속 시퀀스(S1F13 → S1F17 → 리포트 정의·연결·켜기 → 알람 켜기)를 자동으로 실행하고, 장비의 이벤트 리포트(S6F11)를 VID별 값으로 해석해 `EventReceived`로 줌. 알람(S5F1)·터미널(S10F1)도 자동으로 응답하고 이벤트로 알림. SV·EC 읽기·쓰기, 이름 목록, 시계, 리모트 명령(S2F41), 알람 목록 등은 동기·비동기(`…Async`) 메서드 짝이고 0이 아닌 ack는 예외가 아니라 반환값. 장비마다 다른 ID 포맷(U1~U8, I1~I8, A)을 받아들임.
 

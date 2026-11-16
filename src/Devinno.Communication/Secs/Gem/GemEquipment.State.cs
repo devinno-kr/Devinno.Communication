@@ -9,6 +9,14 @@ public partial class GemEquipment
     GemStateStore? stateStore;                  // gate: 영속화를 켠 실행(Start 때 StateDirectory != null)의 저장소
 
     /// <summary>Folder where the settings chosen by the Host are kept across restarts (default: null = persistence off). Setting it turns persistence on at the next <see cref="Start"/>.</summary>
+    /// <remarks>
+    /// <para>Kept in <c>gem.state</c> (XML): the reports (S2F33), links (S2F35), CE enables (S2F37), alarm enables (S5F3), all EC values (S2F15 and <see cref="SetConstant"/>), and the LOCAL/REMOTE switch. The clock offset, SV/DV values, and the alarm set state are not kept.
+    /// At <see cref="Start"/>, entries that no longer match the definitions (a removed ID, an EC value outside the new range, an ID that cannot be expressed in a changed ID format) are dropped and reported once through <see cref="ProtocolError"/>; a CE or alarm added since is enabled according to <see cref="EventsEnabledByDefault"/> / <see cref="AlarmsEnabledByDefault"/>.
+    /// A damaged file is renamed to <c>gem.state.bad</c> and GEM starts from the initial values.</para>
+    /// <para>The file is written on a separate thread after the reply, so a power loss right after a change may lose that last change. To go back to the initial state, delete <c>gem.state</c> while stopped.
+    /// One folder serves one equipment (<see cref="Start"/> throws <see cref="IOException"/> if another equipment uses it), but it may be the same folder as <see cref="SpoolDirectory"/>.
+    /// If <see cref="InitialControlState"/> is OnlineLocal or OnlineRemote, that setting wins over the saved switch position.</para>
+    /// </remarks>
     /// <exception cref="ArgumentException">An empty string</exception>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public string? StateDirectory
@@ -88,6 +96,6 @@ public partial class GemEquipment
             if (!long.TryParse(id.Text, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out var n)) return null;
             id = new GemId(n);
         }
-        return GemItems.Fits(id, format) ? id : null;
+        return GemItems.Fits(id, format) ? id : (GemId?)null;   // (GemId?) 없이 null이면 string 암시 변환으로 GemId(null) 예외
     }
 }

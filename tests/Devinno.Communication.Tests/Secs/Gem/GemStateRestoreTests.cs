@@ -247,6 +247,23 @@ public class GemStateRestoreTests
     }
 
     [Fact]
+    public async Task Restore_IdNoLongerFitsFormat_Dropped()
+    {
+        var dir = TempDir();
+        try
+        {
+            await Prepare(dir, (eq, h) => Ok(h, "S2F33 W <L <U4 1> <L <L <U4 7001> <L <U4 2001>>>>>", "S2F34 <B 0x00>"));
+            using var eq2 = Eq(dir, e => e.RptidFormat = SecsFormat.U1);     // 7001은 U1에 들어가지 않음
+            var log = GemKit.Log(eq2);
+            using var h2 = await GemKit.Communicating(eq2);
+            await TestUtil.Until(() => Errors(log).Length > 0, 5000);
+            Assert.Contains("1개", Errors(log)[0]);
+            await Ok(h2, "S2F35 W <L <U4 1> <L <L <U4 5001> <L <U1 7>>>>>", "S2F36 <B 0x05>");
+        }
+        finally { Delete(dir); }
+    }
+
+    [Fact]
     public async Task Restore_InitialControlStateOnline_WinsOverSwitch()
     {
         var dir = TempDir();

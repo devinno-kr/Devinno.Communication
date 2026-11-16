@@ -15,6 +15,7 @@ public partial class GemEquipment
     long dataId;                                              // 마지막으로 쓴 DATAID
 
     /// <summary>Gets or sets whether all CEs are enabled at Start (default: false). If false, the Host turns them on with S2F37.</summary>
+    /// <remarks>With <see cref="StateDirectory"/> set, a CE saved in the folder starts with its saved enable flag; this value applies only to CEs not in the file.</remarks>
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public bool EventsEnabledByDefault { get => eventsEnabledByDefault; set => Setting(() => eventsEnabledByDefault = value); }
 

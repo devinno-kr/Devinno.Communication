@@ -381,10 +381,12 @@ public partial class GemEquipment : IDisposable
 
     #region Start / Stop
     /// <summary>Checks the definitions, initializes the state, and then starts the GEM threads and the transport. Does nothing if already started.</summary>
-    /// <remarks>The state (values, reports, links, enable flags, alarms, clock) returns to its initial values at every Start. Only the spool is kept across restarts: with <see cref="SpoolDirectory"/> set, the spooled messages, the spooling state, and the spool target table chosen by S2F43 are restored from the folder.</remarks>
+    /// <remarks>The state (values, reports, links, enable flags, alarms, clock) returns to its initial values at every Start, except what a folder keeps:
+    /// with <see cref="StateDirectory"/> set, the reports, links, CE enables, alarm enables, EC values, and the LOCAL/REMOTE switch chosen earlier are restored (entries that no longer match the definitions are dropped and reported once through <see cref="ProtocolError"/>);
+    /// with <see cref="SpoolDirectory"/> set, the spooled messages, the spooling state, and the spool target table chosen by S2F43 are restored. The clock, SV/DV values, and the alarm set state always start from their initial values.</remarks>
     /// <exception cref="ObjectDisposedException">Disposed</exception>
     /// <exception cref="InvalidOperationException">A definition is wrong (ID overlap, format range, unknown VID reference) or the transport has already been started. The transport is not started.</exception>
-    /// <exception cref="IOException">The <see cref="SpoolDirectory"/> folder is in use by another equipment (or process) or cannot be created. Nothing is started.</exception>
+    /// <exception cref="IOException">The <see cref="SpoolDirectory"/> or <see cref="StateDirectory"/> folder is in use by another equipment (or process) or cannot be created. Nothing is started.</exception>
     public void Start()
     {
         lock (lifeLock)
