@@ -33,6 +33,7 @@ public partial class GemEquipment
             if (!GemItems.Matches(value, v))
                 throw new ArgumentException($"VID {vid}의 포맷은 {GemItems.FormatName(v.Format)}입니다. 받은 값: {value.ToSml()}", nameof(value));
             values[v.Key] = value;
+            if (v.LimitCount > 0) EvaluateLimitsLocked(v, value);     // 리밋 구역 판정과 넘어감 CE(6J.8.4)
         }
     }
 

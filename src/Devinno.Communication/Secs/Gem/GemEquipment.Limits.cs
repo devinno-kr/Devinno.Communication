@@ -52,6 +52,34 @@ public partial class GemEquipment
         return current;
     }
 
+    // SetValue가 리밋 SV 값을 바꾼 뒤(gate 안, 6J.8.4): 리밋마다 구역을 갱신하고 BELOW↔ABOVE 넘어감을 방향별로 모아
+    // 아래→위 CE를 먼저, 그다음 위→아래 CE를 보낸다(TriggerEvent 규칙 그대로 — OFF-LINE·CE 끔이면 안 가도 구역은 이미 바뀜)
+    void EvaluateLimitsLocked(GemVar v, SecsItem value)
+    {
+        if (v.LimitEvent is not { } ce || !limits.TryGetValue(v.Key, out var m)) return;
+        List<byte>? up = null, down = null;
+        foreach (var (id, l) in m)
+        {
+            var z = ZoneOf(value, l, l.Zone);
+            if (l.Zone == GemLimitZone.Below && z == GemLimitZone.Above) (up ??= []).Add(id);
+            else if (l.Zone == GemLimitZone.Above && z == GemLimitZone.Below) (down ??= []).Add(id);
+            l.Zone = z;
+        }
+        if (up != null) SendLimitEventLocked(v, ce, up, 0);
+        if (down != null) SendLimitEventLocked(v, ce, down, 1);
+    }
+
+    void SendLimitEventLocked(GemVar v, GemEventDef ce, List<byte> ids, byte transition)
+    {
+        var overrides = new Dictionary<GemId, SecsItem>
+        {
+            [catalog.Std(GemStandard.LimitVariable)] = v.Id.ToItem(catalog.VidFormat),
+            [catalog.Std(GemStandard.EventLimit)] = SecsItem.L([.. ids.Select(i => SecsItem.B(i))]),
+            [catalog.Std(GemStandard.TransitionType)] = SecsItem.B(transition),
+        };
+        TriggerLocked(ce, overrides);
+    }
+
     #region S2F45 / S2F46
     // 검사 순서(L1): LVACK 1 → 2 → 3, 리밋마다 LIMITACK 1 → 7 → 5 → 6 → 2 → 3 → 4. VID마다 첫 오류 하나. 오류가 하나라도 있으면 아무것도 바꾸지 않음
     void OnS2F45(SecsPrimaryEventArgs e)
