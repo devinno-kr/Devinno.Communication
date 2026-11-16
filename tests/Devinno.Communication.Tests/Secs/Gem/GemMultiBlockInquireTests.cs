@@ -132,6 +132,45 @@ public class GemMultiBlockInquireTests
     }
 
     [Fact]
+    public async Task Granted_NextMessageCannotOvertake()
+    {
+        // S6F6을 받고 다음 송신을 정하는 사이에 새 이벤트가 들어와도 허락받은 S6F11이 먼저 나가야 한다
+        using var c = await Ctx.Start();
+        c.SetBodySize(300);
+        c.Grants.Enqueue(GemAck.Grant6Granted);
+        c.Grants.Enqueue(GemAck.Grant6Granted);
+        var once = 0;
+        c.Eq.BeforeInquiryDecisionForTest = () =>
+        {
+            if (Interlocked.Exchange(ref once, 1) != 0) return;
+            c.Eq.TriggerEvent(5002);                                                              // 작은 S6F11(문의 없음)이 끼어들려 함
+            Thread.Sleep(300);
+        };
+        Assert.True(c.Eq.TriggerEvent(5001));
+        var order = new List<ulong>();
+        for (var i = 0; i < 2; i++) order.Add(c.Next(6, 11).Item!.Items[1].GetUInt64());
+        Assert.Equal(new ulong[] { 5001, 5002 }, order);
+    }
+
+    [Fact]
+    public async Task Granted_ThenDisabled_NotSent_ReportedOnce()
+    {
+        using var c = await Ctx.Start();
+        c.SetBodySize(300);
+        c.Grants.Enqueue(GemAck.Grant6Granted);
+        var once = 0;
+        c.Eq.BeforeInquiryDecisionForTest = () =>
+        {
+            if (Interlocked.Exchange(ref once, 1) == 0) c.Eq.DisableCommunication();            // 허락을 받은 바로 그때 통신을 끔
+        };
+        Assert.True(c.Eq.TriggerEvent(5001));
+        c.Next(6, 5);
+        await TestUtil.Until(() => GemKit.Only(c.Log, "SendFailed").Length > 0, 3000);
+        c.NoneOf(6, 11, 800);                                                                    // 끈 뒤에는 보내지 않음
+        Assert.Equal("SendFailed S6F11 Disabled", GemKit.Only(c.Log, "SendFailed").Single());
+    }
+
+    [Fact]
     public async Task Off_NoInquiry()
     {
         using var c = await Ctx.Start(e => e.MultiBlockInquire = false);

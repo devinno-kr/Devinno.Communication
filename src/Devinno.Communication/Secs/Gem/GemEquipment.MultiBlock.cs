@@ -26,50 +26,42 @@ public partial class GemEquipment
         return new Outgoing(GemMessages.S6F5(body.Items[0], (uint)length), InquiryDone) { InquiryFor = o, SpoolSeq = o.SpoolSeq, Run = o.Run };
     }
 
-    // S6F6을 받았다(Completed 뒤, gate 밖). 실패(T3·SxF0·S9·회선)는 원래 메시지의 완료처럼 처리한다(지금 규칙 그대로: SendFailed, 스풀 머리는 6I.5 표)
-    void InquiryDone(Outgoing q, Task<SecsMessage?> t)
+    // 테스트용: S6F6 완료가 gate에 들어가기 직전에 부른다
+    internal Action? BeforeInquiryDecisionForTest;
+
+    // S6F6을 받았다(Completed 안, gate 안, inFlight가 아직 이 문의). 허락이면 원래 항목을 다음 송신으로, 거절·잘못된 답이면 보내지 않음.
+    // 처리했으면 true. 실패(T3·SxF0·S9·회선)는 false → InquiryDone이 원래 메시지의 완료처럼 처리한다(지금 규칙 그대로: SendFailed, 스풀 머리는 6I.5 표)
+    bool InquiryDecidedLocked(Outgoing q, Task<SecsMessage?> t)
     {
-        var o = q.InquiryFor!;
-        if (!t.IsCompletedSuccessfully)
-        {
-            o.Done(o, t);
-            return;
-        }
+        if (q.InquiryFor is not { } o || !t.IsCompletedSuccessfully) return false;
         byte grant;
         try { grant = GemMessages.ParseS6F6(t.Result!); }
         catch (Exception ex) when (ex is FormatException or NullReferenceException)
         {
-            Refused(o, GemSendFailure.InvalidReply, null, ex);
-            return;
+            RefusedLocked(o, GemSendFailure.InvalidReply, null, ex);
+            return true;
         }
         if (grant != GemAck.Grant6Granted)
         {
-            Refused(o, GemSendFailure.NotGranted, grant, null);
-            return;
+            RefusedLocked(o, GemSendFailure.NotGranted, grant, null);
+            return true;
         }
-        GemLoop? w;
-        lock (gate)
-        {
-            if (!running || o.SpoolSeq != null && o.Run != run) return;
-            o.Inquired = true;
-            resumeNext = o;
-            w = worker;
-        }
-        w?.Post(Pump);
+        o.Inquired = true;
+        resumeNext = o;
+        return true;
     }
 
-    // 보내지 않기로 한 원래 메시지: 실시간 메시지는 SendFailed, 스풀 머리는 지우고 내보내기를 이어 간다(ack ≠ 0과 같게, CE 없음)
-    void Refused(Outgoing o, GemSendFailure reason, byte? ack, Exception? ex)
+    void InquiryDone(Outgoing q, Task<SecsMessage?> t)
     {
-        lock (gate)
-        {
-            if (!running) return;
-            if (o.SpoolSeq != null)
-            {
-                RefusedSpoolHeadLocked(o, new GemSendFailedEventArgs(o.Message, reason, ack, ex));
-                return;
-            }
-            Raise(SendFailed, new GemSendFailedEventArgs(o.Message, reason, ack, ex));
-        }
+        var o = q.InquiryFor!;
+        o.Done(o, t);
+    }
+
+    // 보내지 않기로 한 원래 메시지(gate 안): 실시간 메시지는 SendFailed, 스풀 머리는 지우고 내보내기를 이어 간다(ack ≠ 0과 같게, CE 없음)
+    void RefusedLocked(Outgoing o, GemSendFailure reason, byte? ack, Exception? ex)
+    {
+        var e = new GemSendFailedEventArgs(o.Message, reason, ack, ex);
+        if (o.SpoolSeq != null) RefusedSpoolHeadLocked(o, e);
+        else Raise(SendFailed, e);
     }
 }

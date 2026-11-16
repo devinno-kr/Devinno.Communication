@@ -788,7 +788,9 @@ public partial class GemEquipment : IDisposable
     void Completed(Outgoing o, Task<SecsMessage?> t)
     {
         bool s1f13 = IsS1F13(o.Message);
+        if (o.InquiryFor != null) BeforeInquiryDecisionForTest?.Invoke();
         GemLoop? w;
+        bool decided;
         lock (gate)
         {
             if (inFlight != o) return;                 // 이미 버린 메시지(통신 끔·통신 실패·끊김·Stop/Start)
@@ -797,8 +799,9 @@ public partial class GemEquipment : IDisposable
             if (t.Exception?.InnerException is { } ex && (ex is SecsDisconnectedException || SecsSession.IsNotConnected(ex))) return;
             inFlight = null;
             w = worker;
+            decided = InquiryDecidedLocked(o, t);          // S6F6 허락·거절은 gate를 놓기 전에 정한다(다른 송신이 끼어들 틈 없음)
         }
-        o.Done(o, t);
+        if (!decided) o.Done(o, t);
         // T3만 통신 실패(장비 S1F13의 T3는 NOT COMMUNICATING 안의 실패라 제외)
         if (t.Exception?.InnerException is SecsTimeoutException && !s1f13) OnCommunicationFailure();
         w?.Post(Pump);
