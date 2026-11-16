@@ -211,4 +211,55 @@ public class GemSecsgemTests
         }
         finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
     }
+
+    const string ProgramHostScript = """
+        import sys
+        import secsgem.common, secsgem.hsms, secsgem.gem
+
+        settings = secsgem.hsms.HsmsSettings(
+            address="127.0.0.1", port=int(sys.argv[1]),
+            connect_mode=secsgem.hsms.HsmsConnectMode.ACTIVE,
+            device_type=secsgem.common.DeviceType.HOST)
+        h = secsgem.gem.GemHostHandler(settings)
+
+        def say(*a):
+            print(*a, flush=True)
+
+        h.enable()
+        if not h.waitfor_communicating(30):
+            say("FAIL not communicating")
+            sys.exit(1)
+        say("COMMUNICATING")
+        say("ONLINE", h.go_online())
+        say("SEND", h.send_process_program("R1", "body"))             # S7F1 없이 S7F3
+        say("REQUEST", list(h.request_process_program("R1")))
+        say("LIST", h.get_process_program_list())
+        say("DELETE", h.delete_process_programs(["R1"]))
+        say("LIST2", h.get_process_program_list())
+        say("DONE")
+        sys.stdin.readline()
+        h.disable()
+        """;
+
+    [SecsgemFact]
+    public async Task OurEquipment_SecsgemHost_ProcessPrograms()
+    {
+        var transport = new SecsHsms { Mode = HsmsMode.Passive, LocalIP = "127.0.0.1", LocalPort = 0, DeviceID = 0, T3 = 10000 };
+        var store = new InMemoryProcessProgramStore();
+        using var eq = new GemEquipment(transport) { ModelName = "DV-100", SoftwareRevision = "1.0.0", ProcessProgramStore = store };
+        GemKit.Sample(eq);
+        eq.Start();
+        using var py = new SecsgemProcess(ProgramHostScript, transport.BoundPort.ToString());
+
+        py.WaitLine("COMMUNICATING");
+        await TestUtil.Until(() => eq.CommunicationState == GemCommunicationState.Communicating, 5000);
+        Assert.Equal("ONLINE 0", py.WaitLine("ONLINE"));
+        Assert.Equal("SEND 0", py.WaitLine("SEND"));                                        // S7F3 → ACKC7 0
+        Assert.Equal("body", store.Peek("R1")!.Body.GetString());
+        Assert.Equal("REQUEST ['R1', 'body']", py.WaitLine("REQUEST"));                     // S7F5 → S7F6
+        Assert.Equal("LIST ['R1']", py.WaitLine("LIST "));                                  // S7F19 → S7F20
+        Assert.Equal("DELETE 0", py.WaitLine("DELETE"));                                    // S7F17 → ACKC7 0
+        Assert.Equal("LIST2 []", py.WaitLine("LIST2"));
+        py.WaitLine("DONE");
+    }
 }

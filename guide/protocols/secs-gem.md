@@ -24,7 +24,7 @@ SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)�
 ## GEM 장비 (GemEquipment)
 `GemEquipment`에 SV·DV·EC·CE·알람·리모트 명령을 정의만 하면(코드 또는 XML) 통신 수립(S1F13), 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE), Host의 조회·설정(S1F3/11/21/23, S2F13/15/29, S2F33/35/37, S5F3/5/7, S6F15/19, S10F3/5, 시계)에 라이브러리가 자동으로 응답. 장비 쪽은 `TriggerEvent`·`SetAlarm`·`SendTerminalMessage`로 알리기만 하면 됨(값은 부른 순간 기준, 한 번에 하나씩 순서대로 보냄).
 
-* 트레이스·리밋·레시피(S7)는 아직 없음(등록 메시지로 앱이 직접 처리 가능)
+* 트레이스·리밋은 아직 없음(등록 메시지로 앱이 직접 처리 가능)
 * E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함
 
 ### 스풀링 (SEMI E30 7.12)
@@ -46,6 +46,17 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * **정전**: 파일은 응답 뒤 별도 스레드에서 쓰므로 바뀐 직후의 정전에는 마지막 변경을 잃을 수 있음. 깨진 파일은 `gem.state.bad`로 옮기고 초기값으로 시작
 * **처음 상태로 되돌리기**: 멈춘 동안 `gem.state`를 지움
 * `InitialControlState`를 OnlineLocal·OnlineRemote로 정했으면 그 설정이 저장된 스위치 위치보다 우선
+
+### 레시피 관리 (언포맷 Process Program, S7)
+기본은 꺼짐. `GemEquipment.ProcessProgramStore`에 저장소(`GemProcessProgramFolder` 또는 직접 만든 `IGemProcessProgramStore`)를 정하면 켜짐. 켜면 GEM이 Stream 7을 직접 처리하고 표준 SV(PPExecName 1013 · PPFormat 1014)·DV(PPChangeName 1202 · PPChangeStatus 1203)·CE(ProcessProgramChange 1310 · ProcessProgramSelected 1311)와 리모트 명령 PP-SELECT(파라미터 PPID)가 생김.
+
+* **Host가 바꿀 때**: S7F1(문의)·S7F3(다운로드)·S7F17(삭제)은 `ProcessProgramChangeRequested`로 앱에 묻고 `Ack`가 0이면 저장소를 바꿈. 실행 중인 레시피처럼 앱만 아는 것은 여기서 거절(권장 ACKC7 1). 선택된 레시피의 덮어쓰기·삭제와 없는 PPID 삭제는 GEM이 먼저 거절. S7F1 없이 온 S7F3도 받음. S7F5(요청)·S7F19(목록)는 저장소로 바로 답함
+* **LOCAL에서도** 레시피 전송·선택(PP-SELECT)은 받음(다른 리모트 명령은 지금처럼 HCACK 2). OFF-LINE이면 S7F0
+* **운전자 변경**은 `SaveProcessProgram`·`DeleteProcessProgram`(ProcessProgramChange CE), **선택**은 `SelectProcessProgram`(PPExecName + ProcessProgramSelected CE). Host가 바꾼 것에는 ProcessProgramChange CE를 내지 않음(E30은 운전자 변경에만 씀)
+* **장비 → Host**: `UploadProcessProgramAsync`(S7F1 → S7F3)·`RequestProcessProgramAsync`(S7F5). 결과는 Task로 오고 `SendFailed`는 내지 않음. 스풀하지 않음
+* **폴더 저장소**: PPID 하나 = 파일 하나. 대소문자만 다른 PPID나 파일 이름에 못 쓰는 문자가 든 PPID도 안전하게 저장(`%XX`, 너무 길면 해시 이름)
+* 저장소는 GEM의 lock 하나 안에서만 부르므로 GEM에 대해서는 스레드 안전하지 않아도 됨. 저장소가 느려 `CommandReplyTimeout`을 넘기면 GEM이 거절로 대신 답하지만, 늦게 끝난 변경은 반영됨(리모트 명령과 같음)
+* GemHost: `DownloadProcessProgram`·`UploadProcessProgram`·`DeleteProcessPrograms`·`ListProcessPrograms`·`SelectProcessProgram`, 장비가 보낸 S7F1·S7F3·S7F5는 `ProcessProgramReceived`·`ProcessProgramRequested`(구독자가 없으면 지금처럼 `MessageReceived`)
 
 ## GEM Host (GemHost)
 `GemHost.Subscribe(ceid, vids…)`로 받을 값을 정해 두면 연결될 때마다 접속 시퀀스(S1F13 → S1F17 → 리포트 정의·연결·켜기 → 알람 켜기)를 자동으로 실행하고, 장비의 이벤트 리포트(S6F11)를 VID별 값으로 해석해 `EventReceived`로 줌. 알람(S5F1)·터미널(S10F1)도 자동으로 응답하고 이벤트로 알림. SV·EC 읽기·쓰기, 이름 목록, 시계, 리모트 명령(S2F41), 알람 목록 등은 동기·비동기(`…Async`) 메서드 짝이고 0이 아닌 ack는 예외가 아니라 반환값. 장비마다 다른 ID 포맷(U1~U8, I1~I8, A)을 받아들임.
