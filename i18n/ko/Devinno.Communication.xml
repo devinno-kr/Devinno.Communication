@@ -6139,10 +6139,11 @@
             <returns>CE를 송신 대기열 또는 스풀에 넣었으면 true (보내지 않는 조건은 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.TriggerEvent(Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyDictionary{Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem})" />와 같음)</returns>
             <exception cref="T:System.InvalidOperationException">시작하지 않은 경우</exception>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="fdb1550b3b4f1c32">
-            <summary>Host의 리모트 명령(S2F41)이 검사를 통과했을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />로 응답합니다.</summary>
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.RemoteCommandReceived" en-hash="3dee0814f2170391">
+            <summary>Host의 리모트 명령(S2F41, 또는 확장 S2F49)이 검사를 통과했을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />로 응답합니다.</summary>
             <remarks>
             <para>GEM이 먼저 답하는 경우(앱을 부르지 않음): 정의에 없는 명령 HCACK 1, ON-LINE LOCAL HCACK 2, 모르는 파라미터(CPACK 1)·포맷 불일치(CPACK 3) HCACK 3, 구독자 없음 HCACK 2.</para>
+            <para><b>S2F49</b>는 같은 정의로 검사하고 S2F50으로 답합니다(CEPACK은 U1, 또는 핸들러가 넣은 아이템). OBJSPEC은 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.ObjectSpec" />에 담깁니다. 앱이 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.RegisterMessage(System.Int32,System.Int32)" />로 S2F49를 등록했으면 GEM은 앱에 맡깁니다. S2F21은 처리하지 않습니다.</para>
             <para><b>PP-SELECT</b>(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.ProcessProgramStore" />를 정했을 때): 앱이 직접 정의하지 않으면 GEM이 A 파라미터 PPID로 정의하고, ON-LINE LOCAL에서도 받으며, PPID가 없거나 저장소에 없으면 HCACK 3 + CPACK 2로 답하고(핸들러를 부르지 않음), 핸들러가 HCACK 0으로 받아들이면 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.SelectProcessProgram(System.String)" />를 부릅니다. 앱 정의에 PPID 파라미터가 없으면 LOCAL 규칙만 적용됩니다.</para>
             <para>핸들러가 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommandReplyTimeout" /> 안에 돌아오지 않으면 HCACK 2로 대신 응답하고(<see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />) 나중에 돌아온 결과는 버립니다. 핸들러는 계속 실행되므로 Host는 실행되지 않았다고 믿는데 동작은 실행될 수 있습니다. 핸들러는 짧게 유지하고, 오래 걸리는 동작은 HCACK 4로 응답한 뒤 이벤트로 완료를 알리세요. 핸들러가 예외를 던지면 그때까지 정한 Hcack·CPACK과 상관없이 HCACK 2(실행할 수 없음)로 응답하고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 알립니다.</para>
             </remarks>
@@ -6695,10 +6696,11 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemTerminalEventArgs.Lines" en-hash="9f3c92ff8a1b329e">
             <summary>문장 (S10F3은 한 줄)</summary>
         </member>
-        <member name="T:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs" en-hash="0cce2be204525931">
-            <summary>Host가 리모트 명령(S2F41)을 보냈을 때의 인자입니다. 핸들러에서 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />를 정하면 핸들러가 돌아올 때 그 값으로 응답합니다.</summary>
+        <member name="T:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs" en-hash="223bf1b3271b5342">
+            <summary>Host가 리모트 명령(S2F41, 또는 확장 S2F49)을 보냈을 때의 인자입니다. 핸들러에서 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />를 정하면 핸들러가 돌아올 때 그 값으로 응답합니다.</summary>
             <remarks>
             <para>명령 이름·파라미터 이름·포맷은 GEM이 정의와 대조해 이미 검사했습니다. 빠진 파라미터는 앱이 판단해 <see cref="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,System.Byte)" />로 알립니다.</para>
+            <para>S2F49는 S2F41과 같은 명령 정의를 쓰고 S2F50으로 답합니다. <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.ObjectSpec" />이 어떤 객체인지 알려 주며(대상이 없으면 HCACK 6 등은 앱이 정함), 리스트 값 파라미터에는 <see cref="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,Devinno.Communication.Secs.Data.SecsItem)" />로 리스트 CEPACK을 줄 수 있습니다.</para>
             <para>오래 걸리는 작업은 <see cref="F:Devinno.Communication.Secs.Gem.GemAck.HcackAcceptedLater" />(4)로 답하고 작업은 따로 한 뒤, 끝나면 <c>TriggerEvent</c>로 알리세요. 핸들러가 <c>CommandReplyTimeout</c> 안에 돌아오지 않으면 GEM이 HCACK 2로 대신 응답합니다.</para>
             </remarks>
         </member>
@@ -6711,12 +6713,25 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" en-hash="0ace98a9f47c938d">
             <summary>응답할 HCACK (기본값: 0 = 받음, 실행함). <see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 Hcack… 값을 씁니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,System.Byte)" en-hash="5d3572116cfd266f">
-            <summary>파라미터 하나의 오류(CPACK)를 응답에 넣습니다. 하나라도 넣었고 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />가 0이면 HCACK 3으로 보냅니다.</summary>
+        <member name="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.ObjectSpec" en-hash="acc64d7e43d0d979">
+            <summary>S2F49의 OBJSPEC(대상 객체, 받은 그대로, ""는 보통 장비 자체). S2F41이면 null</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.IsEnhanced" en-hash="91259c5b6030952d">
+            <summary>S2F49(확장 리모트 명령, S2F50으로 답함)면 true, S2F41이면 false</summary>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,System.Byte)" en-hash="3bf9dda47046ae64">
+            <summary>파라미터 하나의 오류(CPACK, S2F49는 CEPACK)를 응답에 넣습니다. 하나라도 넣었고 <see cref="P:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.Hcack" />가 0이면 HCACK 3으로 보냅니다.</summary>
             <param name="name">파라미터 이름 (받지 않은 이름도 됨: 빠진 파라미터 알림)</param>
             <param name="cpack">CPACK 1~255 (1 모르는 이름, 2 잘못된 값, 3 잘못된 형식)</param>
             <exception cref="T:System.ArgumentNullException">name이 null인 경우</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">cpack이 0인 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,Devinno.Communication.Secs.Data.SecsItem)" en-hash="9834ae0e6387267e">
+            <summary>S2F49의 파라미터 하나에 CEPACK 아이템을 응답에 넣습니다. 예: 리스트 값 CEPVAL과 같은 모양의 리스트. 넣은 순서대로 보냅니다.</summary>
+            <param name="name">파라미터 이름</param>
+            <param name="cepack">CEPACK 아이템(<c>SecsItem.U1(2)</c> 같은 숫자 또는 리스트)</param>
+            <exception cref="T:System.ArgumentNullException">name이나 cepack이 null인 경우</exception>
+            <exception cref="T:System.InvalidOperationException">S2F41 명령인 경우. S2F41의 CPACK은 숫자 하나입니다(<see cref="M:Devinno.Communication.Secs.Gem.GemRemoteCommandEventArgs.SetParameterAck(System.String,System.Byte)" /> 사용)</exception>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemMessageEventArgs" en-hash="2e71c5b7090032a3">
             <summary>앱이 등록한 메시지(<c>RegisterMessage</c>)를 받았을 때의 인자입니다. 핸들러 안에서 <see cref="M:Devinno.Communication.Secs.Gem.GemMessageEventArgs.Reply(Devinno.Communication.Secs.Data.SecsMessage)" />로 한 번 응답합니다.</summary>
