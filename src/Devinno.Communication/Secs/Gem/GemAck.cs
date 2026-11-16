@@ -6,6 +6,7 @@ namespace Devinno.Communication.Secs.Gem;
 /// <remarks>
 /// The SEMI E5 original could not be read, so only values confirmed from secsgem and equipment vendors' GEM manuals are included. HCACK 5 and 6 exist only in secsgem.
 /// The STRACK values (S2F44) come from a single public source (secsgem) and could not be checked against the SEMI E30 original.
+/// ACKC7 6 ("performed later") is not included: it appears only in a newer E5 edition, in a single public source.
 /// Example: in a remote command handler, <c>e.Hcack = GemAck.HcackAcceptedLater;</c>
 /// </remarks>
 public static class GemAck
@@ -138,4 +139,30 @@ public static class GemAck
     public const byte RsdaBusy = 1;
     /// <summary>RSDA 2: no spooled data (S6F24)</summary>
     public const byte RsdaNoData = 2;
+
+    /// <summary>PPGNT 0: OK, send the process program (S7F2)</summary>
+    public const byte PpgntOk = 0;
+    /// <summary>PPGNT 1: already have it (S7F2)</summary>
+    public const byte PpgntAlreadyHave = 1;
+    /// <summary>PPGNT 2: no space (S7F2)</summary>
+    public const byte PpgntNoSpace = 2;
+    /// <summary>PPGNT 3: invalid PPID (S7F2)</summary>
+    public const byte PpgntInvalidPpid = 3;
+    /// <summary>PPGNT 4: busy, try later (S7F2)</summary>
+    public const byte PpgntBusy = 4;
+    /// <summary>PPGNT 5: will not accept (S7F2)</summary>
+    public const byte PpgntWillNotAccept = 5;
+
+    /// <summary>ACKC7 0: accepted (S7F4, S7F18)</summary>
+    public const byte Ackc7Accepted = 0;
+    /// <summary>ACKC7 1: permission not granted (S7F4, S7F18)</summary>
+    public const byte Ackc7PermissionNotGranted = 1;
+    /// <summary>ACKC7 2: length error (S7F4)</summary>
+    public const byte Ackc7LengthError = 2;
+    /// <summary>ACKC7 3: matrix overflow (S7F4)</summary>
+    public const byte Ackc7MatrixOverflow = 3;
+    /// <summary>ACKC7 4: PPID not found (S7F4, S7F18)</summary>
+    public const byte Ackc7PpidNotFound = 4;
+    /// <summary>ACKC7 5: mode unsupported (S7F4)</summary>
+    public const byte Ackc7ModeUnsupported = 5;
 }

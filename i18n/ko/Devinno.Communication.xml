@@ -5584,13 +5584,14 @@
         
         
         
-        <member name="T:Devinno.Communication.Secs.Gem.GemAck" en-hash="b66bf69dd2fc2524">
+        <member name="T:Devinno.Communication.Secs.Gem.GemAck" en-hash="8268163d7c103b9e">
             <summary>
             GEM 확인 코드(ack)의 알려진 값입니다. ack는 열린 <see cref="T:System.Byte" /> 값이라 여기 없는 값도 그대로 주고받습니다.
             </summary>
             <remarks>
             SEMI E5 원문을 읽지 못해 secsgem·장비 회사 GEM 매뉴얼에서 확인한 값만 둡니다. HCACK 5·6은 secsgem에만 있습니다.
             STRACK 값(S2F44)은 공개 자료 하나(secsgem)에서만 얻었고 SEMI E30 원문으로는 확인하지 못했습니다.
+            ACKC7 6("나중에 수행")은 넣지 않았습니다. 새 E5 판에만 있고 공개 자료도 한 곳뿐입니다.
             예: 리모트 명령 핸들러에서 <c>e.Hcack = GemAck.HcackAcceptedLater;</c>
             </remarks>
         </member>
@@ -5758,6 +5759,42 @@
         </member>
         <member name="F:Devinno.Communication.Secs.Gem.GemAck.RsdaNoData" en-hash="17ce0c205227e3b1">
             <summary>RSDA 2: 스풀된 데이터 없음 (S6F24)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntOk" en-hash="7d855c4acd28821d">
+            <summary>PPGNT 0: 좋음, 레시피를 보내세요 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntAlreadyHave" en-hash="555b4bcf2d09a16e">
+            <summary>PPGNT 1: 이미 있음 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntNoSpace" en-hash="a610617dc0cc1bb0">
+            <summary>PPGNT 2: 공간 없음 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntInvalidPpid" en-hash="08bdec78521872cf">
+            <summary>PPGNT 3: PPID가 잘못됨 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntBusy" en-hash="5ee062a01a28da2d">
+            <summary>PPGNT 4: 바쁨, 나중에 다시 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.PpgntWillNotAccept" en-hash="8997682f530baf56">
+            <summary>PPGNT 5: 받지 않음 (S7F2)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7Accepted" en-hash="a95d59edb5ed3dda">
+            <summary>ACKC7 0: 받아들임 (S7F4, S7F18)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7PermissionNotGranted" en-hash="8dcad88f20641e06">
+            <summary>ACKC7 1: 허가되지 않음 (S7F4, S7F18)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7LengthError" en-hash="e06e31b1e7459b23">
+            <summary>ACKC7 2: 길이 오류 (S7F4)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7MatrixOverflow" en-hash="ea63246499f9821a">
+            <summary>ACKC7 3: 매트릭스 넘침 (S7F4)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7PpidNotFound" en-hash="a51ff21cec570e8f">
+            <summary>ACKC7 4: PPID 없음 (S7F4, S7F18)</summary>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemAck.Ackc7ModeUnsupported" en-hash="d9abd59339f8ba9f">
+            <summary>ACKC7 5: 지원하지 않는 모드 (S7F4)</summary>
         </member>
         
         
@@ -8124,6 +8161,26 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemCommandResult.IsAccepted" en-hash="e3fff500bd6b0eb8">
             <summary>장비가 명령을 받았는지(HCACK 0 또는 4)</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgram" en-hash="2bf2ce2d3d912c83">
+            <summary>언포맷 레시피(Process Program): PPID와 아이템 하나(리스트 아님)인 본문.</summary>
+            <remarks>본문은 SECS-II 포맷(B, A, 정수 배열 등)을 그대로 가지므로 받은 그대로 다시 보냅니다.</remarks>
+        </member>
+        <member name="F:Devinno.Communication.Secs.Gem.GemProcessProgram.MaxPpidLength" en-hash="d6e1fb36a0b62f61">
+            <summary>PPID 최대 길이(120자, SEMI E5).</summary>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgram.#ctor(System.String,Devinno.Communication.Secs.Data.SecsItem)" en-hash="9b4983b3b0ab39c9">
+            <summary>레시피를 만듭니다.</summary>
+            <param name="ppid">PPID, A 아이템으로 보낼 수 있는 1~120자.</param>
+            <param name="body">PPBODY, 리스트가 아닌 아이템 하나.</param>
+            <exception cref="T:System.ArgumentNullException"><paramref name="ppid" />나 <paramref name="body" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="ppid" />가 비었거나 120자를 넘거나 A 아이템에 못 싣는 문자가 있는 경우, 또는 <paramref name="body" />가 리스트인 경우.</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgram.Ppid" en-hash="485392c4abf080fe">
+            <summary>PPID를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgram.Body" en-hash="29d52e51359e314a">
+            <summary>PPBODY를 가져옵니다.</summary>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemSubscription" en-hash="0492adea953f6b21">
             <summary>리포트 구독 하나: 이 CE가 일어나면 이 VID들의 값을 받습니다.</summary>
             <param name="ceid">CEID</param>
@@ -9154,6 +9211,137 @@
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null인 경우</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S6F24가 아닌 경우</exception>
             <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닌 경우</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F1(System.String,System.UInt32)" en-hash="83aa33bb339caaf0">
+            <summary>S7F1 Process Program Load Inquire &lt;L &lt;A PPID&gt; &lt;U4 LENGTH&gt;&gt;를 만듭니다.</summary>
+            <param name="ppid">PPID(1~120자).</param>
+            <param name="length">뒤이어 S7F3으로 보낼 레시피의 바이트 길이.</param>
+            <returns>S7F1 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="ppid" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="ppid" />가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F1(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="d2dbed2b27848c48">
+            <summary>S7F1 Process Program Load Inquire를 읽습니다. PPID 길이는 검사하지 않습니다(부르는 쪽이 판단).</summary>
+            <param name="message">받은 S7F1.</param>
+            <returns>PPID와 LENGTH(LENGTH는 정수 포맷 무엇이든, 음수 아님).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F1이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;A PPID&gt; LENGTH&gt;가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F2(System.Byte)" en-hash="42f0a6b28ccafce6">
+            <summary>S7F2 Process Program Load Grant &lt;B PPGNT&gt;를 만듭니다.</summary>
+            <param name="ppgnt">PPGNT(<see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 Ppgnt 값 참고).</param>
+            <returns>S7F2 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F2(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="db06a4f7a0fdfaf5">
+            <summary>S7F2 Process Program Load Grant를 읽습니다.</summary>
+            <param name="message">받은 S7F2.</param>
+            <returns>PPGNT(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F2이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F3(Devinno.Communication.Secs.Gem.GemProcessProgram)" en-hash="9ede752ec6c44c2e">
+            <summary>S7F3 Process Program Send &lt;L &lt;A PPID&gt; PPBODY&gt;를 만듭니다.</summary>
+            <param name="program">레시피.</param>
+            <returns>S7F3 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="program" />이 null입니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F3(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="2ebba8a05efb8f4d">
+            <summary>S7F3 Process Program Send를 읽습니다. PPID 길이와 본문 크기는 검사하지 않습니다(부르는 쪽이 판단).</summary>
+            <param name="message">받은 S7F3.</param>
+            <returns>PPID와 PPBODY(리스트가 아닌 아이템 하나).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F3이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;A PPID&gt; PPBODY&gt;가 아니거나 PPBODY가 리스트입니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F4(System.Byte)" en-hash="75354e6aecaaad71">
+            <summary>S7F4 Process Program Acknowledge &lt;B ACKC7&gt;를 만듭니다.</summary>
+            <param name="ackc7">ACKC7(<see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 Ackc7 값 참고).</param>
+            <returns>S7F4 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F4(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="89616fcf5477341f">
+            <summary>S7F4 Process Program Acknowledge를 읽습니다.</summary>
+            <param name="message">받은 S7F4.</param>
+            <returns>ACKC7(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F4이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F5(System.String)" en-hash="983c5be64438ed92">
+            <summary>S7F5 Process Program Request &lt;A PPID&gt;를 만듭니다.</summary>
+            <param name="ppid">PPID(1~120자).</param>
+            <returns>S7F5 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="ppid" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="ppid" />가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F5(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="2331d810f8214a45">
+            <summary>S7F5 Process Program Request를 읽습니다.</summary>
+            <param name="message">받은 S7F5.</param>
+            <returns>PPID(길이는 검사하지 않음).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F5이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;A PPID&gt;가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F6(Devinno.Communication.Secs.Gem.GemProcessProgram)" en-hash="726d33172a999b6e">
+            <summary>S7F6 Process Program Data &lt;L &lt;A PPID&gt; PPBODY&gt;를 만듭니다. 요청을 거절하거나 PPID를 모르면 &lt;L&gt;입니다.</summary>
+            <param name="program">레시피. 거절하려면 null.</param>
+            <returns>S7F6 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F6(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="068f23efda0e2f5e">
+            <summary>S7F6 Process Program Data를 읽습니다.</summary>
+            <param name="message">받은 S7F6.</param>
+            <returns>PPID와 PPBODY. 본문이 &lt;L&gt;(거절 또는 모르는 PPID)면 null.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F6이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L&gt;도 &lt;L &lt;A PPID&gt; PPBODY&gt;도 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F17(System.Collections.Generic.IReadOnlyList{System.String})" en-hash="c8ae7d2a16320a36">
+            <summary>S7F17 Delete Process Program Send &lt;L &lt;A PPID&gt;…&gt;를 만듭니다. 빈 목록은 레시피 전부를 지웁니다.</summary>
+            <param name="ppids">지울 PPID(빈 목록 = 전부).</param>
+            <returns>S7F17 메시지(W비트 켬).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="ppids" />나 그 항목이 null입니다.</exception>
+            <exception cref="T:System.ArgumentException">PPID 하나가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F17(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="562818267e140095">
+            <summary>S7F17 Delete Process Program Send를 읽습니다.</summary>
+            <param name="message">받은 S7F17.</param>
+            <returns>PPID 목록(빈 목록 = 전부, 본문 없는 메시지도 빈 목록).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F17이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;A PPID&gt;…&gt;가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F18(System.Byte)" en-hash="4ca7926fead1359b">
+            <summary>S7F18 Delete Process Program Acknowledge &lt;B ACKC7&gt;를 만듭니다.</summary>
+            <param name="ackc7">ACKC7(<see cref="T:Devinno.Communication.Secs.Gem.GemAck" />의 Ackc7 값 참고).</param>
+            <returns>S7F18 메시지.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F18(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="24b0e15336bf3f99">
+            <summary>S7F18 Delete Process Program Acknowledge를 읽습니다.</summary>
+            <param name="message">받은 S7F18.</param>
+            <returns>ACKC7(숫자 포맷 무엇이든, 0~255).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F18이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 0~255 숫자 하나가 아닙니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F19" en-hash="03f6c974ad6b8216">
+            <summary>S7F19 Current EPPD Request(본문 없음)를 만듭니다.</summary>
+            <returns>S7F19 메시지(W비트 켬).</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S7F20(System.Collections.Generic.IReadOnlyList{System.String})" en-hash="675fe4bf50d3ba2f">
+            <summary>S7F20 Current EPPD Data &lt;L &lt;A PPID&gt;…&gt;를 만듭니다.</summary>
+            <param name="ppids">장비가 가진 PPID.</param>
+            <returns>S7F20 메시지.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="ppids" />나 그 항목이 null입니다.</exception>
+            <exception cref="T:System.ArgumentException">PPID 하나가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS7F20(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="f5ac31fda961281f">
+            <summary>S7F20 Current EPPD Data를 읽습니다.</summary>
+            <param name="message">받은 S7F20.</param>
+            <returns>PPID 목록(본문 없는 메시지는 빈 목록).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="message" />가 S7F20이 아닙니다.</exception>
+            <exception cref="T:System.FormatException">본문이 &lt;L &lt;A PPID&gt;…&gt;가 아닙니다.</exception>
         </member>
         
         

@@ -131,3 +131,40 @@ public sealed class GemCommandResult(byte hcack, IReadOnlyList<(string Name, byt
     /// <summary>Gets a value indicating whether the equipment accepted the command (HCACK 0 or 4).</summary>
     public bool IsAccepted => Hcack is GemAck.HcackAccepted or GemAck.HcackAcceptedLater;
 }
+
+/// <summary>An unformatted process program (recipe): a PPID and a body that is a single item (not a list).</summary>
+/// <remarks>The body keeps its SECS-II format (B, A, an integer array and so on), so it is sent back exactly as it was received.</remarks>
+public sealed class GemProcessProgram
+{
+    /// <summary>The maximum length of a PPID (120 characters, SEMI E5).</summary>
+    public const int MaxPpidLength = 120;
+
+    /// <summary>Creates a process program.</summary>
+    /// <param name="ppid">PPID, 1 to 120 characters that an A item can carry.</param>
+    /// <param name="body">PPBODY, a single item that is not a list.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="ppid"/> or <paramref name="body"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="ppid"/> is empty, longer than 120 characters, or has a character an A item cannot carry; or <paramref name="body"/> is a list.</exception>
+    public GemProcessProgram(string ppid, SecsItem body)
+    {
+        Ppid = CheckPpid(ppid, nameof(ppid));
+        ArgumentNullException.ThrowIfNull(body);
+        if (body.Format == SecsFormat.List) throw new ArgumentException("PPBODY는 리스트가 아닌 아이템 하나입니다.", nameof(body));
+        Body = body;
+    }
+
+    /// <summary>Gets the PPID.</summary>
+    public string Ppid { get; }
+    /// <summary>Gets the PPBODY.</summary>
+    public SecsItem Body { get; }
+
+    // PPID 규칙(1~120자, A로 보낼 수 있는 문자). 빌더도 같은 규칙
+    internal static string CheckPpid(string ppid, string paramName)
+    {
+        GemDefinitionCheck.Ascii(ppid, paramName);
+        if (ppid.Length is 0 or > MaxPpidLength) throw new ArgumentException($"PPID는 1~{MaxPpidLength}자입니다. 현재: {ppid.Length}자", paramName);
+        return ppid;
+    }
+
+    // 받은 PPID가 규칙에 맞는지(예외 없이)
+    internal static bool IsValidPpid(string ppid) => ppid.Length is > 0 and <= MaxPpidLength && ppid.All(c => c <= 0xFF);
+}
