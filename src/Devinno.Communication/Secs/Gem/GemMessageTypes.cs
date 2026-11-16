@@ -201,3 +201,20 @@ public sealed class GemProcessProgramRequestException : Exception
     /// <summary>Gets why the request failed.</summary>
     public GemUploadFailure Failure { get; }
 }
+
+/// <summary>The result of a host-initiated process program download (S7F1 then S7F3). A refusal by the equipment is a value, not an exception.</summary>
+public sealed class GemDownloadResult
+{
+    internal GemDownloadResult(byte? ppgnt, byte? ackc7)
+    {
+        Ppgnt = ppgnt;
+        Ackc7 = ackc7;
+    }
+
+    /// <summary>Gets the PPGNT of S7F2 (null if no S7F1 was sent).</summary>
+    public byte? Ppgnt { get; }
+    /// <summary>Gets the ACKC7 of S7F4 (null if the inquire was refused and no S7F3 was sent).</summary>
+    public byte? Ackc7 { get; }
+    /// <summary>Gets a value indicating whether the equipment accepted the process program (ACKC7 0).</summary>
+    public bool IsSuccess => Ackc7 == GemAck.Ackc7Accepted;
+}

@@ -62,6 +62,8 @@ public partial class GemHost : IDisposable
         public long Deadline { get; } = deadline;
         public int Run { get; } = run;
         public string What { get; } = what;
+        // 기한이 지났을 때 대신 보낼 응답(null = SxF0)
+        public SecsMessage? TimeoutReply { get; init; }
         // 응답할 권리를 한 번만 얻는다
         public bool TryClaim() => Interlocked.Exchange(ref claimed, 1) == 0;
     }
@@ -98,6 +100,7 @@ public partial class GemHost : IDisposable
     // 기능별 partial 파일(GemHost.*.cs)이 구현하는 연결점. 구현이 없는 동안은 컴파일러가 호출을 지운다.
     // 장비가 보내는 보고(S5F1·S6F11·S10F1) 처리기 등록(생성자)
     partial void AddEventHandlers();
+    partial void AddProcessProgramHandlers();
     // Start 때 상태 초기화(gate 안, 전송 시작 전)
     partial void ResetReports();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드, 실행 중일 때만)
@@ -176,6 +179,7 @@ public partial class GemHost : IDisposable
         handlers[S2F17] = e => Respond(e, GemMessages.S2F18(DateTime.Now, timeFormat));
         handlers[S6F5] = e => Respond(e, GemMessages.S6F6(GemAck.GrantGranted));
         AddEventHandlers();
+        AddProcessProgramHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -537,8 +541,9 @@ public partial class GemHost : IDisposable
         {
             if (!d.TryClaim()) continue;
             var m = d.Args.Message;
-            ReplyNow(d.Args, new SecsMessage(m.Stream, 0, false), d.What);
-            ErrorIn(d.Run, $"{d.What}: 앱이 CommandReplyTimeout({commandReplyTimeout}ms) 안에 응답하지 않아 S{m.Stream}F0으로 대신 응답했습니다.");
+            var timeoutReply = d.TimeoutReply ?? new SecsMessage(m.Stream, 0, false);
+            ReplyNow(d.Args, timeoutReply, d.What);
+            ErrorIn(d.Run, $"{d.What}: 앱이 CommandReplyTimeout({commandReplyTimeout}ms) 안에 응답하지 않아 {(d.TimeoutReply == null ? $"S{m.Stream}F0으로" : timeoutReply.ToSml() + "로")} 대신 응답했습니다.");
         }
     }
 

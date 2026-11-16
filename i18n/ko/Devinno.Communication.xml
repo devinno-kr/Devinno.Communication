@@ -7943,6 +7943,79 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>결과</returns>
         </member>
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.ProcessProgramReceived" en-hash="0c64d9b19b824f7e">
+            <summary>장비가 S7F1(문의) 또는 S7F3(레시피)을 보냈을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ack" />로 응답합니다.</summary>
+            <remarks>구독자가 없으면 이 메시지는 전처럼 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" />로 갑니다. 핸들러 예외는 거절(PPGNT 4, ACKC7 1)하고 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" />로 알립니다.</remarks>
+        </member>
+        <member name="E:Devinno.Communication.Secs.Gem.GemHost.ProcessProgramRequested" en-hash="8f7a1d25a9d79c8f">
+            <summary>장비가 레시피를 요청했을 때(S7F5) 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramRequestedEventArgs.Program" />을 보냅니다(null = 거절).</summary>
+            <remarks>구독자가 없으면 S7F5는 전처럼 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" />로 갑니다. 핸들러 예외는 거절하고 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" />로 알립니다.</remarks>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgram(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean)" en-hash="9c9c7b91e98396b2">
+            <summary>장비에 레시피를 보냅니다(Host가 시작하는 다운로드). <paramref name="inquire" />가 true면 S7F1을 먼저 보내고, 장비가 허락하면 S7F3을 보냅니다.</summary>
+            <param name="program">레시피.</param>
+            <param name="inquire">S7F3 앞에 S7F1을 보낼지(기본 true, E30 권장).</param>
+            <returns>PPGNT(S7F1을 보내지 않았으면 null)와 ACKC7(문의가 거절됐으면 null).</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="program" />이 null입니다.</exception>
+            <exception cref="T:System.InvalidOperationException">시작하지 않았거나 연결되지 않았습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 SxF0으로 답했습니다(보통 OFF-LINE).</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답했습니다.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">연결이 끊겼습니다.</exception>
+            <exception cref="T:System.FormatException">응답 본문이 기대와 다릅니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgramAsync(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean,System.Threading.CancellationToken)" en-hash="1608b07b453e6aff">
+            <summary>장비에 레시피를 보냅니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgram(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean)" />과 같습니다.</summary>
+            <param name="program">레시피.</param>
+            <param name="inquire">S7F3 앞에 S7F1을 보낼지(기본 true).</param>
+            <param name="cancellationToken">응답 기다리기를 멈춥니다.</param>
+            <returns>PPGNT와 ACKC7.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.UploadProcessProgram(System.String)" en-hash="02454ae9efb06fda">
+            <summary>장비에 레시피를 요청합니다(S7F5 → S7F6). 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgram(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean)" />과 같습니다.</summary>
+            <param name="ppid">PPID</param>
+            <returns>레시피. 장비가 거절했거나 없으면 null.</returns>
+            <exception cref="T:System.ArgumentException"><paramref name="ppid" />가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+            <exception cref="T:System.FormatException">응답 본문이 기대와 다르거나, 받은 PPID·본문이 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.UploadProcessProgramAsync(System.String,System.Threading.CancellationToken)" en-hash="e94233f8143bc0a8">
+            <summary>장비에 레시피를 요청합니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.UploadProcessProgram(System.String)" />과 같습니다.</summary>
+            <param name="ppid">PPID</param>
+            <param name="cancellationToken">응답 기다리기를 멈춥니다.</param>
+            <returns>레시피. 거절되면 null.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DeleteProcessPrograms(System.Collections.Generic.IReadOnlyList{System.String})" en-hash="dc4714b2cb5f94d5">
+            <summary>장비의 레시피를 지웁니다(S7F17). 빈 목록은 전부 지웁니다. 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgram(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean)" />과 같습니다.</summary>
+            <param name="ppids">PPID 목록(빈 목록 = 전부).</param>
+            <returns>ACKC7(0 = 지움, 하나라도 안 되면 장비는 하나도 지우지 않음).</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DeleteProcessProgramsAsync(System.Collections.Generic.IReadOnlyList{System.String},System.Threading.CancellationToken)" en-hash="42033d9b6a8e28cd">
+            <summary>장비의 레시피를 지웁니다. 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DeleteProcessPrograms(System.Collections.Generic.IReadOnlyList{System.String})" />와 같습니다.</summary>
+            <param name="ppids">PPID 목록(빈 목록 = 전부).</param>
+            <param name="cancellationToken">응답 기다리기를 멈춥니다.</param>
+            <returns>ACKC7.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.ListProcessPrograms" en-hash="2487ff83b7adfac7">
+            <summary>장비의 레시피 목록을 가져옵니다(S7F19 → S7F20). 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DownloadProcessProgram(Devinno.Communication.Secs.Gem.GemProcessProgram,System.Boolean)" />과 같습니다.</summary>
+            <returns>PPID 목록.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.ListProcessProgramsAsync(System.Threading.CancellationToken)" en-hash="a99dd2d285cd7b69">
+            <summary>장비의 레시피 목록을 가져옵니다. 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.ListProcessPrograms" />와 같습니다.</summary>
+            <param name="cancellationToken">응답 기다리기를 멈춥니다.</param>
+            <returns>PPID 목록.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SelectProcessProgram(System.String)" en-hash="2775861e2584e84c">
+            <summary>표준 리모트 명령 PP-SELECT(S2F41, 파라미터 PPID)로 장비의 레시피를 선택합니다. 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />와 같습니다.</summary>
+            <param name="ppid">PPID</param>
+            <returns>리모트 명령 결과(HCACK 0 = 선택됨).</returns>
+            <exception cref="T:System.ArgumentException"><paramref name="ppid" />가 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgram" />의 PPID 규칙에 어긋납니다.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SelectProcessProgramAsync(System.String,System.Threading.CancellationToken)" en-hash="da5a74151c510e96">
+            <summary>장비의 레시피를 선택합니다. 규칙은 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.SelectProcessProgram(System.String)" />과 같습니다.</summary>
+            <param name="ppid">PPID</param>
+            <param name="cancellationToken">응답 기다리기를 멈춥니다.</param>
+            <returns>리모트 명령 결과.</returns>
+        </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemHost.DeleteReportsFirst" en-hash="dc86c117f53f7835">
             <summary>리포트 설정 때 장비의 리포트를 먼저 모두 지우고 모든 CE를 끌지 (기본값: true)</summary>
             <remarks>false면 장비에 남은 리포트·링크와 RPTID·CEID가 겹쳐 DRACK 3·LRACK 3이 될 수 있고, 장비에 이미 있던 리포트의 VID는 모르므로 그 값은 VID 없이 줍니다.</remarks>
@@ -8228,6 +8301,35 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemAlarmEventArgs.Text" en-hash="e8daef1f215a7dda">
             <summary>알람 문장 ALTX</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs" en-hash="225ca94abf73e259">
+            <summary>장비가 Host에 레시피 문의(S7F1) 또는 레시피(S7F3)를 보냈을 때의 인자. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ack" />로 응답합니다.</summary>
+            <remarks>레시피는 앱이 직접 저장하세요(예: MES 데이터베이스). GemHost는 저장소를 두지 않습니다. 핸들러가 <c>CommandReplyTimeout</c> 안에 돌아오지 않으면 GemHost가 PPGNT 4 또는 ACKC7 1로 대신 답합니다.</remarks>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.IsInquire" en-hash="2df578294cb5c6c0">
+            <summary>S7F1이면 true(장비가 보내도 되는지 물음, 응답은 PPGNT), S7F3이면 false(레시피, 응답은 ACKC7)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ppid" en-hash="3b812fcd70b8373e">
+            <summary>PPID</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Length" en-hash="758f101b9edb12b2">
+            <summary>알려 온 바이트 길이(S7F1만, 그 밖에는 0)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Program" en-hash="7c95131f8b95820e">
+            <summary>레시피(S7F3만, 그 밖에는 null)</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ack" en-hash="b32f516c76d15725">
+            <summary>응답(기본: 0 = 허락 또는 받아들임). S7F1은 PPGNT, S7F3은 ACKC7. <see cref="T:Devinno.Communication.Secs.Gem.GemAck" /> 참고.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgramRequestedEventArgs" en-hash="ee2a7622166ebcac">
+            <summary>장비가 Host에 레시피를 요청했을 때(S7F5)의 인자. 보내려면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramRequestedEventArgs.Program" />을 정하고, 거절하려면 null로 두세요(빈 S7F6).</summary>
+            <remarks>핸들러가 <c>CommandReplyTimeout</c> 안에 돌아오지 않으면 GemHost가 대신 거절합니다.</remarks>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramRequestedEventArgs.Ppid" en-hash="3fccd709ef0252fa">
+            <summary>요청한 PPID</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramRequestedEventArgs.Program" en-hash="8fda5b5f596df575">
+            <summary>보낼 레시피(기본: null = 거절)</summary>
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemAlarmInfo" en-hash="ea7f328500972b97">
             <summary>알람 하나의 정보입니다(S5F6·S5F8 항목).</summary>
             <param name="alid">ALID</param>
@@ -8317,6 +8419,18 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramRequestException.Failure" en-hash="f8b77f80d8ac3d2e">
             <summary>요청이 실패한 이유를 가져옵니다.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemDownloadResult" en-hash="c3c48a82278dba68">
+            <summary>Host가 시작한 레시피 다운로드(S7F1 다음 S7F3)의 결과. 장비의 거절도 예외가 아니라 값입니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.Ppgnt" en-hash="00408649dd31ae29">
+            <summary>S7F2의 PPGNT를 가져옵니다(S7F1을 보내지 않았으면 null).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.Ackc7" en-hash="8aba41e941fa33e6">
+            <summary>S7F4의 ACKC7을 가져옵니다(문의가 거절돼 S7F3을 보내지 않았으면 null).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemDownloadResult.IsSuccess" en-hash="71d13a91f52580bd">
+            <summary>장비가 레시피를 받아들였는지(ACKC7 0)를 가져옵니다.</summary>
         </member>
         <member name="T:Devinno.Communication.Secs.Gem.IGemProcessProgramStore" en-hash="2f7bce1289621072">
             <summary><c>GemEquipment</c>가 레시피(Process Program)를 두는 곳. 레시피를 앱이 정한 곳에 두려면 직접 구현하고, 아니면 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" />를 쓰세요.</summary>
