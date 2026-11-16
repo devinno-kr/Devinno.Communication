@@ -8196,6 +8196,44 @@
             <param name="cancellationToken">응답 기다리기를 취소합니다.</param>
             <returns>결과.</returns>
         </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DefineLimits(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem}}}})" en-hash="b007bae4f160ea7f">
+            <summary>장비 변수의 리밋을 정하거나 지웁니다(S2F45 Define Variable Limit Attributes). DATAID는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineReports(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}})" />와 같은 카운터의 다음 번호입니다.</summary>
+            <remarks><paramref name="definitions" />가 빈 목록이면 모든 리밋을, Limits가 null인 VID는 그 변수의 모든 리밋을, Upper와 Lower가 둘 다 null인 리밋은 그 LIMITID를 지웁니다. UPPERDB·LOWERDB는 변수의 포맷으로 보내세요(장비는 다른 숫자 포맷과 A도 받습니다). 하나라도 잘못되면 장비는 아무것도 바꾸지 않고, 변수마다 첫 오류를 담아 VLAACK 1로 답합니다.</remarks>
+            <param name="definitions">변수와 그 리밋.</param>
+            <returns>VLAACK(0 = 적용함)과 오류가 난 변수.</returns>
+            <exception cref="T:System.ArgumentNullException"><paramref name="definitions" />가 null임.</exception>
+            <exception cref="T:System.ArgumentException">Upper와 Lower 중 하나만 null임, 또는 글자 ID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 동안 연결이 끊김.</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다름.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.DefineLimitsAsync(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem}}}},System.Threading.CancellationToken)" en-hash="7282a4c2e4485e87">
+            <summary>리밋을 정하거나 지웁니다(S2F45). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineLimits(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.Byte,Devinno.Communication.Secs.Data.SecsItem,Devinno.Communication.Secs.Data.SecsItem}}}})" />와 같습니다.</summary>
+            <param name="definitions">변수와 그 리밋.</param>
+            <param name="cancellationToken">응답 기다림을 취소합니다.</param>
+            <returns>VLAACK과 오류가 난 변수.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.ReadLimits(Devinno.Communication.Secs.Gem.GemId[])" en-hash="2619384176d791ed">
+            <summary>변수의 리밋 속성을 읽습니다(S2F47 Variable Limit Attribute Request). VID를 주지 않으면 장비가 리밋을 가질 수 있는 모든 변수를 답합니다.</summary>
+            <param name="vids">VID 목록(없음 = 전부).</param>
+            <returns>변수마다 항목 하나. 리밋을 가질 수 없는 변수는 <see cref="P:Devinno.Communication.Secs.Gem.GemLimitInfo.IsSupported" />가 false입니다.</returns>
+            <exception cref="T:System.ArgumentException">글자 VID를 숫자 포맷으로 보낼 수 없음.</exception>
+            <exception cref="T:System.InvalidOperationException">연결되어 있지 않음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsTimeoutException">T3 안에 응답이 없음.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsAbortException">장비가 S2F0으로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsErrorException">장비가 S9Fx로 답함.</exception>
+            <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 동안 연결이 끊김.</exception>
+            <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다름.</exception>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.ReadLimitsAsync(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},System.Threading.CancellationToken)" en-hash="b2b40fef8d2d0213">
+            <summary>변수의 리밋 속성을 읽습니다(S2F47). 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.ReadLimits(Devinno.Communication.Secs.Gem.GemId[])" />와 같습니다.</summary>
+            <param name="vids">VID 목록(null이나 빈 목록 = 전부).</param>
+            <param name="cancellationToken">응답 기다림을 취소합니다.</param>
+            <returns>변수마다 항목 하나.</returns>
+        </member>
         <member name="E:Devinno.Communication.Secs.Gem.GemHost.ProcessProgramReceived" en-hash="0c64d9b19b824f7e">
             <summary>장비가 S7F1(문의) 또는 S7F3(레시피)을 보냈을 때 앱 이벤트 스레드에서 발생합니다. 핸들러가 돌아오면 <see cref="P:Devinno.Communication.Secs.Gem.GemProcessProgramReceivedEventArgs.Ack" />로 응답합니다.</summary>
             <remarks>구독자가 없으면 이 메시지는 전처럼 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.MessageReceived" />로 갑니다. 핸들러 예외는 거절(PPGNT 4, ACKC7 1)하고 <see cref="E:Devinno.Communication.Secs.Gem.GemHost.ProtocolError" />로 알립니다.</remarks>
