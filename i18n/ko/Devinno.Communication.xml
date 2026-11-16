@@ -8181,6 +8181,53 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgram.Body" en-hash="29d52e51359e314a">
             <summary>PPBODY를 가져옵니다.</summary>
         </member>
+        <member name="T:Devinno.Communication.Secs.Gem.IGemProcessProgramStore" en-hash="2f7bce1289621072">
+            <summary><c>GemEquipment</c>가 레시피(Process Program)를 두는 곳. 레시피를 앱이 정한 곳에 두려면 직접 구현하고, 아니면 <see cref="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" />를 쓰세요.</summary>
+            <remarks>GEM은 저장소를 늘 자기 lock 하나 안에서 부릅니다(Host 요청은 앱 이벤트 스레드, 앱 메서드는 부른 스레드). 그래서 GEM에 대해서는 저장소가 스레드 안전하지 않아도 됩니다. 앱이 저장소를 직접 부르기도 하면 그 동기화는 앱이 합니다. 저장소가 던진 예외는 거절(ACKC7 1, 또는 빈 S7F6/S7F20)로 답하고 <c>ProtocolError</c>로 알립니다.</remarks>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.IGemProcessProgramStore.GetIds" en-hash="22d17a1b941c1212">
+            <summary>저장된 레시피의 PPID 목록을 돌려줍니다(S7F20).</summary>
+            <returns>PPID 목록.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.IGemProcessProgramStore.Read(System.String)" en-hash="03c4ff68640d0eea">
+            <summary>레시피를 읽습니다.</summary>
+            <param name="ppid">PPID</param>
+            <returns>레시피. 없으면 null.</returns>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.IGemProcessProgramStore.Write(Devinno.Communication.Secs.Gem.GemProcessProgram)" en-hash="fda72487d639bed9">
+            <summary>레시피를 씁니다. 같은 PPID가 있으면 바꿔 씁니다.</summary>
+            <param name="program">레시피.</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.IGemProcessProgramStore.Delete(System.String)" en-hash="235a02ec9b08ba31">
+            <summary>레시피를 지웁니다.</summary>
+            <param name="ppid">PPID</param>
+            <returns>있어서 지웠으면 true, 없었으면 false.</returns>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemProcessProgramFolder" en-hash="e62c81d5298b6070">
+            <summary>폴더에 PPID 하나마다 파일 하나를 두는 레시피 저장소.</summary>
+            <remarks>파일 이름은 PPID에서 <c>a-z 0-9 . _ -</c> 밖의 모든 문자(대문자 포함)를 UTF-8 바이트마다 <c>%XX</c>로 쓴 것에 <c>.pp</c>를 붙입니다(200자를 넘으면 <c>~</c>와 PPID의 SHA-256). 그래서 대소문자만 다른 PPID나 파일 이름에 못 쓰는 문자가 든 PPID도 서로 섞이지 않습니다. 파일에는 PPID와 본문을 SECS-II 형식으로 넣으므로 원래 PPID와 본문 포맷이 그대로 돌아옵니다. 파일은 임시 파일에 먼저 쓴 뒤 제자리로 옮깁니다. 읽을 수 없는 파일은 건드리지 않고 목록에서 뺍니다. 폴더는 처음 쓸 때 만듭니다.</remarks>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.#ctor(System.String)" en-hash="c08fc9f52c68bb09">
+            <summary>폴더 위에 저장소를 만듭니다.</summary>
+            <param name="directory">폴더(아직 없어도 됨).</param>
+            <exception cref="T:System.ArgumentNullException"><paramref name="directory" />가 null입니다.</exception>
+            <exception cref="T:System.ArgumentException"><paramref name="directory" />가 빈 문자열입니다.</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.Directory" en-hash="3891d20ec039dd2b">
+            <summary>폴더를 가져옵니다.</summary>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.GetIds" en-hash="ea9e8bfa2314d9ae">
+            <inheritdoc />
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.Read(System.String)" en-hash="ea9e8bfa2314d9ae">
+            <inheritdoc />
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.Write(Devinno.Communication.Secs.Gem.GemProcessProgram)" en-hash="ea9e8bfa2314d9ae">
+            <inheritdoc />
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemProcessProgramFolder.Delete(System.String)" en-hash="ea9e8bfa2314d9ae">
+            <inheritdoc />
+        </member>
         <member name="T:Devinno.Communication.Secs.Gem.GemSubscription" en-hash="0492adea953f6b21">
             <summary>리포트 구독 하나: 이 CE가 일어나면 이 VID들의 값을 받습니다.</summary>
             <param name="ceid">CEID</param>
