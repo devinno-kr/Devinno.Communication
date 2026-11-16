@@ -125,7 +125,7 @@ public partial class GemEquipment
             foreach (var s in Enum.GetValues<GemStandard>())
             {
                 var text = config.Standard?.Get(s);
-                if (text != null) ids.Set(s, ParseId("Standard", s.ToString(), text, s >= GemStandard.EquipmentOffline ? ceid : vid));
+                if (text != null) ids.Set(s, ParseId("Standard", s.ToString(), text, GemStandardIds.IsEvent(s) ? ceid : vid));
             }
             var defs = BuildDefinitions(config, vid, ceid, alid);
             try { GemCatalog.Build(defs, ids, vid, ceid, rptid, alid, dataid, config.SpoolDirectory != null, config.ProcessProgramDirectory != null); }

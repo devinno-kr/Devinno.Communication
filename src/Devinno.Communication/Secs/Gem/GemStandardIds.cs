@@ -158,6 +158,9 @@ public class GemStandardIds
         }
     }
 
+    // CE인가(아니면 VID 공간의 SV·DV·EC)
+    internal static bool IsEvent(GemStandard s) => s is >= GemStandard.EquipmentOffline and <= GemStandard.SpoolTransmitFailure or GemStandard.ProcessProgramChange or GemStandard.ProcessProgramSelected;
+
     // 기본 ID: 포맷이 A면 이름, 아니면 번호
     internal static GemId Default(GemStandard s, bool ascii) => ascii ? new GemId(s.ToString()) : new GemId(s switch
     {
@@ -202,12 +205,11 @@ internal enum GemStandard
 {
     Clock, ControlState, PreviousControlState, EventsEnabled, AlarmsEnabled, AlarmsSet, ProcessState, PreviousProcessState,
     SpoolCountActual, SpoolCountTotal, SpoolFullTime, SpoolStartTime,
-    PPExecName, PPFormat,
     EstablishCommunicationsTimeout, TimeFormat,
     EnableSpooling, MaxSpoolTransmit, OverWriteSpool,
     AlarmID,
-    PPChangeName, PPChangeStatus,
     EquipmentOffline, ControlStateLocal, ControlStateRemote, ProcessStateChange, OperatorEquipmentConstantChange, MessageRecognition,
     SpoolingActivated, SpoolingDeactivated, SpoolTransmitFailure,
-    ProcessProgramChange, ProcessProgramSelected,
+    // 새 표준은 끝에만 더한다(기존 값의 번호를 바꾸지 않음). SV·DV·EC인지 CE인지는 순서가 아니라 GemStandardIds.IsEvent가 정한다
+    PPExecName, PPFormat, PPChangeName, PPChangeStatus, ProcessProgramChange, ProcessProgramSelected,
 }
