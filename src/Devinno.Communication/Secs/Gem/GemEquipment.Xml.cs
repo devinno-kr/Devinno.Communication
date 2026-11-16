@@ -46,6 +46,10 @@ public partial class GemEquipment
                 ProcessProgramDirectory = (ppStoreSetting as GemProcessProgramFolder)?.Directory,
                 MaxProcessProgramSize = maxProcessProgramSize,
                 MultiBlockInquire = multiBlockInquire,
+                MaxTraces = maxTraces,
+                MaxTraceVariables = maxTraceVariables,
+                MinTracePeriod = minTracePeriod,
+                TraceReplyExpected = traceReplyExpected,
             };
             if (transport.Target is SecsHsms h) c.Hsms = h.ToConfig();
             else c.Serial = ((SecsSerial)transport.Target).ToConfig();
@@ -119,6 +123,9 @@ public partial class GemEquipment
             XmlConfig.Range(Root, nameof(config.MaxSpoolMessages), config.MaxSpoolMessages, 1, 1000000);
             if (config.SpoolDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.SpoolDirectory), "", "a folder path (omit to turn spooling off)");
             XmlConfig.Range(Root, nameof(config.MaxProcessProgramSize), config.MaxProcessProgramSize, 1, MaxProcessProgramLimit);
+            XmlConfig.Range(Root, nameof(config.MaxTraces), config.MaxTraces, 0, 100);
+            XmlConfig.Range(Root, nameof(config.MaxTraceVariables), config.MaxTraceVariables, 1, 1000);
+            XmlConfig.Range(Root, nameof(config.MinTracePeriod), config.MinTracePeriod, 10, 3600000);
             if (config.ProcessProgramDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.ProcessProgramDirectory), "", "a folder path (omit to turn process programs off)");
             if (config.StateDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.StateDirectory), "", "a folder path (omit to turn persistence off)");
 
@@ -165,6 +172,10 @@ public partial class GemEquipment
             ppStoreSetting = config.ProcessProgramDirectory != null ? new GemProcessProgramFolder(config.ProcessProgramDirectory) : ppStoreSetting is GemProcessProgramFolder ? null : ppStoreSetting;
             maxProcessProgramSize = config.MaxProcessProgramSize;
             multiBlockInquire = config.MultiBlockInquire;
+            maxTraces = config.MaxTraces;
+            maxTraceVariables = config.MaxTraceVariables;
+            minTracePeriod = config.MinTracePeriod;
+            traceReplyExpected = config.TraceReplyExpected;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();
             definitions.StatusVariables.AddRange(defs.StatusVariables);

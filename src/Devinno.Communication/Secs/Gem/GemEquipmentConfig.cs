@@ -11,7 +11,7 @@ namespace Devinno.Communication.Secs.Gem;
 /// <remarks>
 /// <para>ID format attributes (VidFormat and so on) are U1 U2 U4 U8 I1 I2 I4 I8 A, and value format attributes (Format) are the SML names L B BOOLEAN A J C2 I1 I2 I4 I8 U1 U2 U4 U8 F4 F8.
 /// ID text is a decimal integer if its format is numeric, and is used as is for A. Value text (Default, Min, Max, InitialValue) is one decimal number for numeric formats, as is for A, true/false for BOOLEAN, and a list of 0x bytes for B, J, and C2 (use code for array and list values).</para>
-/// <para>Ranges: CommandReplyTimeout 1000 to 110000, MaxPendingSends 1 to 100000, MaxPendingEvents 1 to 1000000, ModelName and SoftwareRevision 0 to 20 characters, alarm Category 1 to 8 and Text 1 to 120 characters. The definition checks (ID overlap and so on) are the same as at Start and are also performed when loading.</para>
+/// <para>Ranges: CommandReplyTimeout 1000 to 110000, MaxPendingSends 1 to 100000, MaxPendingEvents 1 to 1000000, MaxTraces 0 to 100, MaxTraceVariables 1 to 1000, MinTracePeriod 10 to 3600000, ModelName and SoftwareRevision 0 to 20 characters, alarm Category 1 to 8 and Text 1 to 120 characters. The definition checks (ID overlap and so on) are the same as at Start and are also performed when loading.</para>
 /// <para>Not saved: the current values of SV, DV, and EC (for EC only Default), the reports, links, and enable flags set by the Host, the alarm state, and the clock offset.</para>
 /// </remarks>
 /// <example>
@@ -79,6 +79,14 @@ public class GemEquipmentConfig
     [XmlAttribute] public int MaxProcessProgramSize { get; set; } = 4194304;
     /// <summary>Over SECS-I, send S6F5 before an S6F11 larger than one block (default: false).</summary>
     [XmlAttribute] public bool MultiBlockInquire { get; set; }
+    /// <summary>Number of traces (S2F23) that can run at the same time, 0 to 100 (default: 10; 0 = traces off).</summary>
+    [XmlAttribute] public int MaxTraces { get; set; } = 10;
+    /// <summary>Largest number of SVIDs in one trace, 1 to 1000 (default: 100).</summary>
+    [XmlAttribute] public int MaxTraceVariables { get; set; } = 100;
+    /// <summary>Shortest trace period in ms, 10 to 3600000 (default: 100).</summary>
+    [XmlAttribute] public int MinTracePeriod { get; set; } = 100;
+    /// <summary>W-bit of S6F1 trace reports (default: true).</summary>
+    [XmlAttribute] public bool TraceReplyExpected { get; set; } = true;
 
     /// <summary>HSMS transport settings (&lt;SecsHsms&gt;; if omitted the transport settings are not changed). Only Equipment is allowed for Role.</summary>
     [XmlElement("SecsHsms")] public SecsHsmsConfig? Hsms { get; set; }

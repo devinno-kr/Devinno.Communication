@@ -6640,6 +6640,29 @@
             <exception cref="T:System.ArgumentException">빈 문자열</exception>
             <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MaxTraces" en-hash="be7e1c9cd7e07d57">
+            <summary>동시에 돌 수 있는 트레이스(S2F23) 수를 정합니다. 0~100(기본: 10). 0이면 트레이스를 끕니다: S2F23에 S9F5로 답합니다.</summary>
+            <remarks>Host가 하나 더 요청하면 TIAACK 2를 받습니다. 실행 중인 TRID를 다시 정의하는 것은 새 트레이스로 세지 않습니다.</remarks>
+            <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MaxTraceVariables" en-hash="abac14e9d69ee84d">
+            <summary>트레이스 하나의 SVID 최대 개수를 정합니다. 1~1000(기본: 100). 넘으면 TIAACK 1입니다.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.MinTracePeriod" en-hash="b6f238384ee37864">
+            <summary>가장 짧은 트레이스 주기(ms)를 정합니다. 10~3600000(기본: 100). 더 짧은 DSPER는 TIAACK 3입니다.</summary>
+            <exception cref="T:System.ArgumentOutOfRangeException">범위 밖</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.TraceReplyExpected" en-hash="c9b061a08b74f60b">
+            <summary>S6F1 트레이스 보고의 W비트를 정합니다(기본: true). Host가 0이 아닌 ACKC6로 답하면 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" />가 발생합니다.</summary>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.ActiveTraces" en-hash="b74e3d6956adb2b7">
+            <summary>지금 실행 중인 트레이스의 복사본을 시작한 순서대로 가져옵니다(진단용. 트레이스는 Host만 시작하고 멈춥니다).</summary>
+        </member>
         
         <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.ToConfig" en-hash="e41ae2619d6378f3">
             <summary>현재 설정(전송 설정, GEM 설정, 장비 정의)을 설정 객체로 만듭니다.</summary>
@@ -6784,25 +6807,61 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemConstantsChangeEventArgs.Eac" en-hash="2bbbd8dcba49e5dd">
             <summary>응답할 EAC (기본값: 0 = 받음). 지금 바꿀 수 없으면 <see cref="F:Devinno.Communication.Secs.Gem.GemAck.EacBusy" />(2) 등으로 바꿉니다.</summary>
         </member>
-        <member name="T:Devinno.Communication.Secs.Gem.GemEquipmentConfig" en-hash="252904b128f9e848">
+        <member name="T:Devinno.Communication.Secs.Gem.GemTraceInfo" en-hash="8acc5211a7cef9fd">
+            <summary>장비가 실행 중인 트레이스(진단용, <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.ActiveTraces" /> 참고).</summary>
+            <param name="trid">TRID</param>
+            <param name="period">표본 주기</param>
+            <param name="svids">SVID 목록(복사해 읽기 전용으로 보관)</param>
+            <param name="totalSamples">TOTSMP</param>
+            <param name="groupSize">REPGSZ</param>
+            <param name="remainingSamples">아직 뜨지 않은 표본 수</param>
+        </member>
+        <member name="M:Devinno.Communication.Secs.Gem.GemTraceInfo.#ctor(Devinno.Communication.Secs.Gem.GemId,System.TimeSpan,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},System.UInt64,System.UInt64,System.UInt64)" en-hash="8acc5211a7cef9fd">
+            <summary>장비가 실행 중인 트레이스(진단용, <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.ActiveTraces" /> 참고).</summary>
+            <param name="trid">TRID</param>
+            <param name="period">표본 주기</param>
+            <param name="svids">SVID 목록(복사해 읽기 전용으로 보관)</param>
+            <param name="totalSamples">TOTSMP</param>
+            <param name="groupSize">REPGSZ</param>
+            <param name="remainingSamples">아직 뜨지 않은 표본 수</param>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.Trid" en-hash="16e1ee54a6e315e5">
+            <summary>트레이스 ID(TRID)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.Period" en-hash="9d0211c07af558a4">
+            <summary>표본 주기를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.Svids" en-hash="3ba310522f7ac169">
+            <summary>표본을 뜨는 SVID 목록을 요청 순서대로 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.TotalSamples" en-hash="05c75b491019b6f4">
+            <summary>전체 표본 수(TOTSMP)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.GroupSize" en-hash="a9750d5303d7451b">
+            <summary>보고 하나의 표본 수(REPGSZ)를 가져옵니다.</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemTraceInfo.RemainingSamples" en-hash="bac0a08130f07d65">
+            <summary>아직 뜨지 않은 표본 수를 가져옵니다.</summary>
+        </member>
+        <member name="T:Devinno.Communication.Secs.Gem.GemEquipmentConfig" en-hash="7290e782a72ce5d9">
             <summary>
             <see cref="T:Devinno.Communication.Secs.Gem.GemEquipment" />의 설정입니다. XML에서는 &lt;GemEquipment&gt; 요소이고, 전송 설정(&lt;SecsHsms&gt; 또는 &lt;SecsSerial&gt;)과 장비 정의를 자식 요소로 담습니다.
             </summary>
             <remarks>
             <para>ID 포맷 속성(VidFormat 등)은 U1 U2 U4 U8 I1 I2 I4 I8 A, 값 포맷 속성(Format)은 SML 이름 L B BOOLEAN A J C2 I1 I2 I4 I8 U1 U2 U4 U8 F4 F8입니다.
             ID 텍스트는 그 포맷이 숫자면 10진 정수, A면 그대로입니다. 값 텍스트(Default·Min·Max·InitialValue)는 숫자 포맷은 10진수 1개, A는 그대로, BOOLEAN은 true/false, B·J·C2는 0x 바이트 나열입니다(배열·List 값은 코드로).</para>
-            <para>범위: CommandReplyTimeout 1000~110000, MaxPendingSends 1~100000, MaxPendingEvents 1~1000000, ModelName·SoftwareRevision 0~20자, 알람 Category 1~8·Text 1~120자. 정의 검사(ID 겹침 등)는 Start와 같은 검사를 불러올 때도 합니다.</para>
+            <para>범위: CommandReplyTimeout 1000~110000, MaxPendingSends 1~100000, MaxPendingEvents 1~1000000, MaxTraces 0~100, MaxTraceVariables 1~1000, MinTracePeriod 10~3600000, ModelName·SoftwareRevision 0~20자, 알람 Category 1~8·Text 1~120자. 정의 검사(ID 겹침 등)는 Start와 같은 검사를 불러올 때도 합니다.</para>
             <para>저장하지 않는 것: SV·DV·EC의 현재 값(EC는 Default만), Host가 정한 리포트·링크·활성화, 알람 상태, 시계 차이.</para>
             </remarks>
             <example>
             <code>
             &lt;GemEquipment ModelName="DV-100" SoftwareRevision="1.0.0" InitialControlState="HostOffline"&gt;
-              &lt;SecsHsms DeviceID="1" Mode="Passive" LocalPort="5000" /&gt;
-              &lt;SV Id="2001" Name="Temperature" Format="F4" Units="C" /&gt;
-              &lt;EC Id="4001" Name="MaxTemp" Format="F4" Default="80" Min="0" Max="200" Units="C" /&gt;
-              &lt;CE Id="5001" Name="ProcessStarted" Vids="2001" /&gt;
-              &lt;Alarm Id="1" Text="Over temperature" Category="2" SetCeid="9001" ClearCeid="9002" /&gt;
-              &lt;Command Name="START"&gt;&lt;Param Name="LOTID" Format="A" /&gt;&lt;/Command&gt;
+            &lt;SecsHsms DeviceID="1" Mode="Passive" LocalPort="5000" /&gt;
+            &lt;SV Id="2001" Name="Temperature" Format="F4" Units="C" /&gt;
+            &lt;EC Id="4001" Name="MaxTemp" Format="F4" Default="80" Min="0" Max="200" Units="C" /&gt;
+            &lt;CE Id="5001" Name="ProcessStarted" Vids="2001" /&gt;
+            &lt;Alarm Id="1" Text="Over temperature" Category="2" SetCeid="9001" ClearCeid="9002" /&gt;
+            &lt;Command Name="START"&gt;&lt;Param Name="LOTID" Format="A" /&gt;&lt;/Command&gt;
             &lt;/GemEquipment&gt;
             </code>
             </example>
@@ -6881,6 +6940,18 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MultiBlockInquire" en-hash="9ceeb9a0941773c1">
             <summary>SECS-I에서 블록 하나보다 큰 S6F11 앞에 S6F5를 보낼지(기본: false).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxTraces" en-hash="fca78c01a15451ee">
+            <summary>동시에 돌 수 있는 트레이스(S2F23) 수, 0~100(기본: 10, 0 = 트레이스 끔).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxTraceVariables" en-hash="5c59fb03640bc7f5">
+            <summary>트레이스 하나의 SVID 최대 개수, 1~1000(기본: 100).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MinTracePeriod" en-hash="bef82af7ed196530">
+            <summary>가장 짧은 트레이스 주기(ms), 10~3600000(기본: 100).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.TraceReplyExpected" en-hash="9d903642cd072ad4">
+            <summary>S6F1 트레이스 보고의 W비트(기본: true).</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.Hsms" en-hash="d4e2da6323e65a03">
             <summary>HSMS 전송 설정 (&lt;SecsHsms&gt;, 생략하면 전송 설정을 바꾸지 않음). Role은 Equipment만 됩니다.</summary>

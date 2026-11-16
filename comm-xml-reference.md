@@ -928,6 +928,10 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `ProcessProgramDirectory` | string | no | — | folder of a `GemProcessProgramFolder` recipe store; omitted = process programs off (otherwise GEM handles Stream 7 and the standard PP SV/DV/CE exist). A store set in code is not written |
 | `MaxProcessProgramSize` | int | no | `4194304` | 1 – 16777215 bytes (encoded PPBODY) |
 | `MultiBlockInquire` | bool | no | `false` | over SECS-I, send S6F5 before an S6F11 larger than one block (244 bytes); ignored over HSMS |
+| `MaxTraces` | int | no | `10` | 0 – 100 traces at once (S2F23); 0 = traces off (S2F23 gets S9F5) |
+| `MaxTraceVariables` | int | no | `100` | 1 – 1000 SVIDs per trace |
+| `MinTracePeriod` | int | no | `100` | 10 – 3600000 ms, shortest DSPER accepted |
+| `TraceReplyExpected` | bool | no | `true` | W-bit of S6F1 trace reports |
 
 ### `<SecsHsms>` / `<SecsSerial>` (child)
 

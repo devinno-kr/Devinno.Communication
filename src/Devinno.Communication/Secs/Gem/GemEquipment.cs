@@ -134,6 +134,7 @@ public partial class GemEquipment : IDisposable
     partial void AddClockHandlers();
     partial void AddSpoolingHandlers();
     partial void AddProcessProgramHandlers();
+    partial void AddTraceHandlers();
     // Start 때 상태 초기화(gate 안, 정의 표가 만들어진 뒤, 전송 시작 전)
     partial void ResetCommunication();
     partial void ResetControl();
@@ -142,6 +143,7 @@ public partial class GemEquipment : IDisposable
     partial void ResetClock();
     partial void ResetSpooling();
     partial void ResetProcessPrograms();
+    partial void ResetTraces();
     // 전송 DeviceOpened/DeviceClosed (디스패처 스레드)
     partial void OnTransportOpened();
     partial void OnTransportClosed();
@@ -184,6 +186,7 @@ public partial class GemEquipment : IDisposable
         AddClockHandlers();
         AddSpoolingHandlers();
         AddProcessProgramHandlers();
+        AddTraceHandlers();
         transport.Attach(onPrimary, onOpened, onClosed);
     }
 
@@ -452,6 +455,7 @@ public partial class GemEquipment : IDisposable
                 ResetClock();
                 ResetSpooling();
                 ResetProcessPrograms();
+                ResetTraces();
                 restoreDropped = RestoreStateLocked(state?.State);
             }
             w.Start();
@@ -500,6 +504,7 @@ public partial class GemEquipment : IDisposable
         {
             running = false;
             resumeNext = null;
+            ClearTracesLocked();                    // 트레이스는 영속하지 않는다(6J.7.2)
             // 결과를 기다리는 레시피 전송은 취소로 끝낸다(다른 메시지는 지금처럼 알림 없이 버림)
             inFlight?.Dropped?.Invoke(null);
             foreach (var o in sendQueue) o.Dropped?.Invoke(null);
@@ -549,7 +554,7 @@ public partial class GemEquipment : IDisposable
         GemCommunicationState comm;
         GemControlState ctl;
         GemCatalog c;
-        bool sp, pp;
+        bool sp, pp, tr;
         lock (gate)
         {
             if (!running) return;
@@ -558,6 +563,7 @@ public partial class GemEquipment : IDisposable
             c = catalog;
             sp = spooling;
             pp = processPrograms;
+            tr = maxTraces > 0;
         }
         int key = m.Stream * 256 + m.Function;
         // ① DISABLED: 아무것도 해석하지 않는다(W면 전송 계층이 SxF0)
@@ -573,8 +579,8 @@ public partial class GemEquipment : IDisposable
         // ② 지원하지 않는 Stream → S9F3, 지원 Stream의 모르는 Function → S9F5 (상태와 무관)
         bool registered = c.Messages.Contains(key);
         if (!c.Streams.Contains(m.Stream)) { SendS9(e, 3, $"지원하지 않는 Stream: {GemItems.Sml(m)}"); return; }
-        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만, Stream 7(레시피)은 레시피를 켰을 때만 GEM이 처리한다
-        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key) || !pp && m.Stream == 7)) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
+        // 스풀링 메시지(S2F43·S6F23)는 스풀링을 켰을 때만, Stream 7(레시피)은 레시피를 켰을 때만, S2F23(트레이스)은 MaxTraces > 0일 때만 GEM이 처리한다
+        if (!registered && (!handlers.ContainsKey(key) || !sp && GemCatalog.IsSpoolingMessage(key) || !pp && m.Stream == 7 || !tr && key == 2 * 256 + 23)) { SendS9(e, 5, $"모르는 Function: {GemItems.Sml(m)}"); return; }
         // ③ NOT COMMUNICATING: S1F13만 처리 ④ OFF-LINE: S1F13·S1F17만 처리. 나머지 W는 SxF0
         if (comm != GemCommunicationState.Communicating && key != S1F13) return;
         if (IsOffline(ctl) && key != S1F13 && key != S1F17) return;

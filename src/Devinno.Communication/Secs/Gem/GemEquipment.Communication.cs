@@ -57,6 +57,7 @@ public partial class GemEquipment
             equipmentConnect = EquipmentConnect.None;
             SetCommunicationLocked(GemCommunicationState.Disabled);
             StopUnloadLocked(commFailure: false);          // 스풀 전이 6′(보내던 머리는 남고, 그 결과는 무시됨)
+            ClearTracesLocked();                           // 트레이스는 통신을 끄면 모두 지운다(6J.7.2)
             OnCommunicationLostLocked();
             return true;
         }
