@@ -71,6 +71,8 @@ public class GemEquipmentConfig
     [XmlAttribute] public string? SpoolDirectory { get; set; }
     /// <summary>Upper limit of the number of spooled messages, 1 to 1000000 (default: 1000).</summary>
     [XmlAttribute] public int MaxSpoolMessages { get; set; } = 1000;
+    /// <summary>Folder where the settings chosen by the Host are kept across restarts (omitted = persistence off).</summary>
+    [XmlAttribute] public string? StateDirectory { get; set; }
 
     /// <summary>HSMS transport settings (&lt;SecsHsms&gt;; if omitted the transport settings are not changed). Only Equipment is allowed for Role.</summary>
     [XmlElement("SecsHsms")] public SecsHsmsConfig? Hsms { get; set; }

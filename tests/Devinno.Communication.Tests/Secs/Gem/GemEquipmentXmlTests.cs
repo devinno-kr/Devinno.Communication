@@ -207,4 +207,26 @@ public class GemEquipmentXmlTests
         XDocument.Parse("<GemEquipment><SV Name=\"X\" Format=\"U4\" /></GemEquipment>").Validate(set, (s, e) => errors.Add(e.Message));
         Assert.Contains(errors, m => m.Contains("Id", StringComparison.Ordinal));      // Id는 필수
     }
+    [Fact]
+    public void Xml_RoundTrip_StateDirectory()
+    {
+        using var a = new GemEquipment(new SecsHsms());
+        a.StateDirectory = "state-dir";
+        var xml = a.ToXml();
+        Assert.Equal("state-dir", (string?)xml.Attribute("StateDirectory"));
+        using var b = new GemEquipment(new SecsHsms());
+        b.FromXml(xml);
+        Assert.Equal("state-dir", b.StateDirectory);
+        Assert.True(XNode.DeepEquals(xml, b.ToXml()));
+
+        var set = new XmlSchemaSet();
+        set.Add(XmlSchema.Read(new StringReader(ConfigSchema.Get<GemEquipmentConfig>()), null)!);
+        new XDocument(xml).Validate(set, (_, e) => Assert.Fail(e.Message));
+
+        Assert.Throws<FormatException>(() => new GemEquipment(new SecsHsms()).FromXml(XElement.Parse("<GemEquipment StateDirectory=\"\" />")));
+        using var c = new GemEquipment(new SecsHsms());
+        Assert.Null(c.ToXml().Attribute("StateDirectory"));
+        c.FromXml(XElement.Parse("<GemEquipment />"));
+        Assert.Null(c.StateDirectory);
+    }
 }

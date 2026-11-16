@@ -139,6 +139,7 @@ public partial class GemEquipment
             {
                 reports.Clear();                      // 모든 리포트와 링크 삭제
                 links.Clear();
+                SaveStateLocked();
                 return GemAck.DrackAccepted;
             }
             var seen = new HashSet<GemId>();
@@ -163,6 +164,7 @@ public partial class GemEquipment
                     if (links[ce].Count == 0) links.Remove(ce);
                 }
             }
+            SaveStateLocked();
             return GemAck.DrackAccepted;
         }
     }
@@ -197,6 +199,7 @@ public partial class GemEquipment
                 if (rptids.Count == 0) links.Remove(ceid);
                 else links[ceid] = rptids;                                                         // 활성화 상태는 바꾸지 않음
             }
+            SaveStateLocked();
             return GemAck.LrackAccepted;
         }
     }
@@ -214,6 +217,7 @@ public partial class GemEquipment
                 if (enable) enabledEvents.Add(c);
                 else enabledEvents.Remove(c);
             }
+            SaveStateLocked();
             return GemAck.ErackAccepted;
         }
     }

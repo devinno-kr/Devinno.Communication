@@ -94,6 +94,7 @@ public partial class GemEquipment
                     if (enable) alarmsEnabled.Add(key);
                     else alarmsEnabled.Remove(key);
                 }
+                SaveStateLocked();
             }
         }
         Respond(e, GemMessages.S5F4(ack));

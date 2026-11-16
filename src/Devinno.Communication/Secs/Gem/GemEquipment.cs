@@ -398,6 +398,15 @@ public partial class GemEquipment : IDisposable
             var store = sp ? GemSpoolStore.Open(spoolDirectory!) : null;
             // 실행 중 첫 쓰기 실패를 한 번 알린다(쓰기 스레드에서, gate 없이 앱 이벤트 대기열에 넣기만)
             if (store != null) store.WriteFailed = ex => Error($"스풀 파일을 쓰지 못했습니다(메모리 스풀은 계속, 재시작하면 그 사이 것을 잃을 수 있음): {ex.Message}");
+            // 설정 저장소도 같은 자리에서 연다. 실패하면 먼저 연 스풀 저장소를 닫고 예외를 그대로 던진다
+            GemStateStore? state;
+            try { state = stateDirectory != null ? GemStateStore.Open(stateDirectory) : null; }
+            catch
+            {
+                store?.Close(StopWait);
+                throw;
+            }
+            if (state != null) state.WriteFailed = ex => Error($"설정 파일을 쓰지 못했습니다(동작은 계속, 재시작하면 그 사이 변경을 잃을 수 있음): {ex.Message}");
             var w = new GemLoop(nameof(GemEquipment) + ".Worker", WorkerTick);
             var a = new GemLoop(nameof(GemEquipment) + ".Events", maxPending: maxPendingEvents);
             lock (gate)
@@ -408,6 +417,7 @@ public partial class GemEquipment : IDisposable
                 app = lastApp = a;
                 spooling = sp;
                 spoolStore = store;
+                stateStore = state;
                 running = true;
                 run++;
                 sendQueue.Clear();
@@ -433,10 +443,11 @@ public partial class GemEquipment : IDisposable
             try { transport.Start(); }
             catch
             {
-                StopLocked(out var w2, out var a2, out var s2);
+                StopLocked(out var w2, out var a2, out var s2, out var t2);
                 w2?.Stop(StopWait);
                 a2?.Stop(StopWait);
                 s2?.Close(StopWait);
+                t2?.Close(StopWait);
                 throw;
             }
         }
@@ -448,18 +459,20 @@ public partial class GemEquipment : IDisposable
     {
         GemLoop? w, a;
         GemSpoolStore? st;
+        GemStateStore? ts;
         lock (lifeLock)
         {
             if (!IsStart) return;
-            StopLocked(out w, out a, out st);          // running = false를 먼저: 아래 전송 Stop의 DeviceClosed·송신 실패가 대기열을 SendFailed로 알리지 않는다(알림 없이 버림)
+            StopLocked(out w, out a, out st, out ts);          // running = false를 먼저: 아래 전송 Stop의 DeviceClosed·송신 실패가 대기열을 SendFailed로 알리지 않는다(알림 없이 버림)
             transport.Stop();
         }
         w?.Stop(StopWait);
         a?.Stop(StopWait);
         st?.Close(StopWait);       // 남은 쓰기를 마치고 디렉터리 잠금을 푼다
+        ts?.Close(StopWait);
     }
 
-    void StopLocked(out GemLoop? w, out GemLoop? a, out GemSpoolStore? st)
+    void StopLocked(out GemLoop? w, out GemLoop? a, out GemSpoolStore? st, out GemStateStore? ts)
     {
         IsStart = false;
         lock (gate)
@@ -471,6 +484,8 @@ public partial class GemEquipment : IDisposable
             w = worker;
             a = app;
             st = spoolStore;
+            ts = stateStore;
+            stateStore = null;
             worker = null;
             app = null;
             spoolStore = null;

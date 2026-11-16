@@ -53,6 +53,7 @@ public partial class GemEquipment
             if (GemItems.IsNumeric(v.Format) && !GemItems.InRange(converted, v.Min, v.Max))
                 throw new ArgumentOutOfRangeException(nameof(value), $"EC {ecid}의 범위({v.Min?.ToSml()}~{v.Max?.ToSml()}) 밖입니다: {value.ToSml()}");
             values[v.Key] = converted;
+            SaveStateLocked();
             TriggerStandardEventLocked(GemStandard.OperatorEquipmentConstantChange);
         }
     }
@@ -139,6 +140,7 @@ public partial class GemEquipment
         {
             if (!running || run != r) return;
             foreach (var (v, value) in changes) values[v.Key] = value;
+            SaveStateLocked();
         }
     }
 }

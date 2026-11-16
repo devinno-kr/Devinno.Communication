@@ -104,6 +104,7 @@ public partial class GemEquipment
         {
             if (!running || localRemote == position) return false;
             localRemote = position;
+            SaveStateLocked();
             if (control is GemControlState.OnlineLocal or GemControlState.OnlineRemote) EnterOnlineLocked();   // 전이 8·9
             return true;
         }

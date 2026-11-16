@@ -42,6 +42,7 @@ public partial class GemEquipment
                 MaxPendingEvents = maxPendingEvents,
                 SpoolDirectory = spoolDirectory,
                 MaxSpoolMessages = maxSpoolMessages,
+                StateDirectory = stateDirectory,
             };
             if (transport.Target is SecsHsms h) c.Hsms = h.ToConfig();
             else c.Serial = ((SecsSerial)transport.Target).ToConfig();
@@ -114,6 +115,7 @@ public partial class GemEquipment
             XmlConfig.Range(Root, nameof(config.MaxPendingEvents), config.MaxPendingEvents, 1, 1000000);
             XmlConfig.Range(Root, nameof(config.MaxSpoolMessages), config.MaxSpoolMessages, 1, 1000000);
             if (config.SpoolDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.SpoolDirectory), "", "a folder path (omit to turn spooling off)");
+            if (config.StateDirectory is { Length: 0 }) throw XmlConfig.Invalid(Root, nameof(config.StateDirectory), "", "a folder path (omit to turn persistence off)");
 
             var ids = new GemStandardIds();
             foreach (var s in Enum.GetValues<GemStandard>())
@@ -153,6 +155,7 @@ public partial class GemEquipment
             maxPendingEvents = config.MaxPendingEvents;
             spoolDirectory = config.SpoolDirectory;
             maxSpoolMessages = config.MaxSpoolMessages;
+            stateDirectory = config.StateDirectory;
             foreach (var s in Enum.GetValues<GemStandard>()) StandardIds.Set(s, ids.Get(s));
             definitions.Clear();
             definitions.StatusVariables.AddRange(defs.StatusVariables);

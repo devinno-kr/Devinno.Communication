@@ -924,6 +924,7 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `MaxPendingEvents` | int | no | `10000` | 1 – 1000000 |
 | `SpoolDirectory` | string | no | — | folder for spooled messages; omitted = spooling off (otherwise the standard spool SV/EC/CE exist and S2F43/S6F23 are handled by GEM) |
 | `MaxSpoolMessages` | int | no | `1000` | 1 – 1000000 |
+| `StateDirectory` | string | no | — | folder for `gem.state`; omitted = persistence off (otherwise the Host's reports, links, CE/alarm enables, EC values and the LOCAL/REMOTE switch are restored at Start) |
 
 ### `<SecsHsms>` / `<SecsSerial>` (child)
 

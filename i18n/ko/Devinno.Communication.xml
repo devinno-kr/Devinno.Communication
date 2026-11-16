@@ -6465,6 +6465,11 @@
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SpoolStateChanged" en-hash="1f89ad40ed5aad1f">
             <summary>스풀링 상태나 가득 참 여부가 바뀌었을 때(예: 스풀링 활성화, 스풀이 가득 참) 앱 이벤트 스레드에서 발생합니다. 메시지 수만 바뀌면 발생하지 않습니다.</summary>
         </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.StateDirectory" en-hash="e0ced1559ee14721">
+            <summary>Host가 정한 설정을 재시작 뒤에도 남겨 두는 폴더(기본: null = 영속화 끔). 지정하면 다음 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start"></see>부터 영속화가 켜집니다.</summary>
+            <exception cref="T:System.ArgumentException">빈 문자열</exception>
+            <exception cref="T:System.InvalidOperationException">실행 중에 바꿈</exception>
+        </member>
         
         <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.ToConfig" en-hash="e41ae2619d6378f3">
             <summary>현재 설정(전송 설정, GEM 설정, 장비 정의)을 설정 객체로 만듭니다.</summary>
@@ -6680,6 +6685,9 @@
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.MaxSpoolMessages" en-hash="5fd3d7a3b57e76d4">
             <summary>스풀할 메시지 수의 상한, 1~1000000(기본: 1000).</summary>
+        </member>
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.StateDirectory" en-hash="96c65b93fb3418fa">
+            <summary>Host가 정한 설정을 재시작 뒤에도 남겨 두는 폴더(생략 = 영속화 끔).</summary>
         </member>
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipmentConfig.Hsms" en-hash="d4e2da6323e65a03">
             <summary>HSMS 전송 설정 (&lt;SecsHsms&gt;, 생략하면 전송 설정을 바꾸지 않음). Role은 Equipment만 됩니다.</summary>
