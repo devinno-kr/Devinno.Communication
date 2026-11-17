@@ -36,9 +36,6 @@ Devinno.Communication assumes that device communication will be set up with AI (
 **Mistakes show up**
 - A write made while there is no connection is discarded and reported through `WriteDiscarded`. Failure events carry `Attempt`, `IsFinal` and `RequestSent`. Modbus FC6 / FC16 writes throw `ArgumentOutOfRangeException` for a value out of range. See [Write safety](#write-safety).
 
-**SECS/GEM**
-- Three layers: transport (`SecsHsms` / `SecsSerial`), stateless messaging (`GemMessages`) and the GEM modules (`GemEquipment` / `GemHost`). The event order the app sees is documented as a contract, and spooling is optional (off by default).
-
 ## Install
 
 ```bash
@@ -102,41 +99,11 @@ The other Master classes follow the same flow: create, attach events, register `
 | TextComm | `TextCommRTUMaster` / `TextCommRTUSlave` | Serial | Master / Slave |
 | TextComm | `TextCommTCPMaster` / `TextCommTCPSlave` | TCP | Master / Slave |
 | MQTT | `MQClient` (MQTTnet wrapper) | TCP | Client |
-| SECS/GEM | `SecsHsms` (HSMS-SS, SEMI E37) | TCP | Host / Equipment |
-| SECS/GEM | `SecsSerial` (SECS-I, SEMI E4) | Serial | Host / Equipment |
-| SECS/GEM | `GemMessages` (stateless GEM message builders/parsers) | — | Host / Equipment |
-| SECS/GEM | `GemEquipment` (SEMI E30, equipment side) | HSMS / SECS-I | Equipment |
-| SECS/GEM | `GemHost` (GEM host side) | HSMS / SECS-I | Host |
-
-SECS/GEM has three layers: transport (`SecsHsms`/`SecsSerial`), stateless messaging (`GemMessages`), and GEM modules (`GemEquipment`/`GemHost`).
+| SECS/GEM | `SecsHsms` / `SecsSerial` (HSMS-SS, SECS-I) | TCP / Serial | Host / Equipment |
+| SECS/GEM | `GemEquipment` / `GemHost` (SEMI E30) | HSMS / SECS-I | Equipment / Host |
 
 * Modbus functions: FC1, FC2, FC3, FC4, FC5, FC6, FC15, FC16, FC26
 * **S7-1200/1500 need "PUT/GET" access permitted and "Optimized block access" turned off in the PLC.**
-
-### GEM capabilities
-
-What `GemEquipment` and `GemHost` handle. "secsgem" means the messages were exchanged with the Python secsgem library in the repository's tests (our equipment with a secsgem host, or our host with secsgem equipment); every capability also has its own raw-message tests.
-
-| Capability | Messages | GemEquipment | GemHost | Cross-checked with secsgem |
-|---|---|---|---|---|
-| Establish communications, control state (ON-LINE/OFF-LINE, LOCAL/REMOTE) | S1F1, S1F13, S1F15, S1F17 | Yes | Yes | Equipment and host |
-| Status and data variables | S1F3, S1F11, S1F21, S1F23 | Yes | Yes | Equipment and host (S1F3) |
-| Event reports | S2F33, S2F35, S2F37, S6F11, S6F15, S6F19 | Yes | Yes | Equipment and host |
-| Alarms | S5F1, S5F3, S5F5, S5F7 | Yes | Yes | Equipment and host |
-| Equipment constants | S2F13, S2F15, S2F29 | Yes | Yes | Equipment and host |
-| Clock | S2F17, S2F31 | Yes | Yes | — |
-| Remote commands | S2F41 | Yes | Yes | Equipment and host |
-| Enhanced remote commands | S2F49 | Yes | Yes | — |
-| Terminal services | S10F1, S10F3, S10F5 | Yes | Yes (S10F5 not sent) | Equipment |
-| Spooling (off by default) | S2F43, S6F23 | Yes | Yes | Equipment |
-| Unformatted process programs (off by default) | S7F1, S7F3, S7F5, S7F17, S7F19 | Yes | Yes | Equipment |
-| Trace data collection | S2F23, S6F1 | Yes | Yes | — |
-| Limits monitoring | S2F45, S2F47 | Yes | Yes | — |
-| Multi-block inquire (SECS-I, off by default) | S6F5 | Yes | Answers | — |
-| Persistence of the Host's settings (off by default) | — | Yes | — | — |
-| GEM300 (E39/E40/E87/E90/E94), formatted process programs (S7F23–S7F30), large process programs (S7F37–S7F44, S13), S2F21 | — | No | No | — |
-
-Not checked against the original SEMI E30 text, and not tested with a real MES or equipment.
 
 ## Key concepts
 
@@ -194,8 +161,7 @@ Named write is available on the 10 PLC masters: `ModbusRTUMaster`, `ModbusTCPMas
 
   * Siemens S7: absolute addresses only. Symbols, optimized DBs, timers and counters are not supported.
   * Omron FINS: C-mode Host Link, CIP tags, timers and counters are not supported.
-  * GEM equipment: see the GEM capabilities table above. Unformatted process programs (S7), spooling (SEMI E30 7.12), persistence of the Host's settings across restarts and the SECS-I multi-block inquire are off by default (`GemEquipment.ProcessProgramStore`, `GemEquipment.SpoolDirectory`, `GemEquipment.StateDirectory`, `GemEquipment.MultiBlockInquire`); limits are available on status variables defined with a `limitCount`.
-  * GEM equipment and host: not checked against the original SEMI E30 text; only interoperability with secsgem was verified. Not tested with a real MES or equipment.
+  * SECS/GEM: GEM300 and formatted process programs are not supported. Not checked against the original SEMI E30 text; only interoperability with secsgem was verified. Not tested with a real MES or equipment.
 
 ## Requirements
 
