@@ -12,7 +12,7 @@ One .NET 8 library for industrial PLC and device communication protocols
 Devinno.Communication assumes that device communication will be set up with AI (LLM) coding tools: the AI reads a PLC memory map, and the library is built so that its mistakes show up instead of passing silently. People writing the XML and code by hand get the same help.
 
 **Auto / Manual job model**
-- Register the reads once (the Auto list) and the library polls them over and over, with its own timeouts and reconnects. A write is queued as a one-shot Manual job and runs before the next Auto job. Results arrive as events carrying the message ID you gave the job.
+- Register the reads once (the Auto list) and the library polls them over and over, with its own timeouts and reconnects (serial classes reconnect only when `AutoReconnect` is on). A write is queued as a one-shot Manual job and runs before the next Auto job. Results arrive as events carrying the message ID you gave the job.
 - From a memory map, the read areas become the Auto list and the write areas become named writes.
 
 ![Auto / Manual job model](https://raw.githubusercontent.com/devinno-kr/Devinno.Communication/main/assets/auto-manual.png)
@@ -34,7 +34,7 @@ Devinno.Communication assumes that device communication will be set up with AI (
 - The evaluation is small: one agent per map per round, no real devices, and only these three maps. LS, Omron, serial, TextComm, MQTT and SECS/GEM were not evaluated. The method, scores and limits are in `tests/ai-eval/RESULTS.md` in the repository.
 
 **Mistakes show up**
-- A write made while there is no connection is discarded and reported through `WriteDiscarded`. Failure events carry `Attempt`, `IsFinal` and `RequestSent`. Modbus FC6 / FC16 writes throw `ArgumentOutOfRangeException` for a value out of range. See [Write safety](#write-safety).
+- A write made while there is no connection is discarded and reported through `WriteDiscarded`. Failure events carry `Attempt`, `IsFinal` and `RequestSent`. Modbus FC6 / FC16 Manual writes throw `ArgumentOutOfRangeException` for a value out of range (`NamedWrite` throws `ArgumentException`). See [Write safety](#write-safety).
 
 ## Install
 
@@ -76,8 +76,8 @@ The other Master classes follow the same flow: create, attach events, register `
 
 ## Features
 
-  * 9 protocol families, with Master/Slave and Host/Equipment roles
-  * **Auto** (repeated polling) and **Manual** (one-shot) job queues; automatic reconnect when the connection is lost
+  * 8 protocol families, with Master/Slave and Host/Equipment roles
+  * **Auto** (repeated polling) and **Manual** (one-shot) job queues; automatic reconnect when the connection is lost (TCP/UDP by default, serial only when `AutoReconnect` is on)
   * Save and load the communication settings and the schedule as XML; XSD schemas generated from the code
   * Named write: define a write once in the XML with a name, then call it from code by that name
   * Usable from WinForms, WPF, Skia+OpenTK and ASP.NET Core services
@@ -109,7 +109,7 @@ The other Master classes follow the same flow: create, attach events, register `
 
   * **Schedule**: Auto jobs are registered once and polled repeatedly. Manual jobs run once and are processed before the Auto list. Responses and errors (timeout, sum check, NAK) arrive as events, and you tell them apart by the message ID you gave when you registered the job.
   * **Threading**: events are raised on the library's worker thread. Keep handlers short, and marshal UI updates yourself (WinForms `BeginInvoke`, WPF `Dispatcher.BeginInvoke`, and so on).
-  * **Connection events**: the Master classes raise `DeviceOpened` / `DeviceClosed` (`MQClient`: `Connected` / `Disconnected`); reconnect is automatic unless turned off.
+  * **Connection events**: the Master classes raise `DeviceOpened` / `DeviceClosed` (`MQClient`: `Connected` / `Disconnected`); TCP/UDP classes reconnect automatically by default; serial classes reconnect only when `AutoReconnect` is turned on (default off).
   * **XML configuration**: every class has `SaveXml` / `LoadXml` and a configuration object (`...Config`, for example `ModbusTCPMasterConfig`). `ConfigSchema.Get<T>()` returns the XSD. One instance is one XML file, and the root element name is the class name. Loading is strict mode: an unknown attribute or element throws `FormatException`. Load only while stopped.
   * **Network security**: Modbus, S7, FINS, MC and HSMS have no authentication or encryption. Use them only on an isolated, trusted network.
 
@@ -119,9 +119,9 @@ The other Master classes follow the same flow: create, attach events, register `
   * `Stop()` always empties the pending Manual writes (`WriteDiscarded`, `Stopped`).
   * Set `DiscardWritesWhileDisconnected="false"` (property or XML attribute) to restore the old behaviour of keeping writes queued until a connection exists.
   * Failure events (`TimeoutReceived` and the checksum error events) carry `Attempt`, `IsFinal` and `RequestSent`. If `RequestSent` is true, the device may already have executed the request: read it back before writing again.
-  * Every write ends in exactly one of: a success event, a NAK or exception event, a failure event with `IsFinal` true, or `WriteDiscarded`.
+  * Every write ends in exactly one of: a success event, a NAK or exception event, a failure event with `IsFinal` true, or `WriteDiscarded`. Jobs removed with `ClearManual` / `RemoveManual` raise no event.
   * Do not use `RepeatCount` for pulse, counter or incremental writes: a retry resends a write the device may already have executed.
-  * Modbus FC6 / FC16 Manual writes throw `ArgumentOutOfRangeException` for a value outside -32768..65535.
+  * Modbus FC6 / FC16 Manual writes throw `ArgumentOutOfRangeException` for a value outside -32768..65535 (`NamedWrite` throws `ArgumentException`).
   * S7 and FINS block writes are not atomic: when one fails part-way, `WrittenBytes` (S7) / `WrittenCount` (FINS) tell how much was already written.
   * An FX5 over 3E uses octal X/Y numbers: set `XYNotation="Octal"`; with `Auto` they are read as hexadecimal and address the wrong points.
   * For the TextComm masters every `ManualSend` counts as a write (the library does not know what a command means), so it is also discarded while there is no connection.

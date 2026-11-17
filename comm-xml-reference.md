@@ -73,7 +73,7 @@ Class `Devinno.Communication.Modbus.RTU.ModbusRTUMaster`, config `ModbusRTUMaste
 | `Id` | int | yes | — | message ID |
 | `Func` | enum | yes | — | `FC1`, `FC2`, `FC3`, `FC4` only (the XSD also lists FC5, FC6, FC15, FC16, FC26; they are rejected here) |
 | `Slave` | int | yes | — | 1 – 247 |
-| `Start` | int | no | `0` | 0 – 65535, 0-based |
+| `Start` | int | no | `0` | 0 – 65535, 0-based; `Start` + `Length` ≤ 65536 |
 | `Length` | int | yes | — | FC1/FC2: 1 – 2000; FC3/FC4: 1 – 125 |
 | `Timeout` | int | no | — | 1 – 60000 ms |
 
@@ -138,7 +138,7 @@ Class `Devinno.Communication.Modbus.TCP.ModbusTCPMaster`, config `ModbusTCPMaste
 | `Id` | int | yes | — | message ID |
 | `Func` | enum | yes | — | `FC1`, `FC2`, `FC3`, `FC4` only |
 | `Slave` | int | yes | — | unit ID 0 – 255 |
-| `Start` | int | no | `0` | 0 – 65535, 0-based |
+| `Start` | int | no | `0` | 0 – 65535, 0-based; `Start` + `Length` ≤ 65536 |
 | `Length` | int | yes | — | FC1/FC2: 1 – 2000; FC3/FC4: 1 – 125 |
 | `Timeout` | int | no | — | 1 – 60000 ms |
 
@@ -894,9 +894,10 @@ Class `Devinno.Communication.Secs.Serial.SecsSerial` (SECS-I), config `SecsSeria
 Class `Devinno.Communication.Secs.Gem.GemEquipment` (SEMI E30 equipment side), config `GemEquipmentConfig`. Construct with the transport: `new GemEquipment(new SecsHsms())` or `new GemEquipment(new SecsSerial())`; the XML transport child must match that type. The stateless messaging layer (GemMessages) has no XML; see IntelliSense.
 Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; omitted = transport unchanged), `<Standard>` (0 – 1), `<SV>`*, `<DV>`*, `<EC>`*, `<CE>`*, `<Alarm>`*, `<Command>`* (each with `<Param>`*), `<Message>`*.
 
-- ID format attributes take `U1 U2 U4 U8 I1 I2 I4 I8 A`. An ID is a decimal integer for numeric formats, plain text for `A`.
+- ID format attributes take `U1 U2 U4 U8 I1 I2 I4 I8 A`. An ID is a decimal integer for numeric formats, plain text for `A`. A numeric VID, CEID or ALID must fit the range of its format (`VidFormat`, `CeidFormat`, `AlidFormat`), checked on load.
 - Value `Format` attributes take the SML names `L B BOOLEAN A J C2 I1 I2 I4 I8 U1 U2 U4 U8 F4 F8`. Value text (`InitialValue`, `Default`, `Min`, `Max`): one decimal number for numeric formats, the text for `A`, `true`/`false` for `BOOLEAN`, a list of `0x..` bytes for `B`, `J`, `C2`.
-- SV, DV, EC and the standard variables share one VID space; CE, the alarm CEIDs and the standard CEs share one CEID space. Duplicates are a `FormatException`. A `<CE>` `Vids` entry must be a defined VID.
+- SV, DV, EC and the standard variables share one VID space; CE, the alarm CEIDs, the SV `LimitCeid`s and the standard CEs share one CEID space. Duplicates are a `FormatException`. A `<CE>` `Vids` entry must be a defined VID.
+- Latin-1 only (no character above U+00FF): `ModelName`, `SoftwareRevision`, SV/DV/EC `Name` and `Units`, CE `Name`, Alarm `Text`, Command `Name`, Param `Name`.
 - The transport child's `Role` must be omitted or `Equipment`.
 
 ### `<GemEquipment>`
@@ -922,10 +923,10 @@ Children, in this order: `<SecsHsms>` **or** `<SecsSerial>` (0 – 1, optional; 
 | `CommandReplyTimeout` | int | no | `10000` | 1000 – 110000 ms |
 | `MaxPendingSends` | int | no | `1000` | 1 – 100000 |
 | `MaxPendingEvents` | int | no | `10000` | 1 – 1000000 |
-| `SpoolDirectory` | string | no | — | folder for spooled messages; omitted = spooling off (otherwise the standard spool SV/EC/CE exist and S2F43/S6F23 are handled by GEM) |
+| `SpoolDirectory` | string | no | — | folder for spooled messages; omitted = spooling off (otherwise the standard spool SV/EC/CE exist and S2F43/S6F23 are handled by GEM); `""` is rejected (omit the attribute instead) |
 | `MaxSpoolMessages` | int | no | `1000` | 1 – 1000000 |
-| `StateDirectory` | string | no | — | folder for `gem.state`; omitted = persistence off (otherwise the Host's reports, links, CE/alarm enables, EC values, limits and the LOCAL/REMOTE switch are restored at Start) |
-| `ProcessProgramDirectory` | string | no | — | folder of a `GemProcessProgramFolder` recipe store; omitted = process programs off (otherwise GEM handles Stream 7 and the standard PP SV/DV/CE exist). A store set in code is not written |
+| `StateDirectory` | string | no | — | folder for `gem.state`; omitted = persistence off (otherwise the Host's reports, links, CE/alarm enables, EC values, limits and the LOCAL/REMOTE switch are restored at Start); `""` is rejected (omit the attribute instead) |
+| `ProcessProgramDirectory` | string | no | — | folder of a `GemProcessProgramFolder` recipe store; omitted = process programs off (otherwise GEM handles Stream 7 and the standard PP SV/DV/CE exist), except that a store of another type set in code is kept; `""` is rejected (omit the attribute instead). A store set in code is not written |
 | `MaxProcessProgramSize` | int | no | `4194304` | 1 – 16777215 bytes (encoded PPBODY) |
 | `MultiBlockInquire` | bool | no | `false` | over SECS-I, send S6F5 before an S6F11 or S6F1 larger than one block (244 bytes); ignored over HSMS |
 | `MaxTraces` | int | no | `10` | 0 – 100 traces at once (S2F23); 0 = traces off (S2F23 gets S9F5) |
@@ -965,6 +966,9 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `AlarmID` | string | no | — | DV, 1201 |
 | `PPChangeName` | string | no | — | DV, 1202 (process programs on) |
 | `PPChangeStatus` | string | no | — | DV, 1203 (process programs on) |
+| `LimitVariable` | string | no | — | DV, 1204 (only when an SV has `LimitCount` > 0) |
+| `EventLimit` | string | no | — | DV, 1205 (only when an SV has `LimitCount` > 0) |
+| `TransitionType` | string | no | — | DV, 1206 (only when an SV has `LimitCount` > 0) |
 | `EquipmentOffline` | string | no | — | CE, 1301 |
 | `ControlStateLocal` | string | no | — | CE, 1302 |
 | `ControlStateRemote` | string | no | — | CE, 1303 |
@@ -988,9 +992,9 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 | `Format` | string | yes | — | SML value format |
 | `Units` | string | no | `""` | |
 | `InitialValue` | string | no | — | omitted = zero-length item of the format |
-| `LimitCount` | string | no | — | 1 – 255 limits the Host may define (S2F45); numeric formats only; omitted = no limits |
-| `LimitMin` | string | no | — | LIMITMIN; omitted = smallest value of the format |
-| `LimitMax` | string | no | — | LIMITMAX; omitted = largest value of the format |
+| `LimitCount` | string | no | — | 0 – 255 limits the Host may define (S2F45), unsigned decimal digits; above 0 only for numeric formats (integer, `F4`, `F8`); omitted or `0` = no limits |
+| `LimitMin` | string | no | — | LIMITMIN, a single value of the SV `Format`; ≤ `LimitMax`; omitted = smallest value of the format |
+| `LimitMax` | string | no | — | LIMITMAX, a single value of the SV `Format`; omitted = largest value of the format |
 | `LimitCeid` | string | with `LimitCount` | — | CEID of the Limit Zone Transition event defined by GEM |
 
 ### `<DV>` (data variable)
@@ -1037,7 +1041,7 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 
 | Attribute | Type | Required | Default | Range / values |
 |---|---|---|---|---|
-| `Name` | string | yes | — | 1 – 40 characters |
+| `Name` | string | yes | — | 1 – 40 characters, unique (a duplicate is rejected) |
 
 ### `<Param>` (child of `<Command>`)
 
@@ -1050,7 +1054,7 @@ All attributes optional strings (an ID in `VidFormat`/`CeidFormat`); omitted = t
 
 | Attribute | Type | Required | Default | Range / values |
 |---|---|---|---|---|
-| `Stream` | int | yes | — | 1 – 127, not 9; not a message GEM already handles; no duplicates |
+| `Stream` | int | yes | — | 1 – 127, not 9; no duplicates. Always rejected: S1F1, S1F3, S1F11, S1F13, S1F15, S1F17, S1F21, S1F23, S2F13, S2F15, S2F17, S2F29, S2F31, S2F33, S2F35, S2F37, S2F39, S2F41, S5F3, S5F5, S5F7, S6F15, S6F19, S10F3, S10F5. Rejected only when `SpoolDirectory` is set: S2F43, S6F23. Rejected only when `ProcessProgramDirectory` is set: every Stream 7 message. Accepted although GEM handles them: S2F23, S2F45, S2F47, S2F49 — the app then takes over that capability (registering S2F45 or S2F47 hands over both) |
 | `Function` | int | yes | — | odd, 1 – 255 (primary message) |
 
 ```xml
@@ -1104,8 +1108,8 @@ Same attributes as §18 / §19. Only one may appear. `Role` omitted or `Host`.
 
 | Attribute | Type | Required | Default | Range / values |
 |---|---|---|---|---|
-| `Ceid` | string | yes | — | CEID (decimal for numeric `CeidFormat`, text for `A`) |
-| `Vids` | string | no | — | comma-separated VIDs to receive; omitted = event only, no values |
+| `Ceid` | string | yes | — | CEID (decimal within the `CeidFormat` range for numeric `CeidFormat`, text for `A`) |
+| `Vids` | string | no | — | comma-separated VIDs to receive (decimal within the `VidFormat` range for numeric `VidFormat`); omitted = event only, no values |
 
 If the same Ceid appears twice, the later entry replaces the earlier one.
 

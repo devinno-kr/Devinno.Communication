@@ -10,12 +10,12 @@
 > ⚠️ **개발 중 (0.x)** — 버전이 올라갈 때 API가 바뀔 수 있음
 
 ## 설계: AI와 잘 맞는 통신 라이브러리
-<!-- en-hash: 0f80a97a64803f70 -->
+<!-- en-hash: 0a933e67a142af7b -->
 
 Devinno.Communication은 장비 통신 설정을 AI(LLM) 코딩 도구로 한다고 가정하고 만들었습니다. AI가 PLC 메모리맵을 읽고, 라이브러리는 AI의 실수가 조용히 넘어가지 않고 드러나도록 되어 있습니다. XML과 코드를 직접 쓰는 사람도 같은 도움을 받습니다.
 
 **Auto / Manual 작업 모델**
-- 읽을 것을 한 번 등록하면(Auto 목록) 라이브러리가 계속 폴링하고, 타임아웃과 재접속도 맡습니다. 쓰기는 한 번 실행되는 Manual 작업으로 큐에 들어가 다음 Auto 작업보다 먼저 실행됩니다. 결과는 작업에 준 메시지 ID를 담은 이벤트로 옵니다.
+- 읽을 것을 한 번 등록하면(Auto 목록) 라이브러리가 계속 폴링하고, 타임아웃과 재접속도 맡습니다(시리얼 클래스는 `AutoReconnect`를 켰을 때만 재접속). 쓰기는 한 번 실행되는 Manual 작업으로 큐에 들어가 다음 Auto 작업보다 먼저 실행됩니다. 결과는 작업에 준 메시지 ID를 담은 이벤트로 옵니다.
 - 메모리맵에서 읽기 영역은 Auto 목록이 되고, 쓰기 영역은 이름 있는 쓰기가 됩니다.
 
 ![Auto / Manual 작업 모델](https://raw.githubusercontent.com/devinno-kr/Devinno.Communication/main/assets/auto-manual.ko.png)
@@ -37,7 +37,7 @@ Devinno.Communication은 장비 통신 설정을 AI(LLM) 코딩 도구로 한다
 - 평가 규모는 작습니다: 맵마다 회차마다 에이전트 1개, 실제 장비 없음, 이 3개 맵뿐입니다. LS, Omron, 시리얼, TextComm, MQTT, SECS/GEM은 평가하지 않았습니다. 방법·점수·한계는 저장소의 `tests/ai-eval/RESULTS.md`에 있습니다.
 
 **실수가 드러남**
-- 연결이 없을 때 한 쓰기는 버려지고 `WriteDiscarded`로 알립니다. 실패 이벤트에는 `Attempt`, `IsFinal`, `RequestSent`가 있습니다. Modbus FC6 / FC16 쓰기는 범위 밖 값이면 `ArgumentOutOfRangeException`을 던집니다. [쓰기 안전](#쓰기-안전) 참고.
+- 연결이 없을 때 한 쓰기는 버려지고 `WriteDiscarded`로 알립니다. 실패 이벤트에는 `Attempt`, `IsFinal`, `RequestSent`가 있습니다. Modbus FC6 / FC16 Manual 쓰기는 범위 밖 값이면 `ArgumentOutOfRangeException`을 던집니다(`NamedWrite`는 `ArgumentException`). [쓰기 안전](#쓰기-안전) 참고.
 
 ## 설치
 <!-- en-hash: bd0a22744e882a8d -->
@@ -80,9 +80,9 @@ master.Dispose();
 다른 Master 클래스도 같은 흐름입니다: 생성 → 이벤트 연결 → `Auto…`/`Manual…` 등록 → `Start()`.
 
 ## 특징
-<!-- en-hash: 6842e9859b8dbdc5 -->
-  * 프로토콜 9종, Master/Slave · Host/Equipment 역할 지원
-  * **Auto**(반복 폴링) + **Manual**(1회 실행) 작업 큐, 연결이 끊기면 자동 재연결
+<!-- en-hash: 9d1fa72fd97babbe -->
+  * 프로토콜 8종, Master/Slave · Host/Equipment 역할 지원
+  * **Auto**(반복 폴링) + **Manual**(1회 실행) 작업 큐, 연결이 끊기면 자동 재연결(TCP/UDP는 기본, 시리얼은 `AutoReconnect`를 켰을 때만)
   * 통신 설정과 스케줄을 XML로 저장·불러오기, XSD 스키마 생성
   * 이름 있는 쓰기(named write): XML에 쓰기를 이름과 함께 한 번 정의해 두고, 코드에서 그 이름으로 호출
   * WinForms, WPF, Skia+OpenTK, ASP.NET Core 서비스에서 사용 가능
@@ -112,24 +112,24 @@ master.Dispose();
 * **S7-1200/1500은 PLC에서 PUT/GET 허용과 "최적화된 블록 액세스" 해제가 필요**
 
 ## 핵심 개념
-<!-- en-hash: d948057c237a352a -->
+<!-- en-hash: 7cdd6c8ef20a5884 -->
 
   * **스케줄** : Auto는 등록해 두면 반복 폴링, Manual은 한 번만 실행되고 Auto보다 먼저 처리. 응답·오류(타임아웃, 체크섬, NAK)는 이벤트로 오고 등록할 때 준 MessageID로 구분
   * **스레드** : 이벤트는 통신 스레드에서 발생하므로 핸들러는 짧게 유지하고 UI 갱신은 사용하는 쪽에서 마샬링 (WinForms `BeginInvoke`, WPF `Dispatcher.BeginInvoke` 등)
-  * **연결 이벤트** : Master 클래스는 `DeviceOpened` / `DeviceClosed`를 발생시킴 (`MQClient`는 `Connected` / `Disconnected`). 재접속은 끄지 않는 한 자동
+  * **연결 이벤트** : Master 클래스는 `DeviceOpened` / `DeviceClosed`를 발생시킴 (`MQClient`는 `Connected` / `Disconnected`). TCP/UDP 클래스는 기본으로 자동 재접속, 시리얼 클래스는 `AutoReconnect`를 켰을 때만 재접속(기본 꺼짐)
   * **XML 설정** : 클래스마다 `SaveXml`/`LoadXml`과 설정 객체(`…Config`, 예: `ModbusTCPMasterConfig`)가 있음. `ConfigSchema.Get<T>()`로 XSD 생성. 인스턴스 하나 = XML 파일 하나, 루트 요소 이름은 클래스 이름. 엄격 모드라 모르는 속성·요소는 `FormatException`. 불러오기는 정지 상태에서만 가능
   * **네트워크 보안** : Modbus, S7, FINS, MC, HSMS 같은 프로토콜에는 인증·암호화가 없으니 격리된 신뢰 네트워크에서만 사용
 
 ### 쓰기 안전
-<!-- en-hash: 44e23c1369c1c357 -->
+<!-- en-hash: 869ae974b97325fa -->
 
   * 기본으로 연결이 없을 때 한 쓰기는 보내지 않고 `WriteDiscarded` 이벤트로 알립니다(`NotConnected`). 연결이 끊길 때 대기 중이던 쓰기도 버립니다(`Disconnected`).
   * `Stop()`은 대기 중인 Manual 쓰기를 항상 비웁니다(`WriteDiscarded`, `Stopped`).
   * `DiscardWritesWhileDisconnected="false"`(속성 또는 XML 속성)로 예전 동작(연결될 때까지 쓰기를 대기열에 유지)으로 되돌릴 수 있습니다.
   * 실패 이벤트(`TimeoutReceived`와 체크섬 오류 이벤트)에는 `Attempt`, `IsFinal`, `RequestSent`가 있습니다. `RequestSent`가 true이면 장비가 요청을 이미 실행했을 수 있으니 다시 쓰기 전에 읽어서 확인하세요.
-  * 쓰기 하나는 성공 이벤트, NAK 또는 예외 이벤트, `IsFinal`이 true인 실패 이벤트, `WriteDiscarded` 중 정확히 하나로 끝납니다.
+  * 쓰기 하나는 성공 이벤트, NAK 또는 예외 이벤트, `IsFinal`이 true인 실패 이벤트, `WriteDiscarded` 중 정확히 하나로 끝납니다. `ClearManual` / `RemoveManual`로 지운 작업은 이벤트가 없습니다.
   * 펄스, 카운터, 증가형 쓰기에는 `RepeatCount`를 쓰지 마세요. 재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냅니다.
-  * Modbus FC6 / FC16 Manual 쓰기는 -32768..65535 밖의 값이면 `ArgumentOutOfRangeException`을 던집니다.
+  * Modbus FC6 / FC16 Manual 쓰기는 -32768..65535 밖의 값이면 `ArgumentOutOfRangeException`을 던집니다(`NamedWrite`는 `ArgumentException`).
   * S7과 FINS의 블록 쓰기는 원자적이지 않습니다. 중간에 실패하면 `WrittenBytes`(S7) / `WrittenCount`(FINS)로 이미 쓴 양을 알 수 있습니다.
   * FX5를 3E로 쓸 때 X/Y 번호는 8진수입니다: `XYNotation="Octal"`로 지정하세요. `Auto`에서는 16진수로 읽어 엉뚱한 점을 가리킵니다.
   * TextComm Master는 `ManualSend`를 전부 쓰기로 취급합니다(라이브러리가 명령의 의미를 모르므로). 그래서 연결이 없을 때는 `ManualSend`도 버립니다.

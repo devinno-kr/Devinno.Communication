@@ -5,14 +5,14 @@
   * **Manual** : 한 번만 실행되고 Auto보다 먼저 처리됨. 타임아웃 시 재시도 횟수 지정 가능 (재시도는 장비가 이미 실행했을 수 있는 쓰기를 다시 보냄: 펄스·카운터·증가형 쓰기에는 쓰지 마세요)
   * **쓰기 안전** : 기본으로 연결이 없을 때의 Manual 쓰기(`NamedWrite` 포함)는 대기열에 넣지 않고 `WriteDiscarded` 이벤트로 알림(`NotConnected`). 연결이 끊길 때 대기 중이던 쓰기(`Disconnected`)와 `Stop()`으로 남은 쓰기(`Stopped`)도 같음. `Stop()`은 설정과 무관하게 대기 쓰기를 비움
   * `DiscardWritesWhileDisconnected="false"`로 예전 동작(연결될 때까지 쓰기 보관)으로 되돌릴 수 있음. Manual 읽기와 Auto는 영향 없음. 쓰기는 `Start()` 직후가 아니라 `DeviceOpened` 뒤에 호출
-  * 쓰기 하나는 성공 이벤트, NAK·예외 이벤트, `IsFinal`이 true인 실패 이벤트, `WriteDiscarded` 중 정확히 하나로 끝남. 실패 이벤트(`TimeoutReceived`와 체크섬 오류 이벤트)의 `Attempt`(1부터)·`IsFinal`·`RequestSent`로 시도 정보를 알 수 있고, `RequestSent`가 true인 쓰기 실패는 장비가 실행했을 수 있으니 다시 쓰기 전에 읽어서 확인
+  * 쓰기 하나는 성공 이벤트, NAK·예외 이벤트, `IsFinal`이 true인 실패 이벤트, `WriteDiscarded` 중 정확히 하나로 끝남(`ClearManual`·`RemoveManual`로 지운 작업은 이벤트 없음). 실패 이벤트(`TimeoutReceived`와 체크섬 오류 이벤트)의 `Attempt`(1부터)·`IsFinal`·`RequestSent`로 시도 정보를 알 수 있고, `RequestSent`가 true인 쓰기 실패는 장비가 실행했을 수 있으니 다시 쓰기 전에 읽어서 확인
   * 응답과 오류(타임아웃, CRC/BCC/섬체크/합계, NAK)는 이벤트로 전달되며, 등록할 때 준 MessageID로 요청을 구분
   * 작업마다 타임아웃 지정 가능, 연결이 끊기면 자동 재연결(옵션)
 
 ## 실행 모델
   * 통신 모듈마다 스케줄러(Auto/Manual 작업 큐)를 직접 가진 자기완결형 구조. 공통 베이스 클래스가 없음
   * Master와 RTU Slave는 장치마다 전용 백그라운드 스레드에서 실행 → ASP.NET Core에서 스레드풀을 점유하지 않음
-  * TCP Slave는 async(`AcceptAsync` / `ReceiveAsync`)로 클라이언트를 처리
+  * TCP Slave는 async(`AcceptTcpClientAsync` / `ReadAsync`)로 클라이언트를 처리
   * 이벤트는 통신 스레드에서 발생하므로 UI 갱신은 사용하는 쪽에서 마샬링해야 함 (WinForms `BeginInvoke`, WPF `Dispatcher` 등)
   * 작업 등록과 처리는 스레드 안전
   * MQTT·SECS/GEM의 스레드 구성은 각 프로토콜 문서 참고 ([MQTT](protocols/mqtt.md#실행-모델), [SECS/GEM](protocols/secs-gem.md#실행-모델))

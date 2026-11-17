@@ -6507,12 +6507,12 @@
         <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.RegisteredMessages" en-hash="f092ba8721467beb">
             <summary>등록한 메시지 (복사본)</summary>
         </member>
-        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" en-hash="79f37c1e7b1851df">
+        <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SendFailed" en-hash="1c5c8d3dcdbd023a">
             <summary>GEM이 보낸 메시지(S1F1, S2F17, S5F1, S6F1, S6F11, S10F1)가 실패했거나 보내지 못하고 버렸을 때 앱 이벤트 스레드에서 발생합니다.</summary>
             <remarks>
             <para>알림 순서: 끊김·<see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.DisableCommunication" />이면 먼저 버린 메시지마다 이 이벤트(NotCommunicating 또는 Disabled)가 원래 보낼 순서대로(응답 대기 중이던 것 먼저, 다음 대기열 앞부터, 장비 S1F13은 알리지 않음) 발생하고,
             다음 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />, ATTEMPT ON-LINE이었으면 전이 4의 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />입니다.
-            S5F1·S6F1·S6F11·S10F1·S2F17의 T3: 이 이벤트(Timeout) → 남은 대기열의 이 이벤트(NotCommunicating) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" /> → ATTEMPT ON-LINE이었으면 전이 4의 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />.
+            GEM이 보내는 그 밖의 메시지(S5F1·S6F1·S6F11·S10F1·S2F17·S7F1·S7F3·S7F5, S6F5 문의)의 T3: 이 이벤트(Timeout, S6F5면 원래 S6F11이나 S6F1의 것) → 남은 대기열의 이 이벤트(NotCommunicating) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" /> → ATTEMPT ON-LINE이었으면 전이 4의 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />. S7 송신(<see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.UploadProcessProgramAsync(System.String,System.Boolean,System.Threading.CancellationToken)" />, <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.RequestProcessProgramAsync(System.String,System.Threading.CancellationToken)" />)은 자기 실패를 이 이벤트 대신 돌려준 Task로 알립니다.
             <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.GoOnline" />의 S1F1 T3: 이 이벤트(Timeout) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ControlStateChanged" />(<see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.OnlineFailedState" />로) → 남은 대기열의 이 이벤트(NotCommunicating) → <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />.
             장비 S1F13의 실패는 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로만 알립니다.
             위 순서에서 이 이벤트가 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationStateChanged" />보다 먼저이므로, 이 핸들러 안에서 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.CommunicationState" />가 아직 Communicating일 수 있습니다.</para>

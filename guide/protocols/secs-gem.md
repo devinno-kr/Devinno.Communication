@@ -23,17 +23,17 @@
 
 | 능력 | 메시지 | GemEquipment | GemHost | secsgem과 교차 확인 |
 |---|---|---|---|---|
-| 통신 수립, 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE) | S1F1, S1F13, S1F15, S1F17 | 지원 | 지원 | 장비·Host |
+| 통신 수립, 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE) | S1F1, S1F13, S1F15, S1F17 | 지원 | 지원 | 장비 (S1F13/15/17)·Host |
 | 상태·데이터 변수 | S1F3, S1F11, S1F21, S1F23 | 지원 | 지원 | 장비·Host (S1F3) |
-| 이벤트 리포트 | S2F33, S2F35, S2F37, S6F11, S6F15, S6F19 | 지원 | 지원 | 장비·Host |
-| 알람 | S5F1, S5F3, S5F5, S5F7 | 지원 | 지원 | 장비·Host |
-| 장비 상수(EC) | S2F13, S2F15, S2F29 | 지원 | 지원 | 장비·Host |
+| 이벤트 리포트 | S2F33, S2F35, S2F37, S6F11, S6F15, S6F19 | 지원 | 지원 | 장비·Host (S2F33/35/37, S6F11) |
+| 알람 | S5F1, S5F3, S5F5, S5F7 | 지원 | 지원 | 장비·Host (Host는 S5F5 제외) |
+| 장비 상수(EC) | S2F13, S2F15, S2F29 | 지원 | 지원 | 장비 (S2F13/15)·Host |
 | 시계 | S2F17, S2F31 | 지원 | 지원 | — |
 | 리모트 명령 | S2F41 | 지원 | 지원 | 장비·Host |
 | 확장 리모트 명령 | S2F49 | 지원 | 지원 | — |
-| 터미널 서비스 | S10F1, S10F3, S10F5 | 지원 | 지원(S10F5는 보내지 않음) | 장비 |
+| 터미널 서비스 | S10F1, S10F3, S10F5 | 지원 | 지원(S10F5는 보내지 않음) | 장비 (S10F1/3) |
 | 스풀링(기본 꺼짐, `SpoolDirectory`) | S2F43, S6F23 | 지원 | 지원 | 장비 |
-| 언포맷 레시피(기본 꺼짐, `ProcessProgramStore`) | S7F1, S7F3, S7F5, S7F17, S7F19 | 지원 | 지원 | 장비 |
+| 언포맷 레시피(기본 꺼짐, `ProcessProgramStore`) | S7F1, S7F3, S7F5, S7F17, S7F19 | 지원 | 지원 | 장비 (S7F3/5/17/19) |
 | 트레이스 데이터 수집 | S2F23, S6F1 | 지원 | 지원 | — |
 | 리밋 모니터링(`limitCount`를 준 상태 변수) | S2F45, S2F47 | 지원 | 지원 | — |
 | 다중 블록 문의(SECS-I, 기본 꺼짐, `MultiBlockInquire`) | S6F5 | 지원 | 응답 | — |
@@ -46,9 +46,8 @@ SEMI E30 원문과 대조하지 않았고, 실제 MES·장비와 시험하지 �
 SECS-II 메시지(`SecsItem`, `SecsMessage`, SML 텍스트 변환)를 HSMS(TCP)나 SECS-I(RS-232)로 주고받음. 양방향 대화형이라 Auto/Manual 폴링 대신 `Send`/`SendAsync`(응답을 T3까지 기다림)와 `PrimaryReceived`(상대의 1차 메시지, 핸들러에서 `Reply`)를 씀. Select·Linktest·Separate, SECS-I 블록 분할·재시도·경합은 자동 처리하고, Equipment 역할이면 S9Fx 오류 메시지를 자동으로 보냄
 
 ## GEM 장비 (GemEquipment)
-`GemEquipment`에 SV·DV·EC·CE·알람·리모트 명령을 정의만 하면(코드 또는 XML) 통신 수립(S1F13), 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE), Host의 조회·설정(S1F3/11/21/23, S2F13/15/29, S2F33/35/37, S5F3/5/7, S6F15/19, S10F3/5, 시계)에 라이브러리가 자동으로 응답. 장비 쪽은 `TriggerEvent`·`SetAlarm`·`SendTerminalMessage`로 알리기만 하면 됨(값은 부른 순간 기준, 한 번에 하나씩 순서대로 보냄).
+`GemEquipment`에 SV·DV·EC·CE·알람·리모트 명령을 정의만 하면(코드 또는 XML) 통신 수립(S1F13), 제어 상태(ON-LINE/OFF-LINE, LOCAL/REMOTE), Host의 조회·설정(S1F3/11/21/23, S2F13/15/29, S2F33/35/37, S2F39(GRANT 0), S5F3/5/7, S6F15/19, S10F3/5, 시계)에 라이브러리가 자동으로 응답. 장비 쪽은 `TriggerEvent`·`SetAlarm`·`SendTerminalMessage`로 알리기만 하면 됨(값은 부른 순간 기준, 한 번에 하나씩 순서대로 보냄).
 
-* 트레이스·리밋은 아직 없음(등록 메시지로 앱이 직접 처리 가능)
 * E30 원문 대조는 하지 못했고 secsgem과의 상호 운용만 확인함
 
 ### 스풀링 (SEMI E30 7.12)
@@ -94,7 +93,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 ### 리밋 모니터링(S2F45·S2F47)
 * 숫자 SV(정수·F4·F8)에 `new GemStatusVariable(…, limitCount: n, limitMin, limitMax, limitCeid: ceid)`(XML `<SV LimitCount LimitMin LimitMax LimitCeid>`)를 주면 Host가 그 변수에 리밋을 정할 수 있음. LIMITID는 1~n. LIMITMIN·LIMITMAX를 안 주면 그 포맷의 범위 끝
 * 리밋 SV가 하나라도 있으면 GEM이 표준 DV LimitVariable 1204·EventLimit 1205(`<L <B id>…>`)·TransitionType 1206(B, 0 = 아래→위, 1 = 위→아래)과 SV마다 CE "Limit Zone Transition {이름}"(그 `limitCeid`)을 정의함. 리밋 SV가 없으면 아무것도 생기지 않음. `limitCeid`가 다른 CE와 겹치면 `Start` 실패
-* S2F45: 전부 검사하고 하나라도 틀리면 **아무것도 바꾸지 않음**(VLAACK 1). VID마다 첫 오류 하나. 검사 순서는 LVACK 1(변수 없음) → 2(리밋 불가, DV·EC 포함) → 3(VID 반복), 리밋마다 LIMITACK 1(LIMITID 범위) → 7(LIMITID 반복) → 5(포맷: 숫자·A가 아님, 정수 SV에 소수 숫자) → 6(A인데 숫자 아님, 정수 SV에 소수 A) → 2(UPPERDB > LIMITMAX) → 3(LOWERDB < LIMITMIN) → 4(UPPERDB < LOWERDB). 값은 SV 포맷으로 바꿔 저장. 해제: VID 목록이 비면 전부, VID의 리밋 목록이 비면 그 VID, `<L LIMITID <L>>`이면 그 LIMITID
+* S2F45: 전부 검사하고 하나라도 틀리면 **아무것도 바꾸지 않음**(VLAACK 1). VID마다 첫 오류 하나. 검사 순서는 LVACK 1(변수 없음) → 2(리밋 불가, DV·EC 포함) → 3(VID 반복), 리밋마다 LIMITACK 1(LIMITID 범위) → 7(LIMITID 반복) → 5(UPPERDB·LOWERDB 모양: 숫자 하나·A가 아님) → UPPERDB 값, 다음 LOWERDB 값(각각 5 정수 SV에 소수 숫자, 6 A인데 숫자 아님·정수 SV에 소수 A) → 2(UPPERDB > LIMITMAX) → 3(LOWERDB < LIMITMIN) → 4(UPPERDB < LOWERDB). 값은 SV 포맷으로 바꿔 저장. 해제: VID 목록이 비면 전부, VID의 리밋 목록이 비면 그 VID, `<L LIMITID <L>>`이면 그 LIMITID
 * S2F47: 빈 목록이면 리밋 가능한 SV 전부. 모르는·리밋 불가 VID는 `<L VID <L>>`
 * 판정은 `SetValue` 때만(폴링 없음). 값 ≥ UPPERDB면 위 구역, 값 ≤ LOWERDB면 아래 구역, 그 사이(데드밴드)는 구역 유지. **아래 ↔ 위로 넘어갈 때만** CE. 정의 직후와 NO ZONE에서 처음 구역에 들어갈 때는 CE 없음. 한 번의 `SetValue`에서 여러 LIMITID가 넘어가면 방향별로 CE 하나(EventLimit = 넘어간 LIMITID 목록). 리밋 SV 값이 숫자 하나가 아니면(배열·길이 0) 판정하지 않음
 * CE는 `TriggerEvent` 규칙 그대로(활성·ON-LINE·통신, 스풀). OFF-LINE이나 CE를 꺼서 안 가도 구역은 갱신됨
@@ -121,7 +120,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * 실제 MES·장비와는 확인하지 못했고 secsgem 장비와의 상호 운용만 확인함
 
 ## 메시징 층 (GemMessages)
-`GemMessages`는 정적 클래스로, 만들기 `S1F13(...)`는 `SecsMessage`를 돌려주고 해석 `ParseS6F11(...)`는 값이나 기존 정보 형식(`GemEventReport`·`GemAlarmInfo` 등)을 돌려줌. 메서드 이름이 SEMI 메시지 이름이라 IntelliSense에서 `GemMessages.S6`으로 찾을 수 있음. S1·S2·S5·S6·S10의 주요 메시지를 지원함.
+`GemMessages`는 정적 클래스로, 만들기 `S1F13(...)`는 `SecsMessage`를 돌려주고 해석 `ParseS6F11(...)`는 값이나 기존 정보 형식(`GemEventReport`·`GemAlarmInfo` 등)을 돌려줌. 메서드 이름이 SEMI 메시지 이름이라 IntelliSense에서 `GemMessages.S6`으로 찾을 수 있음. S1·S2·S5·S6·S7·S10의 주요 메시지를 지원함.
 
 * 1차 메시지(홀수 Function)는 W비트가 켜짐. E5에서 응답이 선택인 S5F1·S6F1·S6F11·S10F1·S10F3만 `replyExpected`(기본 true) 인자가 있음. 응답 빌더(짝수 Function)는 W비트 없이 `e.Reply(GemMessages.S1F14(...))`로 씀
 * 해석기는 Stream/Function이 다르면 `ArgumentException`(프로그램 오류), 본문 모양이 다르면 `FormatException`(문장에 앞 2048자 SML). 본문이 없는 메시지(S1F3 등)는 빈 목록
@@ -204,7 +203,7 @@ Host 앱은 `PrimaryReceived`에서 `GemMessages.ParseS6F11(e.Message, table, fo
 |---|---|
 | E1 | GEM 상태(통신·제어)는 와이어 순서로 바뀜. Host 1차 메시지 처리(자동 응답, `RemoteCommandReceived` 등)와 GEM 송신 결과(`SendFailed`, S1F2 → `ControlStateChanged`, S2F18 → `ClockSet`, S1F14 → `CommunicationStateChanged`)는 장비가 그 메시지들을 받은 순서대로 일어나고 그 순서로 이벤트가 나감 |
 | E2a | 끊김·`DisableCommunication`: ① 버린 메시지의 `SendFailed`(NotCommunicating 또는 Disabled, 원래 보낼 순서대로 — 응답 대기 중이던 것 먼저, 다음 대기열 앞부터, 장비 S1F13은 알리지 않음) → ② `CommunicationStateChanged` → ③ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
-| E2b | S5F1·S6F1·S6F11·S10F1·S2F17의 T3: ① 그 메시지의 `SendFailed(Timeout)` → ② 남은 대기열의 `SendFailed(NotCommunicating)` → ③ `CommunicationStateChanged` → ④ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged` |
+| E2b | 장비 S1F13·`GoOnline`의 S1F1(E2c)을 뺀 GEM 송신(S5F1·S6F1·S6F11·S10F1·S2F17·S7F1·S7F3·S7F5, S6F5 문의)의 T3: ① 그 메시지의 `SendFailed(Timeout)`(S6F5면 원래 S6F11·S6F1의 것) → ② 남은 대기열의 `SendFailed(NotCommunicating)` → ③ `CommunicationStateChanged` → ④ ATTEMPT ON-LINE이었으면 전이 4의 `ControlStateChanged`. S7 송신(`UploadProcessProgramAsync`·`RequestProcessProgramAsync`)은 ①·②를 `SendFailed` 대신 Task 결과로 알림 |
 | E2c | `GoOnline`의 S1F1 T3: ① `SendFailed(Timeout)` → ② `ControlStateChanged`(→ `OnlineFailedState`) → ③ 남은 대기열의 `SendFailed(NotCommunicating)` → ④ `CommunicationStateChanged` |
 | E2d | 장비 S1F13의 T3·실패: `ProtocolError`만(통신 실패 아님) |
 | E2 참고 | E2a·E2b에서 `SendFailed`가 `CommunicationStateChanged`보다 먼저이므로 `SendFailed` 핸들러 안에서 `CommunicationState`가 아직 Communicating일 수 있음 |
