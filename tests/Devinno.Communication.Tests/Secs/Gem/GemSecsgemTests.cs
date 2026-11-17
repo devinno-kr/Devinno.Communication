@@ -232,6 +232,7 @@ public class GemSecsgemTests
         say("COMMUNICATING")
         say("ONLINE", h.go_online())
         say("SEND", h.send_process_program("R1", "body"))             # S7F1 없이 S7F3
+        sys.stdin.readline()                                          # C#이 저장소를 확인할 때까지 기다림(아니면 뒤의 S7F17이 먼저 지울 수 있음)
         say("REQUEST", list(h.request_process_program("R1")))
         say("LIST", h.get_process_program_list())
         say("DELETE", h.delete_process_programs(["R1"]))
@@ -256,6 +257,7 @@ public class GemSecsgemTests
         Assert.Equal("ONLINE 0", py.WaitLine("ONLINE"));
         Assert.Equal("SEND 0", py.WaitLine("SEND"));                                        // S7F3 → ACKC7 0
         Assert.Equal("body", store.Peek("R1")!.Body.GetString());
+        py.Send("go");
         Assert.Equal("REQUEST ['R1', 'body']", py.WaitLine("REQUEST"));                     // S7F5 → S7F6
         Assert.Equal("LIST ['R1']", py.WaitLine("LIST "));                                  // S7F19 → S7F20
         Assert.Equal("DELETE 0", py.WaitLine("DELETE"));                                    // S7F17 → ACKC7 0
