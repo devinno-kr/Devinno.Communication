@@ -87,6 +87,17 @@ public class GemMessagesLimitTests
     }
 
     [Fact]
+    public void ParseS2F46_EmptyItemPair_IsNoLimit()
+    {
+        // 다른 구현은 "LIMITID 없음"을 <L> 대신 길이 0 아이템 둘(<L [2] <B> <B>>)로 쓰기도 한다(secsgem 교차 확인에서 발견)
+        var (vlaack, errors) = GemMessages.ParseS2F46(M("S2F46 <L <B 1> <L <L <U2 2002> <B 1> <L <B> <B>>>>>"));
+        Assert.Equal(1, vlaack);
+        var e = Assert.Single(errors);
+        Assert.Equal(((GemId)2002, (byte)1, (byte?)null, (byte?)null), (e.Vid, e.Lvack, e.LimitId, e.Limitack));
+        Assert.Throws<FormatException>(() => GemMessages.ParseS2F46(M("S2F46 <L <B 1> <L <L <U4 1> <B 4> <L <B 1> <B>>>>>")));   // 하나만 비면 구조 오류
+    }
+
+    [Fact]
     public void S2F47_RoundTrip()
     {
         var m = GemMessages.S2F47([2001]);

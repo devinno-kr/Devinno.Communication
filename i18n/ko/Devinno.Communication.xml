@@ -9831,12 +9831,13 @@
             <exception cref="T:System.ArgumentException">글자 VID를 숫자 포맷으로 보낼 수 없음.</exception>
             <exception cref="T:System.ArgumentOutOfRangeException">VID가 그 포맷의 범위 밖.</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F46(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="1b94465660c2ce44">
+        <member name="M:Devinno.Communication.Secs.Gem.GemMessages.ParseS2F46(Devinno.Communication.Secs.Data.SecsMessage)" en-hash="5f4e3c6925ec28cc">
             <summary>S2F46 Variable Limit Attribute Acknowledge를 읽습니다.</summary>
             <param name="message">받은 S2F46.</param>
             <returns>VLAACK과 오류가 난 변수(VID는 정수 포맷 무엇이든 또는 A, 코드는 숫자 포맷 무엇이든).</returns>
             <exception cref="T:System.ArgumentNullException"><paramref name="message" />가 null임.</exception>
             <exception cref="T:System.ArgumentException"><paramref name="message" />가 S2F46가 아님.</exception>
+            <remarks>"LIMITID 없음"은 &lt;L&gt;뿐 아니라 길이 0 아이템 둘(&lt;L &lt;B&gt; &lt;B&gt;&gt;, 일부 구현이 보내는 모양)로도 읽습니다.</remarks>
             <exception cref="T:System.FormatException">본문이 &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;(0 또는 2)&gt;…&gt;&gt;가 아님.</exception>
         </member>
         <member name="M:Devinno.Communication.Secs.Gem.GemMessages.S2F47(System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId},Devinno.Communication.Secs.Gem.GemFormats)" en-hash="66c1c9b578743200">

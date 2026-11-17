@@ -1,5 +1,4 @@
 using Devinno.Communication.Secs.Data;
-using Devinno.Communication.Secs.Serial;
 
 namespace Devinno.Communication.Secs.Gem;
 
@@ -19,7 +18,7 @@ public partial class GemEquipment
     // Pump가 꺼낸 항목을 S6F5 문의 항목으로 바꿀지(gate 안). 바꾸지 않으면 null
     Outgoing? InquiryLocked(Outgoing o)
     {
-        if (!multiBlockInquire || o.Inquired || o.InquiryFor != null || transport.Target is not SecsSerial) return null;
+        if (!multiBlockInquire || o.Inquired || o.InquiryFor != null || !transport.IsSerial) return null;
         if (o.Message is not { Stream: 6, Function: 1 or 11, Item: { } body }) return null;                 // S6F1이면 DATAID 자리에 TRID
         int length = SecsCodec.Encode(body).Length;
         if (length <= SingleBlockLimit) return null;

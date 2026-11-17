@@ -609,6 +609,7 @@ public static partial class GemMessages
     /// <returns>VLAACK and the variables in error (VID any integer format or A, codes any numeric format).</returns>
     /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="message"/> is not S2F46.</exception>
+    /// <remarks>"No LIMITID" is read from &lt;L&gt; and also from two zero-length items (&lt;L &lt;B&gt; &lt;B&gt;&gt;), which some implementations send.</remarks>
     /// <exception cref="FormatException">The body is not &lt;L VLAACK &lt;L &lt;L VID LVACK &lt;L LIMITID LIMITACK&gt;(0 or 2)&gt;…&gt;&gt;.</exception>
     public static (byte Vlaack, IReadOnlyList<GemLimitError> Errors) ParseS2F46(SecsMessage message)
     {
@@ -619,7 +620,9 @@ public static partial class GemMessages
         return (vlaack, [.. body.Items[1].Items.Select(e =>
         {
             if (e is not { Format: SecsFormat.List, Count: 3 } || e.Items[2] is not { Format: SecsFormat.List, Count: 0 or 2 } pair) throw Fail(message, expected);
-            return pair.Count == 2
+            // "LIMITID 없음"은 <L> 또는 길이 0 아이템 둘(<L <B> <B>>, 다른 구현이 쓰는 모양)
+            bool none = pair.Count == 0 || pair.Items[0].Count == 0 && pair.Items[1].Count == 0 && pair.Items[0].Format != SecsFormat.List && pair.Items[1].Format != SecsFormat.List;
+            return !none
                 ? new GemLimitError(Id(e.Items[0], message, expected), Ack(e.Items[1], message, expected), Ack(pair.Items[0], message, expected), Ack(pair.Items[1], message, expected))
                 : new GemLimitError(Id(e.Items[0], message, expected), Ack(e.Items[1], message, expected), null, null);
         })]);

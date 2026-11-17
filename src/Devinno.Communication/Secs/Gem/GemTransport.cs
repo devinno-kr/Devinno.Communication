@@ -8,6 +8,9 @@ namespace Devinno.Communication.Secs.Gem;
 internal sealed class GemTransport
 {
     public required object Target { get; init; }
+    // SECS-I인가. 송신 경로(Pump)는 이 값만 본다 — `is SecsSerial` 검사는 System.IO.Ports 어셈블리를 불러오므로,
+    // 그 어셈블리가 없는 HSMS 전용 배포에서 Pump가 예외로 멈추지 않게(바탕화면 교차 확인에서 발견)
+    public bool IsSerial { get; init; }
     // 동기 보내기: 호출 스레드에서 송신 완료·응답을 기다린다(스레드풀을 거치지 않음, Plan 7)
     public required Func<SecsMessage, SecsMessage?> Send { get; init; }
     public required Func<SecsMessage, CancellationToken, Task<SecsMessage?>> SendAsync { get; init; }
@@ -48,6 +51,7 @@ internal sealed class GemTransport
     public static GemTransport Of(SecsSerial s) => new()
     {
         Target = s,
+        IsSerial = true,
         Send = s.Send,
         SendAsync = s.SendAsync,
         SendOrdered = s.SendOrdered,
