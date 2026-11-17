@@ -4,7 +4,7 @@ using Devinno.Communication.Secs.Gem;
 
 namespace Devinno.Communication.Tests.Secs.Gem;
 
-/// GemHost.SendEnhancedRemoteCommand(S2F49, Plan 17 Task 3): 우리 GemEquipment와 루프백
+/// GemHost.EnhancedRemoteCommand(S2F49, Plan 17 Task 3): 우리 GemEquipment와 루프백
 [Collection(nameof(GemHostCollection))]
 public class GemHostEnhancedCommandTests
 {
@@ -19,7 +19,7 @@ public class GemHostEnhancedCommandTests
         });
         using (eq) using (host)
         {
-            var r = host.SendEnhancedRemoteCommand("CH1", "START", ("LOTID", SecsItem.A("L1")));
+            var r = host.EnhancedRemoteCommand("CH1", "START", ("LOTID", SecsItem.A("L1")));
             Assert.Equal(0, r.Hcack);
             Assert.True(r.IsAccepted);
             Assert.Empty(r.ParameterAcks);
@@ -38,7 +38,7 @@ public class GemHostEnhancedCommandTests
         });
         using (eq) using (host)
         {
-            var r = host.SendEnhancedRemoteCommand("", "SETUP", ("STEPS", SecsItem.L(SecsItem.U4(1), SecsItem.U4(2))));
+            var r = host.EnhancedRemoteCommand("", "SETUP", ("STEPS", SecsItem.L(SecsItem.U4(1), SecsItem.U4(2))));
             Assert.Equal(GemAck.HcackParameterInvalid, r.Hcack);
             Assert.Equal("STEPS", r.ParameterAcks[0].Name);
             Assert.Equal(SecsItem.L(SecsItem.U1(0), SecsItem.U1(2)), r.ParameterAcks[0].Cepack);
@@ -61,8 +61,8 @@ public class GemHostEnhancedCommandTests
         });
         using (eq) using (host)
         {
-            host.SendEnhancedRemoteCommand("", "STOP");
-            host.SendEnhancedRemoteCommand("", "STOP");
+            host.EnhancedRemoteCommand("", "STOP");
+            host.EnhancedRemoteCommand("", "STOP");
             Assert.Equal(2, ids.Count);
             var a = ids.ToArray();
             Assert.NotEqual(a[0], a[1]);
@@ -80,7 +80,7 @@ public class GemHostEnhancedCommandTests
         });
         using (eq) using (host)
         {
-            var r = await host.SendEnhancedRemoteCommandAsync("CH2", "STOP");
+            var r = await host.EnhancedRemoteCommandAsync("CH2", "STOP");
             Assert.Equal(GemAck.HcackAcceptedLater, r.Hcack);
             Assert.True(r.IsAccepted);
         }

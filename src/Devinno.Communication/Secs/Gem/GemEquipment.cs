@@ -401,7 +401,7 @@ public partial class GemEquipment : IDisposable
     #region Start / Stop
     /// <summary>Checks the definitions, initializes the state, and then starts the GEM threads and the transport. Does nothing if already started.</summary>
     /// <remarks>The state (values, reports, links, enable flags, alarms, clock) returns to its initial values at every Start, except what a folder keeps:
-    /// with <see cref="StateDirectory"/> set, the reports, links, CE enables, alarm enables, EC values, and the LOCAL/REMOTE switch chosen earlier are restored (entries that no longer match the definitions are dropped and reported once through <see cref="ProtocolError"/>);
+    /// with <see cref="StateDirectory"/> set, the reports, links, CE enables, alarm enables, EC values, limits (restored without a zone), and the LOCAL/REMOTE switch chosen earlier are restored (entries that no longer match the definitions are dropped and reported once through <see cref="ProtocolError"/>);
     /// with <see cref="SpoolDirectory"/> set, the spooled messages, the spooling state, and the spool target table chosen by S2F43 are restored. The clock, SV/DV values, and the alarm set state always start from their initial values.</remarks>
     /// <exception cref="ObjectDisposedException">Disposed</exception>
     /// <exception cref="InvalidOperationException">A definition is wrong (ID overlap, format range, unknown VID reference) or the transport has already been started. The transport is not started.</exception>
@@ -787,7 +787,9 @@ public partial class GemEquipment : IDisposable
             var next = resumeNext ?? (sendQueue.Count > 0 ? sendQueue.Dequeue() : SpoolHeadLocked());
             resumeNext = null;
             if (next == null) return;
-            next = InquiryLocked(next) ?? next;                                  // SECS-I의 큰 S6F11은 S6F5로 먼저 묻는다
+            // SECS-I의 큰 S6F11·S6F1은 S6F5로 먼저 묻는다. 판단이 예외를 내면 꺼낸 메시지를 잃지 않게 문의 없이 보낸다(GemLoop가 예외를 삼키므로)
+            try { next = InquiryLocked(next) ?? next; }
+            catch (Exception ex) { Error($"S6F5 문의 판단에 실패해 문의 없이 보냅니다: {ex.GetType().Name}: {ex.Message}"); }
             o = inFlight = next;
             o.Epoch = linkEpoch;
         }

@@ -15,11 +15,15 @@ public partial class GemEquipment
     /// <exception cref="InvalidOperationException">Changed while running</exception>
     public bool MultiBlockInquire { get => multiBlockInquire; set => Setting(() => multiBlockInquire = value); }
 
+    // 테스트용: 문의 판단이 예외를 내는 경우를 만든다
+    internal Action? InquiryFailForTest;
+
     // Pump가 꺼낸 항목을 S6F5 문의 항목으로 바꿀지(gate 안). 바꾸지 않으면 null
     Outgoing? InquiryLocked(Outgoing o)
     {
         if (!multiBlockInquire || o.Inquired || o.InquiryFor != null || !transport.IsSerial) return null;
-        if (o.Message is not { Stream: 6, Function: 1 or 11, Item: { } body }) return null;                 // S6F1이면 DATAID 자리에 TRID
+        if (o.Message is not { Stream: 6, Function: 1 or 11, Item: { } body }) return null;
+        InquiryFailForTest?.Invoke();                 // S6F1이면 DATAID 자리에 TRID
         int length = SecsCodec.Encode(body).Length;
         if (length <= SingleBlockLimit) return null;
         return new Outgoing(GemMessages.S6F5(body.Items[0], (uint)length), InquiryDone) { InquiryFor = o, SpoolSeq = o.SpoolSeq, Run = o.Run };

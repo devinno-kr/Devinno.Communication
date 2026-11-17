@@ -308,16 +308,16 @@ public partial class GemHost
     /// <exception cref="SecsErrorException">The equipment replied with S9Fx.</exception>
     /// <exception cref="SecsDisconnectedException">The connection dropped while waiting for the reply.</exception>
     /// <exception cref="FormatException">The reply body structure differs from what was expected.</exception>
-    public GemEnhancedCommandResult SendEnhancedRemoteCommand(string objectSpec, string command, params (string Name, SecsItem Value)[] parameters)
+    public GemEnhancedCommandResult EnhancedRemoteCommand(string objectSpec, string command, params (string Name, SecsItem Value)[] parameters)
         => GemMessages.ParseS2F50(Ask(EnhancedRequest(objectSpec, command, parameters)));
 
-    /// <summary>Sends an enhanced remote command (S2F49). The rules and exceptions are the same as for <see cref="SendEnhancedRemoteCommand"/>.</summary>
+    /// <summary>Sends an enhanced remote command (S2F49). The rules and exceptions are the same as for <see cref="EnhancedRemoteCommand"/>.</summary>
     /// <param name="objectSpec">OBJSPEC ("" = the equipment itself).</param>
     /// <param name="command">The command name RCMD.</param>
     /// <param name="parameters">The parameters (CPNAME, CEPVAL); null means none.</param>
     /// <param name="cancellationToken">Cancels waiting for the reply.</param>
     /// <returns>The result.</returns>
-    public async Task<GemEnhancedCommandResult> SendEnhancedRemoteCommandAsync(string objectSpec, string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters = null, CancellationToken cancellationToken = default)
+    public async Task<GemEnhancedCommandResult> EnhancedRemoteCommandAsync(string objectSpec, string command, IReadOnlyList<(string Name, SecsItem Value)>? parameters = null, CancellationToken cancellationToken = default)
     {
         var request = EnhancedRequest(objectSpec, command, parameters);
         return GemMessages.ParseS2F50(await AskAsync(request, cancellationToken).ConfigureAwait(false));

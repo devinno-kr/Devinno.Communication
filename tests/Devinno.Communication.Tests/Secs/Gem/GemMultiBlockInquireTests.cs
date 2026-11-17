@@ -121,6 +121,23 @@ public class GemMultiBlockInquireTests
     }
 
     [Fact]
+    public async Task InquiryCheckThrows_SendsOriginal_ReportsError()
+    {
+        // 문의 판단이 예외를 내도 꺼낸 메시지를 잃지 않는다: 문의 없이 보내고 ProtocolError(6J 통합 리뷰)
+        using var c = await Ctx.Start();
+        c.SetBodySize(300);
+        c.Eq.InquiryFailForTest = () => throw new InvalidOperationException("boom");
+        Assert.True(c.Eq.TriggerEvent(5001));
+        c.Next(6, 11);
+        await TestUtil.Until(() => GemKit.Only(c.Log, "Error").Any(l => l.Contains("S6F5")), 3000);
+        c.Eq.InquiryFailForTest = null;
+        c.Grants.Enqueue(GemAck.Grant6Granted);
+        Assert.True(c.Eq.TriggerEvent(5001));                                                   // 다음 메시지는 평소대로
+        c.Next(6, 5);
+        c.Next(6, 11);
+    }
+
+    [Fact]
     public async Task Small_S6F11_NoInquiry_Boundary244()
     {
         using var c = await Ctx.Start();

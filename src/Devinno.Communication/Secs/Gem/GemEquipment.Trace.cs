@@ -134,13 +134,17 @@ public partial class GemEquipment
     }
 
     // 모은 표본을 S6F1 하나로(gate 안). OFF-LINE이면 버림(알림 없음, 6J.7.2).
-    // 송신 대기열은 절반까지만 쓴다: Host가 S6F1에 늦게 답해도 알람·이벤트 자리가 남게(넘으면 이 보고만 SendFailed QueueFull)
+    // 송신 대기열과 스풀은 절반까지만 쓴다: Host가 늦게 답하거나 연결이 끊겨도 알람·이벤트 자리가 남게
+    // (넘으면 이 보고만 SendFailed QueueFull / SpoolFull)
     void ReportTraceLocked(Trace t)
     {
         var report = GemMessages.S6F1(t.TridItem, t.Taken, t.BufferTime!, t.Buffer, traceReplyExpected);
         t.Buffer.Clear();
         if (IsOffline(control)) return;
-        if (commState == GemCommunicationState.Communicating && !SpoolsLocked(report) && sendQueue.Count >= Math.Max(1, maxPendingSends / 2))
+        bool spools = SpoolsLocked(report);                                    // 스풀 ACTIVE이고 S6F1이 대상(실시간이 아니라 스풀로 감)
+        if (spools && spool.Count >= Math.Max(1, maxSpoolMessages / 2))
+            Raise(SendFailed, new GemSendFailedEventArgs(report, GemSendFailure.SpoolFull, null, null));
+        else if (commState == GemCommunicationState.Communicating && !spools && sendQueue.Count >= Math.Max(1, maxPendingSends / 2))
             Raise(SendFailed, new GemSendFailedEventArgs(report, GemSendFailure.QueueFull, null, null));
         else SendOrSpoolLocked(report);
     }

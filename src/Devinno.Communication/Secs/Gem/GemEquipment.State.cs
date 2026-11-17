@@ -10,7 +10,7 @@ public partial class GemEquipment
 
     /// <summary>Folder where the settings chosen by the Host are kept across restarts (default: null = persistence off). Setting it turns persistence on at the next <see cref="Start"/>.</summary>
     /// <remarks>
-    /// <para>Kept in <c>gem.state</c> (XML): the reports (S2F33), links (S2F35), CE enables (S2F37), alarm enables (S5F3), all EC values (S2F15 and <see cref="SetConstant"/>), and the LOCAL/REMOTE switch. The clock offset, SV/DV values, and the alarm set state are not kept.
+    /// <para>Kept in <c>gem.state</c> (XML): the reports (S2F33), links (S2F35), CE enables (S2F37), alarm enables (S5F3), all EC values (S2F15 and <see cref="SetConstant"/>), the limits (S2F45), and the LOCAL/REMOTE switch. The clock offset, SV/DV values, and the alarm set state are not kept.
     /// At <see cref="Start"/>, entries that no longer match the definitions (a removed ID, an EC value outside the new range, an ID that cannot be expressed in a changed ID format) are dropped and reported once through <see cref="ProtocolError"/>; a CE or alarm added since is enabled according to <see cref="EventsEnabledByDefault"/> / <see cref="AlarmsEnabledByDefault"/>.
     /// A damaged file is renamed to <c>gem.state.bad</c> and GEM starts from the initial values.</para>
     /// <para>The file is written on a separate thread after the reply, so a power loss right after a change may lose that last change. To go back to the initial state, delete <c>gem.state</c> while stopped.

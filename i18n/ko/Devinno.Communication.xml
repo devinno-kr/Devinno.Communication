@@ -6523,10 +6523,10 @@
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" en-hash="175c965c1cc99b9b">
             <summary>진단용 알림(S9 보냄, 본문 구조 오류, 기한 초과, 겹친 응답, 통신 수립 실패 등)이 앱 이벤트 스레드에서 발생합니다. 동작에는 영향이 없습니다.</summary>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" en-hash="c1b8014f49dcd2ba">
+        <member name="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" en-hash="348f69e56e24996e">
             <summary>정의를 검사하고 상태를 초기화한 뒤 GEM 스레드와 전송을 시작합니다. 이미 시작했으면 아무것도 하지 않습니다.</summary>
             <remarks>상태(값·리포트·링크·활성화·알람·시계)는 Start마다 처음 값으로 돌아갑니다. 단 폴더가 남겨 두는 것은 예외입니다:
-            <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.StateDirectory" />를 정했으면 앞서 정한 리포트·링크·CE 활성화·알람 활성화·EC 값·LOCAL/REMOTE 스위치를 되살립니다(지금 정의와 맞지 않는 항목은 버리고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 한 번 알림).
+            <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.StateDirectory" />를 정했으면 앞서 정한 리포트·링크·CE 활성화·알람 활성화·EC 값·리밋(구역 없이 시작)·LOCAL/REMOTE 스위치를 되살립니다(지금 정의와 맞지 않는 항목은 버리고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 한 번 알림).
             <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.SpoolDirectory" />를 정했으면 스풀한 메시지·스풀링 상태·S2F43으로 정한 스풀 대상 표를 되살립니다. 시계·SV/DV 값·알람 발생 상태는 늘 처음 값으로 시작합니다.</remarks>
             <exception cref="T:System.ObjectDisposedException">Dispose 한 경우</exception>
             <exception cref="T:System.InvalidOperationException">정의가 틀렸거나(ID 겹침·포맷 범위·모르는 VID 참조) 전송이 이미 시작된 경우. 전송은 시작하지 않습니다.</exception>
@@ -6696,10 +6696,10 @@
         <member name="E:Devinno.Communication.Secs.Gem.GemEquipment.SpoolStateChanged" en-hash="1f89ad40ed5aad1f">
             <summary>스풀링 상태나 가득 참 여부가 바뀌었을 때(예: 스풀링 활성화, 스풀이 가득 참) 앱 이벤트 스레드에서 발생합니다. 메시지 수만 바뀌면 발생하지 않습니다.</summary>
         </member>
-        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.StateDirectory" en-hash="7a844d2e04cd440d">
+        <member name="P:Devinno.Communication.Secs.Gem.GemEquipment.StateDirectory" en-hash="d8bb97607ccb8e06">
             <summary>Host가 정한 설정을 재시작 뒤에도 남겨 두는 폴더(기본: null = 영속화 끔). 지정하면 다음 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" />부터 영속화가 켜집니다.</summary>
             <remarks>
-            <para><c>gem.state</c>(XML)에 남기는 것: 리포트(S2F33), 링크(S2F35), CE 활성화(S2F37), 알람 활성화(S5F3), 모든 EC 값(S2F15와 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.SetConstant(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem)" />), LOCAL/REMOTE 스위치. 시계 오프셋·SV/DV 값·알람 발생 상태는 남기지 않습니다.
+            <para><c>gem.state</c>(XML)에 남기는 것: 리포트(S2F33), 링크(S2F35), CE 활성화(S2F37), 알람 활성화(S5F3), 모든 EC 값(S2F15와 <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.SetConstant(Devinno.Communication.Secs.Gem.GemId,Devinno.Communication.Secs.Data.SecsItem)" />), 리밋(S2F45), LOCAL/REMOTE 스위치. 시계 오프셋·SV/DV 값·알람 발생 상태는 남기지 않습니다.
             <see cref="M:Devinno.Communication.Secs.Gem.GemEquipment.Start" /> 때 지금 정의와 맞지 않는 항목(빠진 ID, 새 범위를 벗어난 EC 값, 바뀐 ID 포맷으로 나타낼 수 없는 ID)은 버리고 <see cref="E:Devinno.Communication.Secs.Gem.GemEquipment.ProtocolError" />로 한 번 알립니다. 그 뒤에 더한 CE·알람은 <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.EventsEnabledByDefault" /> / <see cref="P:Devinno.Communication.Secs.Gem.GemEquipment.AlarmsEnabledByDefault" />대로 켜집니다.
             깨진 파일은 <c>gem.state.bad</c>로 이름을 바꾸고 처음 값으로 시작합니다.</para>
             <para>파일은 응답 뒤 별도 스레드에서 쓰므로 바꾼 직후 정전되면 그 마지막 변경을 잃을 수 있습니다. 처음 상태로 되돌리려면 멈춘 동안 <c>gem.state</c>를 지우세요.
@@ -8172,7 +8172,7 @@
             <param name="cancellationToken">응답 기다리기 취소</param>
             <returns>결과</returns>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" en-hash="933fcdb9cb72e613">
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.EnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" en-hash="933fcdb9cb72e613">
             <summary>확장 리모트 명령(S2F49 &lt;L DATAID OBJSPEC RCMD &lt;L &lt;L CPNAME CEPVAL&gt;…&gt;&gt;)을 보냅니다. DATAID는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.DefineReports(System.Collections.Generic.IReadOnlyList{System.ValueTuple{Devinno.Communication.Secs.Gem.GemId,System.Collections.Generic.IReadOnlyList{Devinno.Communication.Secs.Gem.GemId}}})" />도 쓰는 카운터의 다음 번호이고, RCMD·CPNAME은 A로 보내며 값은 리스트여도 됩니다.</summary>
             <remarks>장비는 S2F50(HCACK과 오류 파라미터마다 CEPACK, 숫자 또는 리스트 값 CEPVAL과 같은 모양의 리스트)으로 답합니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.RemoteCommand(System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />와 같습니다. SecsTimeoutException, SecsDisconnectedException, 취소, 그리고 HCACK 2조차 명령이 실행되지 않았다는 증거가 아닙니다.</remarks>
             <param name="objectSpec">OBJSPEC, 대상 객체("" = 장비 자체).</param>
@@ -8188,8 +8188,8 @@
             <exception cref="T:Devinno.Communication.Secs.Data.SecsDisconnectedException">응답을 기다리는 사이 연결이 끊겼습니다.</exception>
             <exception cref="T:System.FormatException">응답 본문 구조가 기대와 다릅니다.</exception>
         </member>
-        <member name="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommandAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},System.Threading.CancellationToken)" en-hash="1b8cf17615a65341">
-            <summary>확장 리모트 명령(S2F49)을 보냅니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.SendEnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />과 같습니다.</summary>
+        <member name="M:Devinno.Communication.Secs.Gem.GemHost.EnhancedRemoteCommandAsync(System.String,System.String,System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}},System.Threading.CancellationToken)" en-hash="e2877ef28c04ab95">
+            <summary>확장 리모트 명령(S2F49)을 보냅니다. 규칙과 예외는 <see cref="M:Devinno.Communication.Secs.Gem.GemHost.EnhancedRemoteCommand(System.String,System.String,System.ValueTuple{System.String,Devinno.Communication.Secs.Data.SecsItem}[])" />과 같습니다.</summary>
             <param name="objectSpec">OBJSPEC("" = 장비 자체).</param>
             <param name="command">명령 이름 RCMD.</param>
             <param name="parameters">파라미터(CPNAME, CEPVAL). null이면 없음.</param>

@@ -282,6 +282,35 @@ public class GemTraceReportTests
     }
 
     [Fact]
+    public async Task Spool_TraceReportsUseAtMostHalfTheSpool()
+    {
+        // 끊긴 동안 트레이스 보고는 스풀의 절반까지만: 이벤트·알람이 SpoolFull로 버려지지 않게(6J 통합 리뷰)
+        var dir = Path.Combine(Path.GetTempPath(), "devinno-trace-" + Guid.NewGuid());
+        try
+        {
+            var clock = new Clock();
+            using var eq = Eq(clock, e => { e.SpoolDirectory = dir; e.MaxSpoolMessages = 4; e.EventsEnabledByDefault = true; });
+            var log = GemKit.Log(eq);
+            var host = await GemKit.Communicating(eq);
+            Assert.Equal("S2F44 <L [2] <B 0x00> <L [0]>>", await host.Ask("S2F43 W <L <L <U1 6> <L>>>"));
+            await Define(host, 10, 1);
+            host.Dispose();
+            await TestUtil.Until(() => eq.SpoolState == GemSpoolState.NoOutput, 5000);
+            for (int i = 0; i < 4; i++) await Step(eq, clock);
+            await TestUtil.Until(() => GemKit.Only(log, "SendFailed S6F1 SpoolFull").Length > 0, 3000);
+            Assert.True(eq.SpoolCount <= 2, $"spool {eq.SpoolCount}");
+            Assert.True(eq.TriggerEvent(5002));
+            Assert.True(eq.TriggerEvent(5002));
+            await Task.Delay(200);
+            Assert.Empty(GemKit.Only(log, "SendFailed S6F11"));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task Stop_NoMoreReports()
     {
         var clock = new Clock();

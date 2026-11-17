@@ -39,7 +39,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * 이벤트 순서(스풀을 켰을 때): 끊김의 스풀한 메시지는 `SendFailed`를 내지 않음. 순서는 ① 스풀하지 못한 것의 `SendFailed` → ② `CommunicationStateChanged` → ③ (전이 4의 `ControlStateChanged`) → ④ `SpoolStateChanged`(활성화). 꺼져 있으면 아래 표 그대로
 
 ### 설정 영속화
-기본은 꺼짐. `GemEquipment.StateDirectory`에 폴더를 정하면 켜짐. Host가 정한 리포트(S2F33)·링크(S2F35)·CE 활성화(S2F37)·알람 활성화(S5F3)와 모든 EC 값(S2F15·`SetConstant`), LOCAL/REMOTE 스위치를 `gem.state`(XML)에 저장하고 다음 `Start`에서 되살림. 그래서 처음 접속할 때만 설정하는 Host도 장비를 재시작한 뒤 데이터 수집이 끊기지 않음. 시계 오프셋·SV/DV 값·알람 발생 상태는 저장하지 않음(앱이 장비 실제 상태로 다시 정함).
+기본은 꺼짐. `GemEquipment.StateDirectory`에 폴더를 정하면 켜짐. Host가 정한 리포트(S2F33)·링크(S2F35)·CE 활성화(S2F37)·알람 활성화(S5F3)와 모든 EC 값(S2F15·`SetConstant`), 리밋(S2F45), LOCAL/REMOTE 스위치를 `gem.state`(XML)에 저장하고 다음 `Start`에서 되살림. 그래서 처음 접속할 때만 설정하는 Host도 장비를 재시작한 뒤 데이터 수집이 끊기지 않음. 시계 오프셋·SV/DV 값·알람 발생 상태는 저장하지 않음(앱이 장비 실제 상태로 다시 정함).
 
 * **정의가 바뀐 경우**: 앱을 업데이트해 VID·CE·알람·EC를 빼거나 ID 포맷을 바꿨으면, 지금 정의와 맞지 않는 항목만 버리고 나머지는 복원. 버린 개수는 `Start` 뒤 `ProtocolError` 한 번. 새로 더한 CE·알람은 `EventsEnabledByDefault`·`AlarmsEnabledByDefault`대로 시작
 * **폴더 하나 = 장비 하나**: 같은 폴더로 두 번째 `Start`를 하면 `IOException`. `SpoolDirectory`와 같은 폴더는 써도 됨(파일 이름이 다름)
@@ -49,7 +49,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 
 ### 확장 리모트 명령(S2F49)과 다중 블록 문의(S6F5)
 * **S2F49**는 S2F41과 같은 명령 정의(`AddRemoteCommand`)와 같은 `RemoteCommandReceived`로 받고 S2F50으로 답함. `e.ObjectSpec`에 대상 객체(OBJSPEC), `e.IsEnhanced`가 true. 리스트 값 파라미터도 받고(정의 포맷이 null이면 아무 포맷, `SecsFormat.List`면 리스트만), 리스트 CEPACK은 `e.SetParameterAck(name, SecsItem)`. 대상이 없으면 HCACK 6(`GemAck.HcackNoSuchObject`)은 앱이 정함. 앱이 `RegisterMessage(2, 49)`를 했으면 앱이 처리. S2F21은 처리하지 않음
-* GemHost: `SendEnhancedRemoteCommand(objectSpec, rcmd, params…)`(DATAID는 S2F33과 같은 카운터)
+* GemHost: `EnhancedRemoteCommand(objectSpec, rcmd, params…)`(DATAID는 S2F33과 같은 카운터)
 * **S6F5(SECS-I 전용, 기본 꺼짐)**: `MultiBlockInquire = true`면 본문이 244바이트를 넘는 S6F11·S6F1(트레이스 보고) 앞에 S6F5를 먼저 보냄. GRANT6 0이면 바로 그 메시지, 아니면 보내지 않고 `SendFailed(NotGranted)`(재시도 없음). 스풀 머리가 거절되면 스풀에서 지우고 내보내기를 이어 감. HSMS에서는 켜도 아무 변화 없음
 
 ### 트레이스 데이터 수집(S2F23·S6F1)
@@ -57,7 +57,7 @@ Host 쪽은 `GemHost.SetSpoolStreams`(S2F43)·`TransmitSpool`·`PurgeSpool`(S6F2
 * GEM 작업 스레드가 주기(DSPER)마다 SV 값을 표본으로 뜸(TriggerEvent와 같은 스냅숏). 첫 표본은 응답(S2F24) 뒤 한 주기 뒤. REPGSZ개가 모이면 S6F1 하나로 보냄. 본문은 표본을 순서대로 이어 붙인 평평한 목록(표본1 SV1..SVk, 표본2 …)
 * **SMPLN** = 그 보고의 마지막 표본 번호(1부터), **STIME** = 그 보고 첫 표본을 뜬 순간의 GEM 시계(`TimeFormat` 형식). Host는 STIME + i·DSPER로 표본 시각을 복원
 * 늦은 틱(부하)은 놓친 표본을 메우지 않음: 한 칸 이상 늦으면 그 전까지 모은 표본을 먼저 따로 보내고, 늦게 뜬 표본부터 새 보고를 시작하며 다음 예정은 그 시각 + 주기. 그래서 **보고 하나 안에서는 STIME + i·DSPER가 늘 맞음**(SMPLN은 뜬 표본 수라 보고 사이 간격은 DSPER보다 클 수 있음). 작업 스레드는 Windows 타이머 해상도(약 15ms)로 깨어나므로 수십 ms 이하 주기는 건너뜀이 잦음
-* 트레이스 보고는 송신 대기열(`MaxPendingSends`)의 절반까지만 씀. 넘으면 그 보고만 `SendFailed(QueueFull)`로 버림(Host가 S6F1에 늦게 답해도 알람·이벤트 자리가 남게)
+* 트레이스 보고는 송신 대기열(`MaxPendingSends`)과 스풀(`MaxSpoolMessages`)의 절반까지만 씀. 넘으면 그 보고만 `SendFailed(QueueFull)`·`SendFailed(SpoolFull)`로 버림(Host가 S6F1에 늦게 답하거나 연결이 끊겨도 알람·이벤트 자리가 남게). 트레이스를 길게 돌리며 스풀링을 쓰면 S2F43으로 S6F11만 고르는 편이 낫다(트레이스 보고가 스풀 내보내기를 늦춤)
 * TOTSMP개를 다 보내면 저절로 지움. TOTSMP가 REPGSZ의 배수가 아니면 마지막 보고는 남은 표본만
 * TOTSMP 0 = 그 TRID 멈춤(없는 TRID여도 0). 같은 TRID를 다시 보내면 앞 트레이스를 끝내고 새로 시작. 단 거절되면 앞 트레이스는 그대로
 * TIAACK: 1 SVID 너무 많음(`MaxTraceVariables`, 기본 100), 2 트레이스 더 못 받음(`MaxTraces`, 기본 10, 같은 TRID 재정의는 세지 않음), 3 주기 잘못(DSPER가 `hhmmss`·`hhmmsscc`가 아니거나 0이거나 `MinTracePeriod` 기본 100ms보다 짧음), 4 모르는 SVID(빈 목록 포함), 5 REPGSZ 잘못(0, TOTSMP보다 큼, 1000 초과). 문제가 여럿이면 번호가 낮은 것
